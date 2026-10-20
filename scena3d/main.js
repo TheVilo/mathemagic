@@ -16,6 +16,7 @@ scene.background = new THREE.Color(PAPER);
 scene.fog = new THREE.Fog(PAPER, 26, 60);
 // ortografická kamera: žiadna 3D perspektíva, vyzerá ako 2D pixelová hra, ale svetlo a tiene sú skutočné
 const VIEW = 4.2;
+let viewZoom = VIEW;
 const camera = new THREE.OrthographicCamera(-VIEW * 16 / 9, VIEW * 16 / 9, VIEW, -VIEW, 0.1, 200);
 
 // spoločné uniformy pre vietor a pohyb
@@ -170,6 +171,7 @@ const SWAY = `
   float sw = sin(uTime * 1.3 + wp.x * 0.2 + wp.z * 0.13) * 0.5 + sin(uTime * 2.7 + wp.z * 0.4) * 0.15;
   transformed.x += sw * 0.045 * hh * hh;
   transformed.z += sw * 0.02 * hh * hh;`;
+const obstacles = [];
 const trunkMat = animate(std(0x5d5751), SWAY), leafDark = animate(std(0x6f6c66), SWAY), leafLight = animate(std(0x8b8780), SWAY), birchMat = animate(std(0xcfcac0), SWAY);
 function addMesh(g, geo, mat, x, y, z) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; }
 function oak(x, z, s) {
@@ -180,19 +182,19 @@ function oak(x, z, s) {
     addMesh(g, new THREE.IcosahedronGeometry(r, 1).translate(Math.cos(a) * 0.6, 2.7 + rng() * 0.6, Math.sin(a) * 0.6), k % 2 ? leafDark : leafLight, 0, 0, 0);
   }
   addMesh(g, new THREE.IcosahedronGeometry(1.1, 1).translate(0, 3.3, 0), leafLight, 0, 0, 0);
-  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g);
+  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g); obstacles.push(g);
 }
 function pine(x, z, s) {
   const g = new THREE.Group();
   addMesh(g, new THREE.CylinderGeometry(0.12, 0.2, 1.4, 6).translate(0, 0.7, 0), trunkMat, 0, 0, 0);
   for (let k = 0; k < 4; k++) addMesh(g, new THREE.ConeGeometry(1.5 - k * 0.3, 1.5, 8).translate(0, 1.6 + k * 0.85, 0), leafDark, 0, 0, 0);
-  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g);
+  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g); obstacles.push(g);
 }
 function birch(x, z, s) {
   const g = new THREE.Group();
   addMesh(g, new THREE.CylinderGeometry(0.08, 0.12, 3.6, 6).translate(0, 1.8, 0), birchMat, 0, 0, 0);
   for (let k = 0; k < 4; k++) addMesh(g, new THREE.IcosahedronGeometry(0.55, 0).scale(0.8, 1.4, 0.8).translate((rng() - 0.5) * 0.7, 3.0 + k * 0.45, (rng() - 0.5) * 0.7), leafLight, 0, 0, 0);
-  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g);
+  g.position.set(x, groundH(x, z) - 0.05, z); g.scale.setScalar(s); g.rotation.y = rng() * 6; scene.add(g); obstacles.push(g);
 }
 [[-9, -3, oak, 1.1], [-13, 3, pine, 1.2], [-6, -9, birch, 1], [13, 7, oak, 1.3], [16, -2, pine, 1], [9, -8, birch, 1.1],
  [-16, -8, oak, 1], [0, -12, pine, 1.3], [-3, 10, birch, 0.9], [18, 10, pine, 1.4], [-18, 9, oak, 1.2], [6, 12, oak, 1], [11, -12, pine, 1.1], [-11, 12, birch, 1.2]]
@@ -203,7 +205,7 @@ for (let k = 0; k < 9; k++) {
   if (Math.hypot(x - 5, z - 3) < 6 || Math.hypot(x, z) < 3) continue;
   const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + rng() * 0.6, 0), std(0x9a968f));
   st.position.set(x, groundH(x, z) + 0.2, z); st.scale.y = 0.7; st.rotation.set(rng(), rng() * 6, rng());
-  st.castShadow = st.receiveShadow = true; scene.add(st);
+  st.castShadow = st.receiveShadow = true; scene.add(st); obstacles.push(st);
 }
 
 // ---------- oheň ----------
@@ -366,10 +368,11 @@ const post = new THREE.ShaderMaterial({
 const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 
+function setView(v) { const a = innerWidth / innerHeight; camera.left = -v * a; camera.right = v * a; camera.top = v; camera.bottom = -v; camera.updateProjectionMatrix(); }
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
-  camera.left = -VIEW * w / h; camera.right = VIEW * w / h; camera.updateProjectionMatrix();
+  setView(viewZoom);
   const lh = LOW_H, lw = Math.round(lh * w / h);
   low.setSize(lw, lh);
   post.uniforms.uLow.value.set(lw, lh);
@@ -398,6 +401,79 @@ bN.onclick = () => { night = !night; bN.classList.toggle('on', night); };
 bT.onclick = () => { post.uniforms.uTones.value = post.uniforms.uTones.value > 2.5 ? 2 : 3; bT.classList.toggle('on', post.uniforms.uTones.value > 2.5); };
 bD.onclick = () => { post.uniforms.uOn.value = 1 - post.uniforms.uOn.value; bD.classList.toggle('on', post.uniforms.uOn.value > 0.5); };
 
+// ---------- čísla vo svete: runové kamene a truhlica, kompas ----------
+// Na začiatku vieš len číslo 1. Ďalšie čísla nájdeš (kompas ukáže kam); nové znamienko dá boss.
+const S3 = { numbers: [1] };
+const PIXD = {
+  '1': '00100011000010000100001000010001110', '2': '01110100010000100010001000100011111', '3': '11111000100010000010000011000101110',
+};
+function digitTexture(ch) {
+  const c = document.createElement('canvas'); c.width = 48; c.height = 72; const g = c.getContext('2d');
+  g.fillStyle = '#e8e4da'; g.fillRect(0, 0, 48, 72);
+  g.fillStyle = '#1c1d21'; const bits = PIXD[ch];
+  for (let i = 0; i < 35; i++) if (bits[i] === '1') g.fillRect(9 + (i % 5) * 6, 14 + ((i / 5) | 0) * 6, 6, 6);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const goldMat = new THREE.MeshBasicMaterial({ color: 0xffd25a });
+function runeStone(n) {
+  const g = new THREE.Group(), side = std(0xc8c4ba);
+  const stone = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.05, 0.22), [side, side, side, side, new THREE.MeshStandardMaterial({ map: digitTexture(String(n)), roughness: 0.9 }), side]);
+  stone.position.y = 0.95; stone.castShadow = true; g.add(stone);
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.04, 6, 32).rotateX(Math.PI / 2), goldMat); halo.position.y = 0.05; g.add(halo);
+  const light = new THREE.PointLight(0xffd25a, 3, 5, 1.6); light.position.y = 1.2; g.add(light);
+  g.userData = { stone, halo, light, n };
+  return g;
+}
+const finds = [];
+{ const r = runeStone(2); r.position.set(13, groundH(13, -5), -5); scene.add(r); finds.push({ kind: 'rune', n: 2, obj: r, label: 'číslo 2' }); }
+const chest = new THREE.Group();
+{
+  const wood = std(0x6a625a), body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.62), wood);
+  body.position.y = 0.3; body.castShadow = true; chest.add(body);
+  const lidPivot = new THREE.Group(); lidPivot.position.set(0, 0.57, -0.31); chest.add(lidPivot);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.97, 0.22, 0.64), std(0x7a7168)); lid.position.set(0, 0.1, 0.31); lid.castShadow = true; lidPivot.add(lid);
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.05), goldMat); lock.position.set(0, 0.5, 0.33); chest.add(lock);
+  chest.userData = { lidPivot, lock };
+  chest.position.set(-12, groundH(-12, -6), -6); chest.rotation.y = 0.4; scene.add(chest);
+  finds.push({ kind: 'chest', n: 3, obj: chest, label: 'truhlica' });
+}
+const compassEl = document.getElementById('compass'), cmpArrow = document.getElementById('cmpArrow'), cmpTxt = document.getElementById('cmpTxt');
+function nextFind() { return finds.filter(f => !f.done).sort((a, b) => a.obj.position.distanceTo(hero.position) - b.obj.position.distanceTo(hero.position))[0]; }
+function updateCompass() {
+  const f = nextFind();
+  compassEl.classList.toggle('hidden', !f || fight.on);
+  if (!f) return;
+  const dx = f.obj.position.x - hero.position.x, dz = f.obj.position.z - hero.position.z;
+  cmpArrow.style.transform = `rotate(${Math.atan2(dx, -dz)}rad)`;
+  cmpTxt.textContent = (f.kind === 'chest' ? 'Truhlica' : 'Nové číslo') + ' · ' + Math.round(Math.hypot(dx, dz)) + ' krokov';
+}
+function updateFinds(dt, t) {
+  for (const f of finds) {
+    const u = f.obj.userData;
+    if (f.kind === 'rune' && !f.done) {
+      u.stone.rotation.y = Math.sin(t * 1.2) * 0.25; u.stone.position.y = 0.95 + Math.sin(t * 2) * 0.06;
+      u.halo.scale.setScalar(1 + Math.sin(t * 3) * 0.08); u.light.intensity = 2.5 + Math.sin(t * 4);
+      if (Math.random() < 0.15) spark(f.obj.position.x + (Math.random() - 0.5), f.obj.position.y + 0.4, f.obj.position.z + (Math.random() - 0.5), 0, 1.2, 0, 1);
+    }
+    if (!f.done && !fight.on && hero.position.distanceTo(f.obj.position) < 1.5) collect(f);
+    if (f.anim !== undefined) {
+      f.anim += dt;
+      if (f.kind === 'chest') u.lidPivot.rotation.x = -Math.min(1, f.anim * 2.5) * 1.9;
+      const r = f.rune; if (r) {
+        r.position.y = f.obj.position.y + 0.6 + Math.min(1.6, f.anim * 1.6); r.rotation.y += dt * 4;
+        if (f.anim > 1.6 && r.visible) { r.visible = false; for (let s = 0; s < 80; s++) spark(r.position.x, r.position.y + 0.9, r.position.z, (Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4, 1); }
+      }
+    }
+  }
+}
+function collect(f) {
+  f.done = true; f.anim = 0;
+  if (f.kind === 'rune') { f.rune = f.obj.userData.stone; f.rune.position.copy(f.obj.position); scene.add(f.rune); f.obj.userData.halo.visible = false; f.obj.userData.light.intensity = 0; }
+  else { const r = runeStone(f.n); r.position.copy(f.obj.position); r.userData.halo.visible = false; scene.add(r); f.rune = r; f.obj.userData.lock.visible = false; }
+  S3.numbers = [...new Set([...S3.numbers, f.n])].sort((a, b) => a - b);
+  setTimeout(() => { say(`Nové číslo: ${f.n}! Teraz ho vieš v kúzlach.`); if (actions.Cheer) { play('Cheer', 0.2); casting = 2; } }, 600);
+}
+
 // ---------- súboj krok za krokom ----------
 // Slizko stojí 4 kroky od čarodejníka. Každé kolo jeden príklad:
 // správne a rýchlo = zásah a odhodí ho o krok späť; správne pomaly = zásah, ale príde o krok bližšie;
@@ -418,7 +494,7 @@ function pix(str) {
   ch.forEach((c, k) => { const g = PIX[c]; if (g) for (let i = 0; i < 35; i++) if (g[i] === '1') d += `M${k * 7 + (i % 5)} ${(i / 5) | 0}h2v1h-2z`; });
   return `<svg class="pix" viewBox="0 0 ${ch.length * 7 - 1} 7" shape-rendering="crispEdges"><path d="${d}"/></svg>`;
 }
-['1', '2', '3', '4', '5', '6', '7', '8', '9', '←', '0', '✔'].forEach(k => {
+['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '←', '✔'].forEach(k => {
   const b = document.createElement('button'); b.dataset.k = k; b.innerHTML = pix(k);
   if (k === '✔') b.className = 'ok'; if (k === '←') b.className = 'del';
   b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); press(k); });
@@ -443,7 +519,7 @@ function startFight() {
 }
 function nextProblem() {
   if (!fight.on) return;
-  fight.p = generateProblem({ unlockedNumbers: [1, 2, 3], unlockedOperations: ['+'], retry: mathS.retry }, mathS.difficulty, rngM, { cap: 20, last: fight.last });
+  fight.p = generateProblem({ unlockedNumbers: S3.numbers, unlockedOperations: ['+'], retry: mathS.retry }, mathS.difficulty, rngM, { cap: 20, last: fight.last });
   fight.last = fight.p.text; fight.input = ''; fight.t0 = performance.now(); fight.phase = 'ask';
   cardEl.classList.remove('hidden', 'help');
   renderCard();
@@ -517,7 +593,7 @@ function floatNum(n) {
 function placeCard() {
   if (cardEl.classList.contains('hidden')) return;
   const v = slime.position.clone().add(new THREE.Vector3(0, 1.9, 0)).project(camera);
-  const half = cardEl.offsetWidth / 2 + 12, right = innerWidth - padEl.offsetWidth - 28 - half;
+  const half = cardEl.offsetWidth / 2 + 12, right = innerWidth - half;
   cardEl.style.left = Math.max(half, Math.min(right, (v.x + 1) / 2 * innerWidth)) + 'px';
   cardEl.style.top = Math.max(150, (1 - v.y) / 2 * innerHeight) + 'px';
 }
@@ -557,13 +633,14 @@ function updateFight(dt, t) {
       slime.position.set(x, groundH(x, z), z); slime.visible = true; slimeBody.scale.set(1, 0.75, 1); fight.hp = fight.max;
     }
   }
+  updateFinds(dt, t);
   // Slizko si ťa všimne
   if (!fight.on && slime.visible && fight.cool <= 0 && hero.position.distanceTo(slime.position) < 4.5) startFight();
 }
 
 // ---------- slučka ----------
 const clock = new THREE.Clock();
-const vel = new THREE.Vector3(), camPos = new THREE.Vector3(0, 9, 13);
+const vel = new THREE.Vector3(), camPos = new THREE.Vector3(0, 13, 19), camLook = new THREE.Vector3(0, 0.9, 2);
 let walk = 0, dayK = 1;
 function tick() {
   const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
@@ -671,10 +748,35 @@ function tick() {
   scene.background.copy(fogC); scene.fog.color.copy(fogC);
 
   // kamera ide za čarodejníkom
-  const focus = fight.on ? hero.position.clone().lerp(slime.position, 0.5) : hero.position;
-  camPos.lerp(new THREE.Vector3(focus.x, focus.y + 13, focus.z + 17), 1 - Math.exp(-dt * 3));
+  // vo svete pohľad zhora, v súboji sa kamera otočí do bočného pohľadu (čarodejník vľavo, Slizko vpravo)
+  let wantLook, wantPos, wantView;
+  if (fight.on) {
+    const up = new THREE.Vector3(0, 1, 0);
+    let side = new THREE.Vector3(fight.dir.z, 0, -fight.dir.x);
+    let right = new THREE.Vector3().crossVectors(side.clone().negate(), up);
+    if (right.dot(fight.dir) < 0) { side.negate(); right.negate(); }
+    const center = fight.base.clone().addScaledVector(fight.dir, 2.6);
+    wantView = 3.6;
+    wantLook = center.add(new THREE.Vector3(0, 0.2, 0));   // postavy v strede, pod nimi pás s číslami
+    wantPos = wantLook.clone().addScaledVector(side, 20).add(new THREE.Vector3(0, 5.5, 0));
+    // stromy a kamene medzi kamerou a súbojom sa skryjú
+    for (const o of obstacles) {
+      const v = o.position.clone().sub(center).setY(0), front = v.dot(side), along = Math.abs(v.dot(fight.dir.clone().setY(0)));
+      o.visible = !(front > -1.2 && front < 22 && along < 9);
+    }
+  } else {
+    if (!obstacles[0].visible || obstacles.some(o => !o.visible)) obstacles.forEach(o => { o.visible = true; });
+    wantLook = hero.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+    wantPos = wantLook.clone().add(new THREE.Vector3(0, 12.1, 17));
+    wantView = VIEW;
+  }
+  const kc = 1 - Math.exp(-dt * 2.6);
+  camPos.lerp(wantPos, kc); camLook.lerp(wantLook, kc);
+  if (Math.abs(viewZoom - wantView) > 0.001) { viewZoom += (wantView - viewZoom) * kc; setView(viewZoom); }
   camera.position.copy(camPos);
-  camera.lookAt(camPos.x, camPos.y - 13 + 0.9, camPos.z - 17);
+  camera.lookAt(camLook);
+  updateCompass();
+  document.getElementById('help').style.opacity = fight.on ? 0 : 1;
   placeCard();
   sun.target.position.copy(hero.position); sun.position.add(hero.position);
 
@@ -686,4 +788,4 @@ function tick() {
 }
 resize();
 requestAnimationFrame(tick);
-window.__s = { cast, hero, slime, fight, press, setNight: v => { night = v; } };
+window.__s = { cast, hero, slime, fight, press, S3, finds, setNight: v => { night = v; } };
