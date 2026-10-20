@@ -165,6 +165,25 @@
   .rg { padding:5px 9px !important; font-size:12px !important; } .mini { font-size:10px !important; padding:4px 7px !important; } .mini .ico { height:13px !important; }
   .node { width:52px !important; font-size:9px !important; padding:6px 2px !important; } .node .ico { height:16px !important; }
   .bigop .pix { height:48px !important; }
+
+  /* ===== mobil na šírku ===== */
+  #otoc { position:fixed; inset:0; z-index:50; display:none; place-items:center; background:var(--pp); color:var(--ink); text-align:center; font-weight:700; font-size:15px; padding:24px; }
+  #otoc svg { width:64px; height:64px; margin-bottom:12px; animation:otoc 2s ease-in-out infinite; }
+  @keyframes otoc { 0%,30% { transform:rotate(0); } 60%,100% { transform:rotate(-90deg); } }
+  @media (orientation:portrait) and (max-width:900px) { #otoc { display:grid; } }
+  @media (orientation:landscape) and (max-height:500px) {
+    #hearts { top:6px !important; left:8px !important; }
+    #topr { top:6px !important; right:8px !important; }
+    #goal { top:6px !important; max-width:calc(100vw - 300px) !important; padding:3px 8px !important; }
+    #streak { top:30px !important; }
+    #msg { top:40px !important; font-size:11px !important; padding:4px 9px !important; }
+    #bottom { bottom:calc(6px + env(safe-area-inset-bottom)) !important; width:min(560px, calc(100vw - 24px)); flex-direction:row !important; align-items:stretch; }
+    #inp { height:auto !important; min-width:72px !important; }
+    #pad { grid-template-columns:repeat(11, 1fr) !important; grid-auto-rows:34px !important; }
+    .ov .box { max-height:calc(100vh - 16px); overflow:auto; padding:10px 12px !important; }
+    .ov h2 { font-size:15px !important; } .ov .sub { margin-bottom:6px !important; }
+    .card { width:104px !important; } .card .ci { height:22px !important; } .card .ci .ico { height:18px !important; }
+  }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
@@ -179,6 +198,7 @@
 <div id="msg"></div>
 <div id="bottom" class="hidden"><div id="inp"></div><div id="pad"></div></div>
 <div id="ov" class="ov"></div>
+<div id="otoc"><div><svg viewBox="0 0 24 24" fill="none" stroke="#1c1d21" stroke-width="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><div>Otoč mobil na šírku</div></div></div>
 <div id="loading">Čarodejník sa chystá…</div>
 <script type="module" src="hra.js"></script>
 </body>

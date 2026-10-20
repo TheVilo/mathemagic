@@ -126,7 +126,7 @@ export function fightPress(k) {
   renderInput();
 }
 export function renderInput(wrong) {
-  G.inpEl.innerHTML = wrong ? pix(wrong) : fight.input ? pix(fight.input) : '<span class="ph">napíš výsledok</span>';
+  G.inpEl.innerHTML = wrong ? pix(wrong) : fight.input ? pix(fight.input) : '<span class="ph">výsledok</span>';
   for (const t of targets()) t.el.classList.toggle('match', !!fight.input && String(t.p.answer).startsWith(fight.input) && !t.locked);
 }
 
