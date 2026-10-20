@@ -77,6 +77,8 @@ export function genRoom(seed, index) {
   const cx0 = W * (0.55 + rng() * 0.12);
   const camp = boss ? { x: W * 0.62, z: pathZ(W * 0.62), n: 1, boss: true } : { x: cx0, z: pathZ(cx0) + (rng() - 0.5) * 3, n: Math.min(5, 2 + Math.floor(index * 0.6)), boss: false };
   const tier = index / (ROOMS - 1);
+  // zloženie hordy podľa hĺbky v zóne: najprv Slizkovia, potom Hríbiky, nakoniec Kamienky
+  if (!boss) camp.types = index < 2 ? ['slime'] : index < 4 ? ['slime', 'mush'] : ['rock', 'mush', 'slime'];
 
   // nálezy: číslo 3 v tretej miestnosti, číslo 4 v piatej, mince inde
   const finds = [];
