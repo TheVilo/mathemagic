@@ -403,9 +403,10 @@ bD.onclick = () => { post.uniforms.uOn.value = 1 - post.uniforms.uOn.value; bD.c
 
 // ---------- čísla vo svete: runové kamene a truhlica, kompas ----------
 // Na začiatku vieš len číslo 1. Ďalšie čísla nájdeš (kompas ukáže kam); nové znamienko dá boss.
-const S3 = { numbers: [1] };
+const S3 = { numbers: [1, 2] };
 const PIXD = {
   '1': '00100011000010000100001000010001110', '2': '01110100010000100010001000100011111', '3': '11111000100010000010000011000101110',
+  '4': '00010001100101010010111110001000010',
 };
 function digitTexture(ch) {
   const c = document.createElement('canvas'); c.width = 48; c.height = 72; const g = c.getContext('2d');
@@ -425,7 +426,7 @@ function runeStone(n) {
   return g;
 }
 const finds = [];
-{ const r = runeStone(2); r.position.set(13, groundH(13, -5), -5); scene.add(r); finds.push({ kind: 'rune', n: 2, obj: r, label: 'číslo 2' }); }
+{ const r = runeStone(3); r.position.set(13, groundH(13, -5), -5); scene.add(r); finds.push({ kind: 'rune', n: 3, obj: r, label: 'číslo 3' }); }
 const chest = new THREE.Group();
 {
   const wood = std(0x6a625a), body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.62), wood);
@@ -435,7 +436,7 @@ const chest = new THREE.Group();
   const lock = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.05), goldMat); lock.position.set(0, 0.5, 0.33); chest.add(lock);
   chest.userData = { lidPivot, lock };
   chest.position.set(-12, groundH(-12, -6), -6); chest.rotation.y = 0.4; scene.add(chest);
-  finds.push({ kind: 'chest', n: 3, obj: chest, label: 'truhlica' });
+  finds.push({ kind: 'chest', n: 4, obj: chest, label: 'truhlica' });
 }
 const compassEl = document.getElementById('compass'), cmpArrow = document.getElementById('cmpArrow'), cmpTxt = document.getElementById('cmpTxt');
 function nextFind() { return finds.filter(f => !f.done).sort((a, b) => a.obj.position.distanceTo(hero.position) - b.obj.position.distanceTo(hero.position))[0]; }
@@ -517,9 +518,33 @@ function startFight() {
   say('Súboj! Počítaj a kúzli.');
   setTimeout(nextProblem, 700);
 }
+// Na mobile karta s príkladom neprekáža nad nepriateľom – ukotví sa nad pásom čísel.
+const docked = () => innerWidth < 900 || matchMedia('(pointer: coarse)').matches;
+function dock() { cardEl.classList.toggle('dock', docked()); }
+addEventListener('resize', dock); dock();
+
+// Balíček príkladov: všetky kombinácie zo známych čísel v troch druhoch, premiešané.
+// Ťahá sa ako karty – kým neprejdú všetky, nič sa nezopakuje. Chyby sa vrátia do balíčka.
+let bag = [], bagKey = '';
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rngM() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function mk(operands, missing = -1) {
+  const sum = operands.reduce((x, y) => x + y, 0);
+  const show = operands.map((n, i) => (i === missing ? '?' : n)).join(' + ') + (missing >= 0 ? ' = ' + sum : '');
+  return { operands, missing, sum, answer: missing >= 0 ? operands[missing] : sum, text: show, operation: '+', ops: operands.slice(1).map(() => '+') };
+}
+function fillBag() {
+  const N = S3.numbers, add = [], three = [], miss = [];
+  for (const a of N) for (const b of N) { add.push(mk([a, b])); miss.push(mk([a, b], rngM() < 0.5 ? 0 : 1)); }
+  for (const a of N) for (const b of N) for (const c of N) if (a + b + c <= 12) three.push(mk([a, b, c]));
+  const lvl = mathS.difficulty;
+  bag = shuffle([...add, ...shuffle(three).slice(0, lvl > 10 ? 6 : 3), ...shuffle(miss).slice(0, Math.max(2, Math.floor(miss.length / 2)))]);
+  bagKey = N.join();
+}
 function nextProblem() {
   if (!fight.on) return;
-  fight.p = generateProblem({ unlockedNumbers: S3.numbers, unlockedOperations: ['+'], retry: mathS.retry }, mathS.difficulty, rngM, { cap: 20, last: fight.last });
+  if (!bag.length || bagKey !== S3.numbers.join()) fillBag();
+  let i = bag.findIndex(q => q.text !== fight.last); if (i < 0) i = 0;
+  fight.p = bag.splice(i, 1)[0];
   fight.last = fight.p.text; fight.input = ''; fight.t0 = performance.now(); fight.phase = 'ask';
   cardEl.classList.remove('hidden', 'help');
   renderCard();
@@ -527,9 +552,10 @@ function nextProblem() {
 const dots = n => (n <= 5 ? `<span class="dots">${'<i></i>'.repeat(n)}</span>` : '');
 function renderCard(state = '') {
   const p = fight.p; let h = '';
-  p.operands.forEach((n, i) => { if (i) h += `<span class="sym">${pix('+')}</span>`; h += `<span class="op">${pix(n)}${dots(n)}</span>`; });
   const ans = state === 'bad' || state === 'good' ? p.answer : fight.input || '?';
-  h += `<span class="sym">${pix('=')}</span><span id="answer" class="${state || (fight.input ? 'typed' : '')}">${pix(ans)}</span>`;
+  const slot = `<span id="answer" class="${state || (fight.input ? 'typed' : '')}">${pix(ans)}</span>`;
+  p.operands.forEach((n, i) => { if (i) h += `<span class="sym">${pix('+')}</span>`; h += i === p.missing ? `<span class="op">${slot}</span>` : `<span class="op">${pix(n)}${dots(n)}</span>`; });
+  h += `<span class="sym">${pix('=')}</span>` + (p.missing >= 0 ? `<span class="op">${pix(p.sum)}${dots(p.sum)}</span>` : slot);
   ptextEl.innerHTML = h;
   stepsEl.innerHTML = 'Slizko je ' + [1, 2, 3, 4].map(i => `<i class="${i <= fight.pos ? 'on' : ''}"></i>`).join('') + ` ${fight.pos} ${fight.pos === 1 ? 'krok' : fight.pos < 5 ? 'kroky' : 'krokov'} od teba`;
   cardEl.querySelector('#ehp i').style.width = Math.max(0, fight.hp / fight.max * 100) + '%';
@@ -550,7 +576,7 @@ function submit() {
     renderCard('good');
     const fast = ms < 3500 + (p.operands.length - 2) * 2500;
     cast(p.operands, () => {
-      fight.hp -= p.answer; floatNum(p.answer);
+      fight.hp -= p.sum; floatNum(p.sum);
       if (fight.hp <= 0) return win();
       if (fast) { say('Rýchlo! Slizko odletel späť.'); stepTo(Math.min(STEPS, fight.pos + 1)); }
       else stepTo(fight.pos - 1);
@@ -558,6 +584,7 @@ function submit() {
       setTimeout(nextProblem, 900);
     });
   } else {
+    bag.push(p);                       // chybu si zopakuje neskôr
     renderCard('bad');
     say(`Správne je ${p.answer}. Nevadí!`);
     setTimeout(() => { stepTo(fight.pos - 1); setTimeout(nextProblem, 900); }, 900);
@@ -591,6 +618,7 @@ function floatNum(n) {
   document.body.appendChild(d); setTimeout(() => d.remove(), 1100);
 }
 function placeCard() {
+  if (docked()) return;
   if (cardEl.classList.contains('hidden')) return;
   const v = slime.position.clone().add(new THREE.Vector3(0, 1.9, 0)).project(camera);
   const half = cardEl.offsetWidth / 2 + 12, right = innerWidth - half;
@@ -758,6 +786,7 @@ function tick() {
     const center = fight.base.clone().addScaledVector(fight.dir, 2.6);
     wantView = 3.6;
     wantLook = center.add(new THREE.Vector3(0, 0.2, 0));   // postavy v strede, pod nimi pás s číslami
+    if (docked()) wantLook.y -= wantView * 0.42;          // na mobile postavy hore, dole karta a čísla
     wantPos = wantLook.clone().addScaledVector(side, 20).add(new THREE.Vector3(0, 5.5, 0));
     // stromy a kamene medzi kamerou a súbojom sa skryjú
     for (const o of obstacles) {
@@ -788,4 +817,4 @@ function tick() {
 }
 resize();
 requestAnimationFrame(tick);
-window.__s = { cast, hero, slime, fight, press, S3, finds, setNight: v => { night = v; } };
+window.__s = { cast, hero, slime, fight, press, S3, finds, nextProblem, setNight: v => { night = v; } };
