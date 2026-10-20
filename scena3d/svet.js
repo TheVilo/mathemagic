@@ -157,7 +157,7 @@ export function placeModels(parent, props, height) {
 const PMAX = 1600, pPos = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
-const points = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.12, vertexColors: true }));
+export const points = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.2, vertexColors: true }));
 points.frustumCulled = false; scene.add(points);
 let pi = 0;
 const tmpC = new THREE.Color();

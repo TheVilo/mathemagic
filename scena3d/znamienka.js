@@ -4,7 +4,7 @@
 import { THREE, renderer, scene, camera, U, sun, hemi, MAT, GRASS, FLOWER, inst, placeModels, loadProps, burst, spark, updateParticles, resize as resizeBase, render as renderBayer, setView } from './svet.js';
 import { hero, crystal, crystalLight, loadHero, heroPlay, updateHero, loadFighters, makeFighter } from './postavy.js';
 import { genRoom } from './gen.js';
-import { pix } from './svet.js';
+import { pix, points } from './svet.js';
 
 // ---------- scéna: čistinka, čarodejník a štyria bojovníci ----------
 await Promise.all([loadProps(), loadFighters(), loadHero()]);
@@ -28,7 +28,7 @@ function build(seed) {
   const show = [{ m: 'building_tower_A_blue', x: c.x + 1.5, z: c.z - 5.2, s: 1, r: 0.4 }, { m: 'tree_oak', x: c.x - 7.5, z: c.z - 3.8, s: 1.1, r: 1 }, { m: 'tree_pineRoundB', x: c.x - 5.2, z: c.z - 5.5, s: 1, r: 2 },
     { m: 'tree_default', x: c.x + 5.8, z: c.z - 3.2, s: 1.1, r: 0.5 }, { m: 'tree_detailed', x: c.x - 8.8, z: c.z + 2.5, s: 1, r: 3 }, { m: 'rock_largeA', x: c.x + 4.2, z: c.z + 3.2, s: 1, r: 1 }];
   const clear = (x, z) => show.every(q => Math.hypot(q.x - x, q.z - z) > 3);
-  placeModels(room, [...R.props.filter(p => (Math.hypot(p.x - c.x, p.z - c.z) > 3.5 || p.col < 0.3) && clear(p.x, p.z)), ...show], R.height);
+  placeModels(room, [...R.props.filter(p => (Math.hypot(p.x - c.x, p.z - c.z) > 3.5 || p.col < 0.3) && clear(p.x, p.z) && !/^(building_|statue_)/.test(p.m)), ...show], R.height);   // náhodné veže by zakrývali súboj
   hero.position.set(c.x - 4.2, R.height(c.x - 4.2, c.z), c.z); hero.rotation.y = Math.PI / 2;
   ['rogue', 'knight', 'barbarian', 'hooded'].forEach((k, i) => {
     const f = makeFighter(k, 0.85, room), a = -0.9 + i * 0.6, x = c.x + Math.cos(a) * 2.6, z = c.z + Math.sin(a) * 2.6;
@@ -73,12 +73,13 @@ const SPELLS = [
   { op: '+', name: 'Príroda', col: 0x6fe08a, dur: 0.5, size: 1, arc: 1.2 },
   { op: '-', name: 'Ľad', col: 0x7fc8ff, dur: 0.28, size: 0.8, arc: 0.1 },
   { op: '×', name: 'Oheň', col: 0xff7a3a, dur: 0.6, size: 1.7, arc: 1.8 },
-  { op: '÷', name: 'Blesk', col: 0xffe14a, dur: 0.12, size: 0.6, arc: 0 },
+  { op: '÷', name: 'Blesk', col: 0xffe14a, dur: 0.4, size: 0.6, arc: 0 },
 ];
 const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xc8ffd0 }));
 const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), new THREE.MeshBasicMaterial({ color: 0x7fc8ff })); shard.scale.set(1.0, 1.0, 3.6);
 const orbLight = new THREE.PointLight(0x7dff8a, 0, 4.5, 1.6); scene.add(orbLight); orb.visible = false; shard.visible = false; scene.add(orb, shard);
 const boltGroup = new THREE.Group(); scene.add(boltGroup);
+[orb, shard, points, crystal].forEach(o => o.layers.enable(4));   // vrstva 4 = všetko, čo patrí kúzlu
 let spellT = 0, spellTo = null, spellCol = 0x8dff98, spellI = 0, spell = SPELLS[0], prob = null;
 const labelEl = document.getElementById('spellName');
 function makeProblem(op) {
@@ -91,19 +92,23 @@ function makeProblem(op) {
 function castNext() {
   const f = fighters[Math.floor(Math.random() * fighters.length)];
   spell = SPELLS[spellI++ % SPELLS.length]; prob = makeProblem(spell.op);
-  spellTo = f; spellT = 0; spellCol = spell.col;
+  spellTo = f; spellT = 0; spellCol = spell.col; glyphMat.uniforms.uSpellG.value = { '+': 3, '-': 2, '×': 4, '÷': 5 }[spell.op];
   orb.material.color.set(spellCol).lerp(new THREE.Color(0xffffff), 0.12); orbLight.color.set(spellCol);
   hero.rotation.y = Math.atan2(f.g.position.x - hero.position.x, f.g.position.z - hero.position.z);
   heroPlay('Spellcast_Shoot', 0.08, 0.9);
   if (labelEl) { labelEl.innerHTML = `<span style="color:#${spellCol.toString(16).padStart(6, '0')}">${pix(spell.op)}</span> ${spell.name} <b>${pix(prob.text + '=' + prob.v)}</b>`; labelEl.classList.remove('show'); void labelEl.offsetWidth; labelEl.classList.add('show'); }
 }
-// blesk: lomená čiara z kryštálu do cieľa
-function lightning(from, to) {
-  boltGroup.clear();
+// otrasy zeme a záblesk
+let shake = 0; const flash = new THREE.Vector4(1, 1, 1, 0);
+const effects = [];   // doznievajúce efekty (ohnivý stĺp, mráz, lístie)
+// blesk: lomená čiara z kryštálu do cieľa (+ vetvy)
+function lightning(from, to, keep) {
+  if (!keep) boltGroup.clear();
   const mat = new THREE.MeshBasicMaterial({ color: 0xffe14a }), pts = [from.clone()];
   for (let k = 1; k < 8; k++) pts.push(from.clone().lerp(to, k / 8).add(new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8)));
   pts.push(to.clone());
-  for (let k = 0; k < pts.length - 1; k++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, pts[k].distanceTo(pts[k + 1])), mat); seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); boltGroup.add(seg); }
+  for (let k = 0; k < pts.length - 1; k++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(keep ? 0.1 : 0.2, keep ? 0.1 : 0.2, pts[k].distanceTo(pts[k + 1])), mat); seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); seg.layers.enable(4); boltGroup.add(seg); }
+  if (!keep) for (let b = 0; b < 3; b++) { const i = 2 + Math.floor(Math.random() * 5), a = pts[i]; lightning(a, a.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * 3)), true); }
 }
 // číslo zásahu vyletí z nepriateľa (pixelové písmo vo farbe kúzla)
 function damageNumber(f, v, col) {
@@ -151,12 +156,12 @@ const PALETTE = [0x15161a, 0x2c3a2e, 0x4f6e3f, 0x86a85f, 0xc7d69a, 0x8d8a83, 0xe
 // ---------- shader zo znamienok ----------
 // fine = scéna v jemnom rozlíšení (bodky postáv aj vzorka pre bunky), mask = kde sú postavy
 // amb = tá istá scéna bez slnka → pomer osvetlená/neosvetlená = kde je tieň (nie tmavá farba, ale skutočný tieň); depth = hĺbka
-const fine = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), amb = new THREE.WebGLRenderTarget(16, 16), s1 = new THREE.WebGLRenderTarget(16, 16), s2 = new THREE.WebGLRenderTarget(16, 16), spl = new THREE.WebGLRenderTarget(16, 16), mask = new THREE.WebGLRenderTarget(16, 16), maskG = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), glyphRT = new THREE.WebGLRenderTarget(16, 16, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
+const fine = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), amb = new THREE.WebGLRenderTarget(16, 16), s1 = new THREE.WebGLRenderTarget(16, 16), s2 = new THREE.WebGLRenderTarget(16, 16), spl = new THREE.WebGLRenderTarget(16, 16), mask = new THREE.WebGLRenderTarget(16, 16), maskS = new THREE.WebGLRenderTarget(16, 16), maskG = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), glyphRT = new THREE.WebGLRenderTarget(16, 16, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
 const VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const glyphMat = new THREE.ShaderMaterial({
-  uniforms: { tScene: { value: fine.texture }, tMask: { value: mask.texture }, uRes: { value: new THREE.Vector2() }, uFine: { value: new THREE.Vector2() }, uCell: { value: 7 }, uMode: { value: 1 }, uCharDots: { value: 1 }, uDot: { value: 3 }, tAmb: { value: amb.texture }, tDepth: { value: fine.depthTexture }, uShadow: { value: new THREE.Color(0x2a2f4e) }, uDepth: { value: new THREE.Vector2(0.05, 0.18) }, uLines: { value: 1 }, uSymCol: { value: 0 }, uInvert: { value: 0 }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(5, 7) }, uPal: { value: PALETTE.map(c => new THREE.Vector3(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255)) }, uPalOn: { value: 1 }, uScale: { value: 1 }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture }, tS1: { value: s1.texture }, tS2: { value: s2.texture }, tSpell: { value: spl.texture }, tEdge: { value: null }, uEdgeOn: { value: 1 }, uPolar: { value: 0 }, uAO: { value: 1 } },
+  uniforms: { tScene: { value: fine.texture }, tMask: { value: mask.texture }, uRes: { value: new THREE.Vector2() }, uFine: { value: new THREE.Vector2() }, uCell: { value: 7 }, uMode: { value: 1 }, uCharDots: { value: 1 }, uDot: { value: 3 }, tAmb: { value: amb.texture }, tDepth: { value: fine.depthTexture }, uShadow: { value: new THREE.Color(0x2a2f4e) }, uDepth: { value: new THREE.Vector2(0.05, 0.18) }, uLines: { value: 1 }, uSymCol: { value: 0 }, uInvert: { value: 0 }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(5, 7) }, uPal: { value: PALETTE.map(c => new THREE.Vector3(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255)) }, uPalOn: { value: 1 }, uScale: { value: 1 }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture }, tS1: { value: s1.texture }, tS2: { value: s2.texture }, tSpell: { value: spl.texture }, tEdge: { value: null }, uEdgeOn: { value: 1 }, uPolar: { value: 0 }, uAO: { value: 1 }, uSpellG: { value: 3 }, tSpellM: { value: maskS.texture }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) } },
   vertexShader: VS,
-  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tMask; uniform vec2 uRes; uniform vec2 uFine; uniform float uCell; uniform int uMode; uniform float uCharDots; uniform float uDot; uniform sampler2D tAmb; uniform sampler2D tDepth; uniform vec3 uShadow; uniform vec2 uDepth; uniform float uLines; uniform float uSymCol; uniform float uInvert; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform vec3 uPal[9]; uniform float uPalOn; uniform float uScale; uniform sampler2D tGround; uniform sampler2D tGDepth; uniform sampler2D tS1; uniform sampler2D tS2; uniform sampler2D tSpell; uniform sampler2D tEdge; uniform float uEdgeOn; uniform float uPolar; uniform float uAO; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tMask; uniform vec2 uRes; uniform vec2 uFine; uniform float uCell; uniform int uMode; uniform float uCharDots; uniform float uDot; uniform sampler2D tAmb; uniform sampler2D tDepth; uniform vec3 uShadow; uniform vec2 uDepth; uniform float uLines; uniform float uSymCol; uniform float uInvert; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform vec3 uPal[9]; uniform float uPalOn; uniform float uScale; uniform sampler2D tGround; uniform sampler2D tGDepth; uniform sampler2D tS1; uniform sampler2D tS2; uniform sampler2D tSpell; uniform sampler2D tEdge; uniform float uEdgeOn; uniform float uPolar; uniform float uAO; uniform int uSpellG; uniform sampler2D tSpellM; uniform vec4 uFlash; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -335,16 +340,19 @@ const glyphMat = new THREE.ShaderMaterial({
         vec3 fg = mix(vec3(0.42), inkC, smoothstep(0.2, 0.6, k));         // svetlé tóny sivým, tmavé čiernym (plný rozsah až po čiernu)
         if (isGround6) fg = mix(fg, vec3(0.55), 0.7);                      // tieň na zemi je sivší
         fg = mix(fg, bg, far * 0.45);
-        { // ŽIARA: kúzlo, kryštál a iskry sú svetlé, ale kreslia sa hustými znakmi vo svojej farbe (inak by na papieri zmizli)
-          float mx6 = max(c.r, max(c.g, c.b)), sat6 = mx6 > 0.001 ? (mx6 - min(c.r, min(c.g, c.b))) / mx6 : 0.0;
-          if (mx6 > 0.62 && sat6 > 0.3) {
-            float gk = clamp((mx6 - 0.62) * 3.0 + sat6, 0.6, 1.0);
-            float gv = gk * (uGlyphN - 1.0); float gb = floor(gv); float ggi = clamp(gb + (gv - gb > bayer(cell) ? 1.0 : 0.0), 0.0, uGlyphN - 1.0);
-            ink = px.x < uGlyph.x && px.y < uGlyph.y ? texture2D(tAtlas, vec2((ggi * (uGlyph.x + 1.0) + px.x + 0.5) / (uGlyphN * (uGlyph.x + 1.0)), (uGlyph.y - 1.0 - px.y + 0.5) / uGlyph.y)).r : 0.0;
-            fg = c / mx6 * 0.85; bg = mix(bg, c / mx6, 0.18);
-          }
-        }                                       // vzadu bledne
         if (uSymCol > 0.5) { float mx = max(c.r, max(c.g, c.b)); fg = mix(c / max(mx, 0.05) * mix(0.75, 0.3, k), fg, 0.45); }   // jemná farba toho, čo znak kreslí
+        { // KÚZLO ZO ZNAMIENOK: čo žiari (kúzlo, plamene, iskry, blesk), sa kreslí znamienkom kúzla (+ − × ÷) vo farbe kúzla, väčším písmom
+          vec2 cs2 = cs * 2.0, cell2 = floor(frag / cs2), p2 = (frag - (cell2 + 0.5) * cs2) / cs2;
+          vec3 c2 = lin2srgb(texture2D(tSpellM, (cell2 + 0.5) * cs2 / uRes).rgb); float m2 = max(c2.r, max(c2.g, c2.b));
+          if (m2 > 0.12) {                                                  // len to, čo patrí kúzlu (vrstva 4)
+            float inten = clamp((m2 - 0.12) * 1.6, 0.0, 1.0);
+            float dg = glyph(uSpellG, p2, 0.07 + inten * 0.09, 0.36 + inten * 0.08);
+            vec3 sc = c2 / max(m2, 0.01);
+            bg = mix(bg, sc, 0.04 + inten * 0.12);
+            fg = mix(sc * 0.95, vec3(1.0), inten * 0.25); ink = clamp(0.5 - dg * cs2.y, 0.0, 1.0);
+          }
+        }
+        bg = mix(bg, uFlash.rgb, uFlash.a); fg = mix(fg, uFlash.rgb, uFlash.a * 0.5);   // záblesk (blesk, výbuch)
         gl_FragColor = vec4(mix(bg, fg, ink), 1.0); return;
       }
       // postavy: jemné bodky (Bayer) ako doteraz, aby bolo vidno tvár a zbraň
@@ -409,7 +417,7 @@ function resize() {
   renderer.setPixelRatio(dpr);
   const W = Math.round(innerWidth * dpr), H = Math.round(innerHeight * dpr), d = glyphMat.uniforms.uDot.value * dpr;
   renderer.setSize(innerWidth, innerHeight, false);
-  fine.setSize(Math.ceil(W / d), Math.ceil(H / d)); amb.setSize(Math.ceil(W / d), Math.ceil(H / d)); s1.setSize(Math.ceil(W / d), Math.ceil(H / d)); s2.setSize(Math.ceil(W / d), Math.ceil(H / d)); spl.setSize(Math.ceil(W / d), Math.ceil(H / d)); mask.setSize(Math.ceil(W / d), Math.ceil(H / d)); maskG.setSize(Math.ceil(W / d), Math.ceil(H / d)); glyphRT.setSize(W, H);
+  fine.setSize(Math.ceil(W / d), Math.ceil(H / d)); amb.setSize(Math.ceil(W / d), Math.ceil(H / d)); s1.setSize(Math.ceil(W / d), Math.ceil(H / d)); s2.setSize(Math.ceil(W / d), Math.ceil(H / d)); spl.setSize(Math.ceil(W / d), Math.ceil(H / d)); mask.setSize(Math.ceil(W / d), Math.ceil(H / d)); maskS.setSize(Math.ceil(W / d), Math.ceil(H / d)); maskG.setSize(Math.ceil(W / d), Math.ceil(H / d)); glyphRT.setSize(W, H);
   glyphMat.uniforms.uRes.value.set(W, H); blurMat.uniforms.uRes.value.set(W, H);
 }
 addEventListener('resize', resize);
@@ -433,6 +441,7 @@ function renderGlyphs() {
   scene.background.set(0x000000); scene.fog = null; scene.overrideMaterial = white; camera.layers.set(1);
   renderer.setRenderTarget(mask); renderer.render(scene, camera);
   camera.layers.set(2); renderer.setRenderTarget(maskG); renderer.render(scene, camera);
+  scene.overrideMaterial = null; camera.layers.set(4); renderer.setRenderTarget(maskS); renderer.render(scene, camera);   // len kúzlo vo farbe
   scene.background.copy(bg); scene.fog = fog; scene.overrideMaterial = null; camera.layers.set(0);
   quad.material = glyphMat; renderer.setRenderTarget(glyphRT); renderer.render(quadScene, quadCam);
   quad.material = blurMat; renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
@@ -492,27 +501,40 @@ function update(dt) {
       const k = (spellT - charge) / fly, e = spell.op === '-' ? k : k * k * (3 - 2 * k);
       const pos = new THREE.Vector3().lerpVectors(orb.userData.from, to, e); pos.y += Math.sin(e * Math.PI) * spell.arc;
       orbLight.position.copy(pos); orbLight.intensity = 6 * spell.size;
-      if (spell.op === '-') { shard.visible = true; shard.position.copy(pos); shard.lookAt(to); for (let n = 0; n < 3; n++) spark(pos, (Math.random() - 0.5) * 0.3, -0.6, (Math.random() - 0.5) * 0.3, 0.6, 0xbfe6ff); }
-      else if (spell.op === '÷') { if (!boltGroup.children.length || Math.random() < 0.5) lightning(orb.userData.from, to); }
-      else {
-        orb.visible = true; orb.position.copy(pos); orb.scale.setScalar(1.8 * spell.size * (1 + Math.sin(spellT * 40) * 0.15));
-        const n = spell.op === '×' ? 10 : 5;
-        for (let i = 0; i < n; i++) spark(pos, (Math.random() - 0.5) * (spell.op === '×' ? 2 : 0.8), spell.op === '+' ? 0.8 : (Math.random() - 0.3) * 1.5, (Math.random() - 0.5) * (spell.op === '×' ? 2 : 0.8), spell.op === '×' ? 0.7 : 0.9, spell.op === '×' && Math.random() < 0.4 ? 0xffd25a : spellCol);
+      const rnd = () => (Math.random() - 0.5);
+      if (spell.op === '-') { shard.visible = true; shard.position.copy(pos); shard.lookAt(to); for (let n = 0; n < 6; n++) spark(pos.clone().add(new THREE.Vector3(rnd() * 0.3, rnd() * 0.3, rnd() * 0.3)), rnd() * 0.4, -0.8, rnd() * 0.4, 0.8, Math.random() < 0.5 ? 0x7fc8ff : 0xd8f0ff); }
+      else if (spell.op === '÷') { lightning(orb.userData.from, to); flash.set(1, 0.95, 0.6, 0.12 + Math.random() * 0.1); for (let n = 0; n < 6; n++) spark(to, rnd() * 6, Math.random() * 4, rnd() * 6, 0.4, 0xffe14a); shake = Math.max(shake, 0.2); }
+      else if (spell.op === '×') { // OHEŇ: plápolajúca guľa, plamene stúpajú
+        orb.visible = true; orb.position.copy(pos); orb.scale.setScalar(1.8 * spell.size * (1 + Math.sin(spellT * 50) * 0.18 + Math.random() * 0.1));
+        orb.material.color.setHex([0xff4a1a, 0xff7a3a, 0xffb03a][Math.floor(Math.random() * 3)]);
+        for (let n = 0; n < 16; n++) spark(pos.clone().add(new THREE.Vector3(rnd() * 0.6, rnd() * 0.6, rnd() * 0.6)), rnd() * 1.2, 1.5 + Math.random() * 2, rnd() * 1.2, 0.5 + Math.random() * 0.4, [0xff3a1a, 0xff7a3a, 0xffd25a][Math.floor(Math.random() * 3)]);
+      } else { // PRÍRODA: guľa a vír lístia okolo
+        orb.visible = true; orb.position.copy(pos); orb.scale.setScalar(1.5 * (1 + Math.sin(spellT * 30) * 0.12));
+        for (let n = 0; n < 6; n++) { const a = spellT * 14 + n * 1.05; spark(pos.clone().add(new THREE.Vector3(Math.cos(a) * 0.6, Math.sin(a * 0.7) * 0.4, Math.sin(a) * 0.6)), rnd() * 0.3, 0.4, rnd() * 0.3, 0.7, Math.random() < 0.6 ? 0x6fe08a : 0xb6ff8a); }
       }
     } else {                                                                // zásah
       orb.visible = false; shard.visible = false; boltGroup.clear(); orbLight.intensity = 0; crystalLight.intensity = 1.6;
-      burst(to, spell.op === '×' ? 260 : 140, spell.op === '×' ? 6 : 4.5, spellCol);
-      if (spell.op === '-') burst(to, 80, 2, 0xffffff, 1.2);
-      if (spell.op === '÷') burst(to, 60, 7, 0xffffff, 0.4);
+      orb.material.color.set(spellCol);
+      const ground = to.clone(); ground.y = spellTo.g.position.y + 0.1;
+      if (spell.op === '×') { burst(to, 320, 7, 0xff7a3a); burst(to, 120, 4, 0xffd25a, 1.2); shake = 0.9; flash.set(1, 0.6, 0.3, 0.35);
+        effects.push({ t: 0, dur: 1.2, fn: (k) => { for (let n = 0; n < 10; n++) spark(ground.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, 0, (Math.random() - 0.5) * 1.6)), (Math.random() - 0.5) * 0.6, 2 + Math.random() * 3 * (1 - k), (Math.random() - 0.5) * 0.6, 0.6, [0xff3a1a, 0xff7a3a, 0xffd25a][Math.floor(Math.random() * 3)]); } }); }
+      else if (spell.op === '÷') { burst(to, 200, 9, 0xffe14a, 0.5); burst(to, 60, 4, 0xffffff, 0.3); shake = 0.75; flash.set(1, 0.97, 0.7, 0.55); }
+      else if (spell.op === '-') { burst(to, 160, 4, 0x7fc8ff, 1.2); burst(to, 80, 2, 0xffffff, 1.4); shake = 0.35; flash.set(0.7, 0.85, 1, 0.2);
+        effects.push({ t: 0, dur: 1.0, fn: () => { for (let n = 0; n < 4; n++) spark(ground.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 0.2, (Math.random() - 0.5) * 2)), 0, 0.3, 0, 0.9, 0xbfe6ff); } }); }
+      else { burst(to, 180, 4.5, 0x6fe08a); shake = 0.3; flash.set(0.6, 1, 0.65, 0.15);
+        effects.push({ t: 0, dur: 0.9, fn: (k) => { for (let n = 0; n < 6; n++) { const a = Math.random() * 6.28, r = 0.3 + k * 1.6; spark(ground.clone().add(new THREE.Vector3(Math.cos(a) * r, 0.1, Math.sin(a) * r)), 0, 1.5 + Math.random(), 0, 0.7, Math.random() < 0.6 ? 0x6fe08a : 0xb6ff8a); } } }); }
       damageNumber(spellTo, prob.v, spellCol);
       spellTo.play('Hit_A', 0.05, true); const f = spellTo; setTimeout(() => f.play(f.kind === 'hooded' ? '2H_Ranged_Aiming' : f.kind === 'barbarian' ? '2H_Melee_Idle' : 'Idle'), 700); spellTo = null;
     }
   }
+  for (let i = effects.length - 1; i >= 0; i--) { const ef = effects[i]; ef.t += dt; ef.fn(ef.t / ef.dur); if (ef.t >= ef.dur) effects.splice(i, 1); }
+  shake = Math.max(0, shake - dt * 1.8); flash.w = Math.max(0, flash.w - dt * 2.2); glyphMat.uniforms.uFlash.value.copy(flash);
   updateParticles(dt);
 }
 function draw() {
   const c = R.camp, look = new THREE.Vector3(c.x - 1.4, hero.position.y + 0.9, c.z);
-  camera.position.copy(look).add(new THREE.Vector3(0, 12.1, 17)); camera.lookAt(look);
+  const sh = new THREE.Vector3((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.6, 0);   // otrasy zeme
+  camera.position.copy(look).add(new THREE.Vector3(0, 12.1, 17)).add(sh); camera.lookAt(look.clone().add(sh));
   const dc = 20.9; glyphMat.uniforms.uDepth.value.set((dc - 9) / 199.9, (dc + 14) / 199.9);
   setView(view);
   sun.position.set(hero.position.x - 15, hero.position.y + 10, hero.position.z + 8); sun.target.position.copy(hero.position);
