@@ -26,7 +26,7 @@ export async function loadHero() {
       crystalAnchor.scale.setScalar(1 / o.getWorldScale(new THREE.Vector3()).x);
     }
   });
-  hero.add(m);
+  hero.add(m); hero.traverse(o => o.layers.enable(1)); crystal.layers.enable(4);   // vrstva 1 = postava, 4 = kúzlo (kryštál)
   H.mixer = new THREE.AnimationMixer(m);
   g.animations.forEach(a => { H.acts[a.name] = H.mixer.clipAction(a); });
   for (const n of ['Spellcast_Shoot', 'Hit_A', 'Cheer', 'Death_A', 'PickUp', 'Interact']) { H.acts[n].setLoop(THREE.LoopOnce); H.acts[n].clampWhenFinished = true; }
@@ -78,7 +78,7 @@ export function makeFighter(kind, size = 1, parent = scene) {
     o.material = /_Cape$/.test(o.name) ? std(d.cape || 0xb83a34, { flatShading: false, emissive: 0x000000 }) : tone(o.material.clone(), 0.98);
     mats.push(o.material);
   });
-  parent.add(g);
+  parent.add(g); g.traverse(o => o.layers.enable(1));   // vrstva 1 = postava (kresba ich kreslí tmavšie)
   const mixer = new THREE.AnimationMixer(m), acts = {};
   tpl.clips.forEach(c => { acts[c.name] = mixer.clipAction(c); });
   for (const n of [d.attack, 'Hit_A', 'Death_A', 'Block_Hit', 'Sit_Floor_StandUp', 'Cheer', 'Spellcast_Raise']) if (n && acts[n]) { acts[n].setLoop(THREE.LoopOnce); acts[n].clampWhenFinished = true; }

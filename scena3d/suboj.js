@@ -3,6 +3,7 @@
 import { THREE, scene, spark, burst, pix } from './svet.js';
 import { hero, crystal, crystalLight, heroPlay, makeFighter } from './postavy.js';
 import { makeProblem, lvl } from './karty.js';
+import { kresbaMat } from './kresba.js';
 
 let G = null;
 export function initFight(g) { G = g; }
@@ -111,7 +112,7 @@ export function fightPress(k) {
   if (exact && !longer) {
     const ms = G.now - exact.p.born, fast = ms < 3.5 + (exact.p.text.length > 4 ? 2 : 0);
     fight.streak++; G.stats.ok++;
-    cast(exact, { fast, ms });
+    cast(exact, { fast, ms, v: exact.p.answer, op: exact.p.op });
     fight.input = ''; renderInput();
     if (fight.streak >= 5) { fight.streak = 0; setTimeout(chainLightning, 450); }
     G.renderStreak();
@@ -130,12 +131,16 @@ export function renderInput(wrong) {
 }
 
 // ---------- kúzla (letia z kryštálu palice) ----------
-const COL = { '+': 0x8dff98, '-': 0x7fc8ff };
+// ŠTYRI ŽIVLY: + zem (popraská, zastaví), − voda (zamrzne), × oheň (zapáli, šíri sa), ÷ vzduch (odsunie)
+const COL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8 };
+const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5 };
 function cast(t, info) {
   t.locked = true; t.el.classList.add('locked');
-  const color = info.color || COL[t.p.op] || COL['+'];
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.45) }));
-  const light = new THREE.PointLight(color, 0, 9, 1.4); orb.add(light); orb.visible = false; scene.add(orb);
+  info.op = info.op || t.p.op;
+  const color = info.color || COL[info.op] || COL['+'];
+  kresbaMat.uniforms.uSpellG.value = GLYPH[info.op] || 3;
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.1) }));
+  const light = new THREE.PointLight(color, 0, 4.5, 1.6); orb.add(light); orb.visible = false; orb.layers.enable(4); scene.add(orb);
   spells.push({ t: info.delay ? -info.delay : 0, target: t, color, info, orb, light, from: new THREE.Vector3() });
   if (!info.extra) { heroPlay('Spellcast_Shoot', 0.08, 0.9); fight.aim = t; }
   // Ozvena: veľký výsledok vystrelí aj druhé kúzlo na iného
@@ -162,7 +167,7 @@ function updateSpells(dt) {
       const k = (s.t - 0.22) / 0.34, e = k * k * (3 - 2 * k), to = targetPos(s.target);
       s.orb.visible = true; s.light.intensity = 14;
       s.orb.position.lerpVectors(s.from, to, e); s.orb.position.y += Math.sin(e * Math.PI) * 1.2;
-      s.orb.scale.setScalar((s.info.fast ? 1.5 : 1) * (1 + Math.sin(s.t * 40) * 0.15));
+      s.orb.scale.setScalar((s.info.fast ? 2.4 : 1.8) * (1 + Math.sin(s.t * 40) * 0.15));
       crystal.scale.set(1, 1.6, 1);
       for (let n = 0; n < (s.info.fast ? 8 : 5); n++) spark(s.orb.position, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, 0.5, s.color);
     } else if (!s.hit) {
@@ -170,6 +175,7 @@ function updateSpells(dt) {
       const p = targetPos(s.target);
       burst(p, s.info.fast ? 200 : 110, s.info.fast ? 6 : 4, s.color); burst(p, 30, 2, 0xffffff, 0.5);
       if (s.info.fast) G.shake(0.35);
+      if (!s.target.bolt) zivel(s.target, s.info);
       hitTarget(s.target, s.info);
     } else {
       s.flash -= dt * 3;
@@ -177,6 +183,32 @@ function updateSpells(dt) {
       if (s.flash <= 0) { scene.remove(s.orb); spells.splice(i, 1); }
     }
   }
+}
+// efekt živla pri zásahu
+const flash = kresbaMat.uniforms.uFlash.value;
+function zivel(e, info) {
+  const op = info.op, p = targetPos(e), g = e.g.position.clone(); g.y += 0.1;
+  if (op === '+') { // ZEM: popraská, nepriateľ sa zastaví
+    e.stun = 1.4; G.shake(0.55); flash.set(0.85, 0.7, 0.45, 0.2);
+    for (let n = 0; n < 90; n++) { const a = Math.random() * 6.28, r = Math.random() * 1.8; spark(g.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)), Math.cos(a) * 0.6, 1 + Math.random() * 2.5, Math.sin(a) * 0.6, 0.8, Math.random() < 0.6 ? 0xc8923a : 0x8a6a3a); }
+    G.floatText('Zem!', e);
+  } else if (op === '-') { // VODA: zamrzne
+    e.frozen = Math.max(e.frozen || 0, 2.5); G.shake(0.3); flash.set(0.7, 0.85, 1, 0.25);
+    burst(p, 120, 3, 0x4fa8ff, 1.2); burst(p, 60, 1.5, 0xd8f0ff, 1.4);
+    G.floatText('Zamrzol!', e);
+  } else if (op === '×') { // OHEŇ: zapáli a preskočí na najbližšieho
+    e.burn = Math.max(e.burn || 0, 5); G.shake(0.8); flash.set(1, 0.55, 0.3, 0.35);
+    burst(p, 260, 6, 0xff5a22); burst(p, 100, 3.5, 0xffd25a, 1.2);
+    const nb = fight.enemies.filter(o => o !== e && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(e.g.position) - b.g.position.distanceTo(e.g.position))[0];
+    if (nb && nb.g.position.distanceTo(e.g.position) < 3) nb.burn = Math.max(nb.burn || 0, 3);
+    G.floatText('Horí!', e);
+  } else if (op === '÷') { // VZDUCH: odsunie
+    e.knock = Math.max(e.knock || 0, 4.5); G.shake(0.4); flash.set(0.85, 1, 0.95, 0.2);
+    for (let n = 0; n < 120; n++) { const a = Math.random() * 6.28, r = 0.3 + Math.random() * 1.2; spark(p.clone().add(new THREE.Vector3(Math.cos(a) * r, Math.random() * 1.2 - 0.4, Math.sin(a) * r)), -Math.sin(a) * 4, 0.5, Math.cos(a) * 4, 0.6, Math.random() < 0.5 ? 0x7fe8d8 : 0xffffff); }
+    G.floatText('Odfúknutý!', e);
+  }
+  // číslo zásahu vo farbe živla
+  G.floatText(`<span style="color:#${(COL[op] || 0xffffff).toString(16).padStart(6, '0')}">${pix('-' + (info.v ?? ''))}</span>`, e, 'dmg');
 }
 function hitTarget(t, info = {}) {
   if (t.bolt) { if (fight.bolts.includes(t)) removeBolt(t); return; }
@@ -218,8 +250,8 @@ function zap(from, to) {
   for (let k = 1; k < 7; k++) pts.push(from.clone().lerp(to, k / 7).add(new THREE.Vector3((Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7)));
   pts.push(to.clone());
   for (let k = 0; k < pts.length - 1; k++) {
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, pts[k].distanceTo(pts[k + 1])), mat);
-    seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); group.add(seg);
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, pts[k].distanceTo(pts[k + 1])), mat);
+    seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); seg.layers.enable(4); group.add(seg);
   }
   const light = new THREE.PointLight(0xfff27a, 20, 8, 1.4); light.position.copy(to); group.add(light);
   scene.add(group); chains.push({ group, life: 0.45 });
@@ -269,7 +301,8 @@ export function updateFight(dt) {
     const dist = toHero.length(); toHero.normalize();
     if (e.state !== 'dead') e.g.rotation.y = Math.atan2(toHero.x, toHero.z);
     if (e.knock > 0) { const k = Math.min(e.knock, edt * 6); pos.addScaledVector(toHero, -k); e.knock -= k; }
-    e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt);
+    e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt); e.stun = Math.max(0, (e.stun || 0) - edt);
+    if (e.stun > 0 && e.state !== 'dead') { e.mixer.update(edt * 0.15); if (Math.random() < 0.3) spark(e.g.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.1, (Math.random() - 0.5) * 1.2)), 0, 0.8, 0, 0.5, 0xc8923a); continue; }   // zem: stojí v prasklinách
     const sp = e.speed * slowCard * (e.burn > 0 ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1);
     if (e.burn > 0 && Math.random() < 0.4) spark(pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * e.h * 0.8, (Math.random() - 0.5) * 0.6)), 0, 1.4, 0, 0.5, 0xff8a3a);
     if (e.frozen > 0 && e.state !== 'dead') { e.mixer.update(0); for (const m of e.mats) if (m.emissive) m.emissive.setRGB(0.15, 0.35, 0.6); if (Math.random() < 0.2) spark(targetPos(e), (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.6, 0x9fd8ff); continue; }
@@ -311,6 +344,7 @@ export function updateFight(dt) {
   }
   for (let i = chains.length - 1; i >= 0; i--) { const c = chains[i]; c.life -= dt; c.group.visible = Math.random() < 0.8; if (c.life <= 0) { scene.remove(c.group); chains.splice(i, 1); } }
   updateSpells(dt);
+  flash.w = Math.max(0, flash.w - dt * 2.2);
   if (!spells.length) { crystal.scale.set(1, 1.6, 1); crystalLight.color.set(0x7dff8a); crystalLight.intensity = 1.6 + fight.streak * 1.2 + Math.sin(G.now * 4) * 0.3; }
 }
 // kam sa má čarodejník pozerať (cieľ posledného kúzla)

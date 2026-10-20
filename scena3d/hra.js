@@ -6,6 +6,9 @@ import { hero, loadHero, heroPlay, updateHero, heroLocked, loadFighters, makeFig
 import { initFight, fight, startFight, fightPress, updateFight, drawTags, renderInput, endFight, aimPoint } from './suboj.js';
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { genRoom, mulberry32 } from './gen.js';
+import { svetloDen, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
+import { points } from './svet.js';
+points.layers.enable(4);   // iskry patria kúzlu
 
 // ---------- stav behu a zbierka (localStorage) ----------
 const RUN_KEY = 'mm-run', META_KEY = 'mm-meta';
@@ -63,7 +66,7 @@ function clearRoom() {
 }
 function buildRoom() {
   clearRoom(); inside = false;
-  scene.background.set(PAPER); scene.fog.color.set(PAPER); hemi.intensity = 1.15; sun.intensity = 2.4;
+  scene.background.set(PAPER); scene.fog.color.set(PAPER); svetloDen();
   R = genRoom(run.seed + run.zone * 101, run.step, run.kind, { rune: run.step === 2 && run.range < 10 });
   room = new THREE.Group(); scene.add(room); G.room = room;
   // zem
@@ -72,8 +75,8 @@ function buildRoom() {
   const pa = geo.attributes.position, col = new Float32Array(pa.count * 3), c1 = new THREE.Color(0xd8d4ca), c2 = new THREE.Color(0xe4e0d7), cc = new THREE.Color();
   for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i); pa.setY(i, R.height(x, z)); cc.copy(c1).lerp(c2, R.onPath(x, z) ? 1 : 0); col.set([cc.r, cc.g, cc.b], i * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; room.add(ground);
-  inst(room, GRASS, MAT.grass, R.grass, R.height, false);
+  const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; room.add(ground); ground.layers.enable(2);
+  inst(room, GRASS, MAT.grass, R.grass, R.height, false).layers.enable(2);
   inst(room, FLOWER, MAT.flower, R.flowers.map(f => ({ ...f, y: R.height(f.x, f.z) + 0.12 + f.s * 0.05 })), R.height);
   placeModels(room, R.props, R.height);
   place = { height: R.height, inside: R.inside, blockers: R.props.filter(p => p.col).map(p => ({ x: p.x, z: p.z, r: p.col * p.s })), ground };
@@ -169,7 +172,7 @@ function enterInterior() {
 function exitInterior() {
   fade(() => {
     inside = false; interior.visible = false; room.visible = true;
-    scene.background.set(PAPER); scene.fog.color.set(PAPER); hemi.intensity = 1.15; sun.intensity = 2.4;
+    scene.background.set(PAPER); scene.fog.color.set(PAPER); svetloDen();
     place = { height: R.height, inside: R.inside, blockers: R.props.filter(p => p.col).map(p => ({ x: p.x, z: p.z, r: p.col * p.s })), ground: room.children[0] };
     hero.position.set(R.building.door[0], R.height(...R.building.door), R.building.door[1] + 2); vel.set(0, 0, 0); target = null;
     labels.forEach(l => { l.el.style.display = ''; });
@@ -378,9 +381,9 @@ function update(dt, t) {
   updateParticles(dt);
   if (tapMark) { tapMark.t += dt; tapRing.visible = tapMark.t < 0.5 && !fight.on; tapRing.position.copy(tapMark.p).setY(tapMark.p.y + 0.05); tapRing.scale.setScalar(1 + tapMark.t * 1.5); }
   shakeV = Math.max(0, shakeV - dt * 1.6); hurtV = Math.max(0, hurtV - dt * 1.2);
-  ditherMat.uniforms.uHurt.value = Math.max(G.danger && fight.on ? 0.45 : 0, hurtV);
+  kresbaMat.uniforms.uHurt.value = Math.max(G.danger && fight.on ? 0.45 : 0, hurtV);
   if (fadeT > 0) { fadeT += dt * 2; if (fadeT >= 1 && fadeCb) { const cb = fadeCb; fadeCb = null; cb(); snapCam = true; } if (fadeT >= 2) fadeT = 0; }
-  ditherMat.uniforms.uFade.value = fadeT > 0 ? (fadeT < 1 ? fadeT : 2 - fadeT) : 0;
+  kresbaMat.uniforms.uFade.value = fadeT > 0 ? (fadeT < 1 ? fadeT : 2 - fadeT) : 0;
 }
 function updateRoom(dt, t) {
   const hp = hero.position, busy = paused || fight.on || lockOn || fadeT > 0 || G.over;
@@ -468,18 +471,18 @@ function draw(dt) {
   camera.position.copy(camPos).add(sh); camera.lookAt(camLook.clone().add(sh));
   sun.position.set(hero.position.x - 15, hero.position.y + 10, hero.position.z + 8); sun.target.position.copy(hero.position);
   const hv = hero.position.clone().add(new THREE.Vector3(0, 1, 0)).project(camera);
-  blurMat.uniforms.uFocus.value = (hv.y + 1) / 2; blurMat.uniforms.uBand.value = fight.on ? 0.3 : 0.2;
+  kresbaBlur.uniforms.uBand.value = fight.on ? 0.3 : 0.22;
   drawTags(camera);
   for (const l of labels) { const v = l.pos.clone().project(camera); l.el.style.transform = `translate(${(v.x + 1) / 2 * innerWidth}px, ${(1 - v.y) / 2 * innerHeight}px) translate(-50%, -100%)`; }
   $('streak').classList.toggle('hidden', !fight.on);
-  render();
+  renderKresba((hv.y + 1) / 2, hero.position);
 }
 
 // ---------- štart ----------
 await Promise.all([loadProps(), loadFighters(), loadHero()]);
 buildInterior();
 buildRoom();
-resize(viewZoom); addEventListener('resize', () => resize(viewZoom));
+resize(viewZoom); resizeKresba(); addEventListener('resize', () => { resize(viewZoom); resizeKresba(); });
 renderHearts(); renderCoins(); renderStreak(); renderInput();
 bottomEl.classList.add('hidden');
 $('loading').remove();
