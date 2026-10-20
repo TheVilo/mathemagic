@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { recordAnswer, createMathState } from '../js/math.js';
-import { genRoom, ROOMS, mulberry32 } from './gen.js';
+import { genRoom, ROOMS, mulberry32 } from './gen-stara.js';
 
 // ---------- uloženie (pri vstupe do miestnosti a po bossovi) ----------
 const SAVE_KEY = 'mm-save';

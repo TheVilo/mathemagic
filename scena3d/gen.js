@@ -50,9 +50,10 @@ export function poisson(W, H, r, rng, ok, max = 100000) {
 }
 
 export const ROOMS = 7; // 6 miestností s hordou + boss
-export function genRoom(seed, index) {
+// kind: boj | poklad | zamok | elita | obchod | boss (z mapy zóny), opts.rune = v miestnosti leží runa „do 10“
+export function genRoom(seed, index, kind = index === ROOMS - 1 ? 'boss' : 'boj', opts = {}) {
   const rng = mulberry32(seed * 1009 + index * 7919 + 1), noise = makeNoise(seed * 31 + index * 97 + 7);
-  const W = 32, H = 22, boss = index === ROOMS - 1, mid = H / 2;
+  const W = 32, H = 22, boss = kind === 'boss', mid = H / 2, fight = boss || kind === 'boj' || kind === 'elita';
   const smooth = (a, b, t) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
   const gapIn = (x, z) => x < 6 && Math.abs(z - mid) < 2.6, gapOut = (x, z) => x > W - 6 && Math.abs(z - mid) < 2.6;
   const edge = (x, z) => Math.min(x, z, W - x, H - z);
@@ -75,19 +76,23 @@ export function genRoom(seed, index) {
 
   const start = [1.2, pathZ(1.2)], gate = [W - 0.8, mid];
   const cx0 = W * (0.55 + rng() * 0.12);
-  const camp = boss ? { x: W * 0.62, z: pathZ(W * 0.62), n: 1, boss: true } : { x: cx0, z: pathZ(cx0) + (rng() - 0.5) * 3, n: Math.min(5, 2 + Math.floor(index * 0.6)), boss: false };
+  const camp = !fight ? null : boss ? { x: W * 0.62, z: pathZ(W * 0.62), n: 1, boss: true } : { x: cx0, z: pathZ(cx0) + (rng() - 0.5) * 3, n: kind === 'elita' ? 3 : Math.min(5, 3 + Math.floor(index / 3)), boss: false, elite: kind === 'elita' };
   const tier = index / (ROOMS - 1);
-  // zloženie hordy podľa hĺbky v zóne: najprv Slizkovia, potom Hríbiky, nakoniec Kamienky
-  if (!boss) camp.types = index < 2 ? ['slime'] : index < 4 ? ['slime', 'mush'] : ['rock', 'mush', 'slime'];
+  // zloženie bandy podľa hĺbky v zóne: najprv zbojníci, potom rytieri a strelci, nakoniec barbari
+  if (camp && !boss) camp.types = camp.elite ? ['knight', 'rogue', 'rogue'] : index < 2 ? ['rogue', 'rogue', 'knight'] : index < 4 ? ['rogue', 'hooded', 'knight', 'rogue'] : ['barbarian', 'rogue', 'hooded', 'rogue', 'knight'];
 
-  // nálezy: číslo 3 v tretej miestnosti, číslo 4 v piatej, mince inde
-  const finds = [];
-  const spot = () => { for (let k = 0; k < 50; k++) { const x = 8 + rng() * (W - 16), z = 4 + rng() * (H - 8); if (Math.hypot(x - camp.x, z - camp.z) > 6) return [x, z]; } return [W / 2, 5]; };
-  if (index === 2) { const [x, z] = spot(); finds.push({ kind: 'rune', n: 3, x, z }); }
-  if (index === 4) { const [x, z] = spot(); finds.push({ kind: 'chest', n: 4, x, z }); }
-  if (index === 1 || index === 3) { const [x, z] = spot(); finds.push({ kind: 'chest', n: 0, x, z }); }
+  // nálezy: truhlice (karta alebo mince), runa „do 10“, v pokladovej miestnosti kľúč v jednom z troch kríkov, v obchode krčma
+  const finds = [], hides = [];
+  const building = kind === 'obchod' ? { x: W * 0.5, z: 8.2, r: 2.6 } : null;
+  if (building) building.door = [building.x, building.z + 2.6];
+  const far = (x, z, d) => (!camp || Math.hypot(x - camp.x, z - camp.z) > d) && (!building || Math.hypot(x - building.x, z - building.z) > 5) && finds.every(f => Math.hypot(x - f.x, z - f.z) > 4) && hides.every(f => Math.hypot(x - f.x, z - f.z) > 5);
+  const spot = (d = 6) => { for (let k = 0; k < 80; k++) { const x = 8 + rng() * (W - 16), z = 5 + rng() * (H - 10); if (far(x, z, d)) return [x, z]; } return [W / 2, 6]; };
+  if (opts.rune) { const [x, z] = spot(); finds.push({ kind: 'rune', n: 10, x, z }); }
+  if (kind === 'poklad') { const k = Math.floor(rng() * 3); for (let i = 0; i < 3; i++) { const [x, z] = spot(); hides.push({ x, z, key: i === k }); } const [x, z] = spot(); finds.push({ kind: 'chest', n: -1, x, z }); }
+  if (kind === 'zamok') { const [x, z] = spot(); finds.push({ kind: 'chest', n: -1, x, z }); }
+  if (kind === 'boj' && index % 2) { const [x, z] = spot(); finds.push({ kind: 'chest', n: 0, x, z }); }
 
-  const clearing = (x, z) => Math.hypot(x - camp.x, z - camp.z) < (boss ? 7 : 4.5) || finds.some(f => Math.hypot(x - f.x, z - f.z) < 2) || onPath(x, z);
+  const clearing = (x, z) => (camp && Math.hypot(x - camp.x, z - camp.z) < (boss ? 7 : 4.5)) || (building && Math.hypot(x - building.x, z - building.z) < building.r + 1.5) || finds.some(f => Math.hypot(x - f.x, z - f.z) < 2) || hides.some(f => Math.hypot(x - f.x, z - f.z) < 1.6) || onPath(x, z);
   // kvety: trsy okolo stredov, kde je šum vysoký (ako na inšpirácii)
   const flowers = [];
   for (const [cx, cz] of poisson(W, H, 4.5, rng, (x, z) => inside(x, z) && noise(x * 0.1, z * 0.1, 5) > 0.45)) {
@@ -127,7 +132,7 @@ export function genRoom(seed, index) {
   for (let x = -6 + rng() * 3; x < W + 6; x += 3 + rng() * 4) put(pick(['rock_tallA', 'rock_tallB', 'rock_largeC', 'rock_largeD']), x, -3.5 - rng() * 3, 3.2 + rng() * 2.5, rng() * 6.28, 0);
   for (const [x, z] of poisson(W, H, 7, rng, (x, z) => free(x, z, 3) && noise(x * 0.12, z * 0.12, 22) > 0.62)) for (let k = 0; k < 2 + Math.floor(rng() * 3); k++) { const a = rng() * 6.28, d = rng() * 1.8; if (free(x + Math.cos(a) * d, z + Math.sin(a) * d, 1.2)) put(pick(TREES), x + Math.cos(a) * d, z + Math.sin(a) * d, 0.7 + rng() * 0.4, rng() * 6.28, 0.45); }
   // tábor hordy: ohnisko a stany za ním
-  if (!boss) { put('campfire_stones', camp.x + 1.2, camp.z + 1.5, 1, 0, 0.5); put('tent_smallClosed', camp.x + 2.8, camp.z - 2.2, 1, 3.5 + rng(), 1.1); if (rng() < 0.6) put('log_stack', camp.x - 0.8, camp.z + 2.6, 1, rng() * 6, 0.6); }
+  if (camp && !boss) { put('campfire_stones', camp.x + 1.2, camp.z + 1.5, 1, 0, 0.5); put('tent_smallClosed', camp.x + 2.8, camp.z - 2.2, 1, 3.5 + rng(), 1.1); if (rng() < 0.6) put('log_stack', camp.x - 0.8, camp.z + 2.6, 1, rng() * 6, 0.6); }
   // padnuté kmene, pne, skupiny kameňov, kríky, huby
   for (let k = 0, n = Math.floor(rng() * 3); k < n; k++) { const [x, z] = spot(); if (free(x, z, 2)) put(rng() < 0.5 ? 'log_large' : 'log', x, z, 1, rng() * 6.28, 0.7); }
   for (let k = 0; k < 2 + Math.floor(rng() * 3); k++) { const [x, z] = spot(); if (free(x, z)) { put(pick(['stump_old', 'stump_round', 'stump_oldTall']), x, z, 1, rng() * 6.28, 0.4); if (rng() < 0.6) put(pick(['mushroom_redGroup', 'mushroom_tanGroup']), x + 0.7, z + 0.4, 1, rng() * 6, 0); } }
@@ -139,5 +144,7 @@ export function genRoom(seed, index) {
   if (index === 0) put('sign', 4, pathZ(4) + 1.6, 1, -1.2, 0.2);
   const trees = [], rocks = [];
 
-  return { seed, index, boss, W, H, mid, start, gate, camp, tier, finds, flowers, grass, trees, rocks, props, land, height, inside, onPath };
+  for (const h of hides) put('plant_bushLarge', h.x, h.z, 1.25, rng() * 6.28, 0.6);
+  if (building) put('building_tavern_blue', building.x, building.z, 1, 0, building.r);
+  return { seed, index, kind, boss, W, H, mid, start, gate, camp, tier, finds, hides, building, flowers, grass, trees, rocks, props, land, height, inside, onPath };
 }
