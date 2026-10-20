@@ -119,6 +119,52 @@
     #msg { top:140px; font-size:16px; padding:8px 14px; white-space:normal; text-align:center; width:max-content; max-width:calc(100vw - 32px); }
     .tag { padding:3px 7px 5px; } .tag .pr .pix { height:18px; } .tag .nm { font-size:9px; }
     .card { width:140px; } .cards.small .card { width:calc(50% - 10px); } .hb span { display:none; } .node { width:58px; } }
+
+  /* ===== UI v štýle sveta: papier, tenká atramentová linka, malé písmo, nič nezavadzia (20. 10.) ===== */
+  :root { --pp:#ece8de; --ink:#1c1d21; }
+  #hearts { top:10px !important; left:10px !important; background:none !important; padding:0 !important; gap:3px !important; }
+  .heart { width:16px !important; height:14px !important; filter:drop-shadow(0 1px 0 var(--ink)); }
+  #goal { top:38px !important; padding:4px 10px !important; font-size:11px !important; background:color-mix(in srgb, var(--pp) 88%, transparent) !important; color:var(--ink) !important; border:1.5px solid var(--ink); border-radius:6px !important; max-width:calc(100vw - 32px) !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; gap:6px !important; }
+  #goal .st { color:#7a7a80 !important; font-size:10px !important; } #goal b { font-weight:700; } #goal b.ok { color:#2f8a46 !important; }
+  #topr { top:9px !important; right:10px !important; gap:5px !important; }
+  #coins { background:none !important; color:var(--ink) !important; padding:0 4px !important; font-size:12px !important; gap:3px !important; }
+  #coins .ico { height:13px !important; }
+  .hb { font-size:10px !important; padding:5px 7px !important; border-radius:6px !important; background:color-mix(in srgb, var(--pp) 88%, transparent) !important; border:1.5px solid var(--ink) !important; box-shadow:none !important; letter-spacing:.04em; }
+  #streak { top:64px !important; left:50% !important; right:auto !important; transform:translateX(-50%); background:none !important; padding:0 !important; gap:3px !important; }
+  #streak span { display:none; } #streak i { width:7px !important; height:7px !important; border-radius:50% !important; background:color-mix(in srgb, var(--ink) 18%, transparent) !important; box-shadow:none !important; transform:none !important; }
+  #streak i.on { background:#e8b830 !important; }
+  #msg { top:76px !important; font-size:12px !important; font-weight:600 !important; padding:5px 10px !important; border-radius:6px !important; background:color-mix(in srgb, var(--pp) 92%, transparent) !important; box-shadow:none !important; border:1.5px solid var(--ink); white-space:normal !important; text-align:center; max-width:min(320px, calc(100vw - 32px)) !important; width:max-content; }
+  .tag { padding:2px 5px 3px !important; border-radius:5px !important; box-shadow:none !important; border:1.5px solid var(--ink); background:color-mix(in srgb, var(--pp) 92%, transparent) !important; }
+  .tag::after { bottom:-7px !important; border-width:5px !important; }
+  .tag .nm { font-size:7px !important; letter-spacing:.08em; gap:3px !important; } .tag .hp i { width:4px !important; height:4px !important; } .tag .hp b.sh { width:6px !important; height:7px !important; }
+  .tag .pr { margin-top:1px !important; padding-top:2px !important; border-top-width:1.5px !important; } .tag .pr .pix { height:13px !important; }
+  .tag.bolt .pr .pix { height:11px !important; }
+  .tag.match { background:#fff !important; box-shadow:0 0 0 2px #e8b830 !important; }
+  #bottom { bottom:calc(8px + env(safe-area-inset-bottom)) !important; gap:5px !important; width:min(420px, calc(100vw - 16px)); }
+  #inp { min-width:110px !important; height:28px !important; border-radius:6px !important; box-shadow:none !important; border:1.5px solid var(--ink); background:color-mix(in srgb, var(--pp) 92%, transparent) !important; padding:0 10px !important; }
+  #inp .pix { height:16px !important; } #inp .ph { font-size:11px !important; }
+  #pad { grid-template-columns:repeat(11, 1fr) !important; grid-auto-rows:38px !important; gap:4px !important; padding:0 !important; background:none !important; width:100% !important; }
+  #pad button { border-radius:6px !important; background:color-mix(in srgb, var(--pp) 92%, transparent) !important; border:1.5px solid var(--ink) !important; box-shadow:0 2px 0 var(--ink) !important; }
+  #pad button .pix { height:14px !important; }
+  #pad .del { background:#cfcabf !important; }
+  @media (max-width:640px) { #pad { grid-template-columns:repeat(6, 1fr) !important; grid-auto-rows:40px !important; } }
+  .wlabel { font-size:11px !important; padding:3px 7px !important; border-radius:5px !important; } .wlabel .pix { height:14px !important; } .wlabel .ico { height:12px !important; }
+  .float { font-size:13px !important; } .float.dmg .pix { height:20px !important; }
+  .ov .box { padding:14px 14px !important; border-radius:10px !important; box-shadow:0 0 0 2px var(--ink) !important; max-width:560px !important; }
+  .ov h2 { font-size:17px !important; margin-bottom:4px !important; } .ov h2 .ico { height:16px !important; }
+  .ov h3 { font-size:10px !important; margin:10px 0 6px !important; }
+  .ov .sub { font-size:12px !important; margin-bottom:10px !important; }
+  .ov button { font-size:13px !important; padding:8px 14px !important; border-radius:8px !important; box-shadow:0 0 0 1.5px var(--ink), 0 2px 0 var(--ink) !important; margin-top:10px !important; }
+  .cards { gap:8px !important; }
+  .card { width:112px !important; padding:8px 7px 8px !important; border-radius:8px !important; box-shadow:0 0 0 1.5px var(--ink), 0 2px 0 var(--ink) !important; border-top-width:5px !important; }
+  .card .ci { height:30px !important; } .card .ci .ico { height:24px !important; }
+  .card b { font-size:13px !important; margin:3px 0 2px !important; } .card p { font-size:10.5px !important; min-height:0 !important; line-height:1.3 !important; }
+  .card em { font-size:10px !important; top:-11px !important; padding:2px 6px !important; }
+  .cards.small .card { width:calc(50% - 6px) !important; max-width:150px; }
+  .op { width:34px !important; height:34px !important; } .op .pix { height:16px !important; }
+  .rg { padding:5px 9px !important; font-size:12px !important; } .mini { font-size:10px !important; padding:4px 7px !important; } .mini .ico { height:13px !important; }
+  .node { width:52px !important; font-size:9px !important; padding:6px 2px !important; } .node .ico { height:16px !important; }
+  .bigop .pix { height:48px !important; }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
@@ -128,7 +174,7 @@
 <div id="tags"></div>
 <div id="hearts"></div>
 <div id="goal"></div>
-<div id="topr"><div id="coins"></div><button class="hb" id="bMap">MAPA</button><button class="hb" id="bBook">KNIHA</button></div>
+<div id="topr"><div id="coins"></div><button class="hb" id="bMap">Mapa</button><button class="hb" id="bBook">Kniha</button></div>
 <div id="streak" class="hidden"></div>
 <div id="msg"></div>
 <div id="bottom" class="hidden"><div id="inp"></div><div id="pad"></div></div>
