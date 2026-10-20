@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mulberry32, generateProblem, recordAnswer, createMathState } from '../js/math.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
@@ -275,14 +276,32 @@ function play(name, fade = 0.2) {
 }
 
 // ---------- Slizko ----------
+// Roztomilá kvapka: veľké oči, malé ústa, trasie sa.
 const slime = new THREE.Group();
-const slimeBody = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 14), std(0x9d9a94, { flatShading: false, roughness: 0.4 }));
+const slimeMat = std(0xb4b1a9, { flatShading: false, roughness: 0.35, emissive: 0x000000 });
+const slimeBody = new THREE.Mesh(new THREE.SphereGeometry(0.6, 22, 16), slimeMat);
 slimeBody.position.y = 0.42; slimeBody.castShadow = true; slime.add(slimeBody);
-const sEye = new THREE.MeshBasicMaterial({ color: 0xff3a3a });
-for (const sx of [-0.2, 0.2]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), sEye); e.position.set(sx, 0.55, 0.52); slime.add(e); }
+const white = new THREE.MeshBasicMaterial({ color: 0xffffff }), black = new THREE.MeshBasicMaterial({ color: 0x15161a });
+for (const sx of [-0.2, 0.2]) {
+  const e = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), white); e.position.set(sx, 0.08, 0.5); slimeBody.add(e);
+  const p = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), black); p.position.set(sx * 1.05, 0.08, 0.61); slimeBody.add(p);
+}
+const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 5, 10, Math.PI), black); mouth.position.set(0, -0.08, 0.57); mouth.rotation.z = Math.PI; slimeBody.add(mouth);
 slime.position.set(-4, 0, 6);
 slime.position.y = groundH(-4, 6);
 scene.add(slime);
+
+// ---------- súbojový kruh z run a kroky ----------
+const accentMat = new THREE.MeshBasicMaterial({ color: 0x8dff98 });
+const runes = new THREE.Group();
+runes.add(new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.045, 6, 64).rotateX(Math.PI / 2), accentMat));
+for (let k = 0; k < 16; k++) {
+  const a = k / 16 * Math.PI * 2, plus = new THREE.Group();
+  plus.add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.07), accentMat), new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.28), accentMat));
+  plus.position.set(Math.cos(a) * 3.75, 0, Math.sin(a) * 3.75); runes.add(plus);
+}
+runes.visible = false; scene.add(runes);
+const stepStones = [1, 2, 3, 4].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 10), new THREE.MeshBasicMaterial({ color: 0xffffff })); m.visible = false; scene.add(m); return m; });
 
 // ---------- kúzlo: guľa so svetlom, stopa a rázová vlna ----------
 const PMAX = 600, pPos = new Float32Array(PMAX * 3), pVel = new Float32Array(PMAX * 3), pLife = new Float32Array(PMAX);
@@ -294,12 +313,14 @@ function spark(x, y, z, vx, vy, vz, life) { const i = pi; pi = (pi + 1) % PMAX; 
 const orb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), new THREE.MeshBasicMaterial({ color: 0xb6ffbe }));
 const orbLight = new THREE.PointLight(0x7dff8a, 0, 9, 1.4); orb.add(orbLight); orb.visible = false; scene.add(orb);
 const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 40), new THREE.MeshBasicMaterial({ color: 0x8dff98 })); ring.rotation.x = Math.PI / 2; ring.visible = false; scene.add(ring);
+// Kúzlo: nad čarodejníkom sa objaví guľa za každé číslo príkladu, zlejú sa do kryštálu a letí.
+const opOrbs = [0, 1, 2, 3].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ color: 0x9dffa8 })); m.visible = false; scene.add(m); return m; });
 let spell = null;
-function cast() {
+function cast(operands = [1, 1], onHit = () => {}) {
   if (spell) return;
-  if (actions.Spellcast_Shoot) { play('Spellcast_Shoot', 0.1); casting = 1.2; }
+  if (actions.Spellcast_Shoot) { play('Spellcast_Shoot', 0.1); casting = 1.5; }
   hero.rotation.y = Math.atan2(slime.position.x - hero.position.x, slime.position.z - hero.position.z);
-  spell = { t: 0, from: new THREE.Vector3(), to: slime.position.clone().add(new THREE.Vector3(0, 0.5, 0)) };
+  spell = { t: 0, from: new THREE.Vector3(), to: slime.position.clone().add(new THREE.Vector3(0, 0.5, 0)), operands, onHit, power: operands.reduce((a, b) => a + b, 0) };
 }
 
 // ---------- dithering (post-process) ----------
@@ -357,7 +378,11 @@ addEventListener('resize', resize);
 
 // ---------- ovládanie ----------
 const keys = {};
-addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (e.key === ' ') { e.preventDefault(); cast(); } });
+addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  const k = /^[0-9]$/.test(e.key) ? e.key : e.key === 'Backspace' ? '←' : e.key === 'Enter' ? '✔' : null;
+  if (k && fight.on) { press(k); const b = [...padEl.children].find(x => x.dataset.k === k); if (b) { b.classList.add('press'); setTimeout(() => b.classList.remove('press'), 120); } }
+});
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
 let target = null;
@@ -367,12 +392,174 @@ canvas.addEventListener('pointerdown', e => {
   const hit = ray.intersectObject(ground)[0];
   if (hit) target = hit.point.clone();
 });
-document.getElementById('cast').onclick = cast;
 let night = false;
 const bN = document.getElementById('bNight'), bT = document.getElementById('bTones'), bD = document.getElementById('bDither');
 bN.onclick = () => { night = !night; bN.classList.toggle('on', night); };
 bT.onclick = () => { post.uniforms.uTones.value = post.uniforms.uTones.value > 2.5 ? 2 : 3; bT.classList.toggle('on', post.uniforms.uTones.value > 2.5); };
 bD.onclick = () => { post.uniforms.uOn.value = 1 - post.uniforms.uOn.value; bD.classList.toggle('on', post.uniforms.uOn.value > 0.5); };
+
+// ---------- súboj krok za krokom ----------
+// Slizko stojí 4 kroky od čarodejníka. Každé kolo jeden príklad:
+// správne a rýchlo = zásah a odhodí ho o krok späť; správne pomaly = zásah, ale príde o krok bližšie;
+// zle = príde o krok bližšie a ukáže sa správny výsledok. Keď dôjde k tebe, ubudne srdiečko.
+const rngM = mulberry32(Date.now() % 1e9 | 0);
+const mathS = createMathState();
+const STEPS = 4, GAP = 1.05;
+const fight = { on: false, pos: STEPS, hp: 8, max: 8, hearts: 3, p: null, input: '', t0: 0, phase: 'idle', hop: null, dir: new THREE.Vector3(), base: new THREE.Vector3(), cool: 0, last: '' };
+const cardEl = document.getElementById('card'), ptextEl = document.getElementById('ptext'), stepsEl = document.getElementById('steps'), padEl = document.getElementById('pad'), msgEl = document.getElementById('msg');
+const PIX = {
+  '0': '01110100011001110101110011000101110', '1': '00100011000010000100001000010001110', '2': '01110100010000100010001000100011111', '3': '11111000100010000010000011000101110',
+  '4': '00010001100101010010111110001000010', '5': '11111100001111000001000011000101110', '6': '00110010001000011110100011000101110', '7': '11111000010001000100010000100001000',
+  '8': '01110100011000101110100011000101110', '9': '01110100011000101111000010001001100', '+': '00000001000010011111001000010000000', '=': '00000000001111100000111110000000000',
+  '?': '01110100010000100010001000000000100', '←': '00000001000100011111010000010000000', '✔': '00000000010001010100010000000000000',
+};
+function pix(str) {
+  const ch = [...String(str)]; let d = '';
+  ch.forEach((c, k) => { const g = PIX[c]; if (g) for (let i = 0; i < 35; i++) if (g[i] === '1') d += `M${k * 7 + (i % 5)} ${(i / 5) | 0}h2v1h-2z`; });
+  return `<svg class="pix" viewBox="0 0 ${ch.length * 7 - 1} 7" shape-rendering="crispEdges"><path d="${d}"/></svg>`;
+}
+['1', '2', '3', '4', '5', '6', '7', '8', '9', '←', '0', '✔'].forEach(k => {
+  const b = document.createElement('button'); b.dataset.k = k; b.innerHTML = pix(k);
+  if (k === '✔') b.className = 'ok'; if (k === '←') b.className = 'del';
+  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); press(k); });
+  padEl.appendChild(b);
+});
+function hearts(lost) { document.getElementById('hearts').innerHTML = [0, 1, 2].map(i => `<i class="heart ${i < fight.hearts ? '' : 'off'} ${lost && i === fight.hearts ? 'pop' : ''}"></i>`).join(''); }
+hearts();
+let msgT = 0;
+function say(text) { msgEl.textContent = text; msgEl.classList.add('show'); clearTimeout(msgT); msgT = setTimeout(() => msgEl.classList.remove('show'), 1800); }
+const slimeSpot = n => fight.base.clone().addScaledVector(fight.dir, 0.9 + n * GAP);
+
+function startFight() {
+  fight.on = true; fight.pos = STEPS; fight.hp = fight.max = 8;
+  fight.base.copy(hero.position);
+  fight.dir.subVectors(slime.position, hero.position).setY(0).normalize();
+  const to = slimeSpot(STEPS); hopTo(to, 0.5);
+  runes.position.copy(hero.position.clone().lerp(to, 0.5)); runes.position.y = groundH(runes.position.x, runes.position.z) + 0.05; runes.visible = true; runes.scale.setScalar(0.01);
+  hero.rotation.y = Math.atan2(fight.dir.x, fight.dir.z);
+  padEl.classList.remove('hidden');
+  say('Súboj! Počítaj a kúzli.');
+  setTimeout(nextProblem, 700);
+}
+function nextProblem() {
+  if (!fight.on) return;
+  fight.p = generateProblem({ unlockedNumbers: [1, 2, 3], unlockedOperations: ['+'], retry: mathS.retry }, mathS.difficulty, rngM, { cap: 20, last: fight.last });
+  fight.last = fight.p.text; fight.input = ''; fight.t0 = performance.now(); fight.phase = 'ask';
+  cardEl.classList.remove('hidden', 'help');
+  renderCard();
+}
+const dots = n => (n <= 5 ? `<span class="dots">${'<i></i>'.repeat(n)}</span>` : '');
+function renderCard(state = '') {
+  const p = fight.p; let h = '';
+  p.operands.forEach((n, i) => { if (i) h += `<span class="sym">${pix('+')}</span>`; h += `<span class="op">${pix(n)}${dots(n)}</span>`; });
+  const ans = state === 'bad' || state === 'good' ? p.answer : fight.input || '?';
+  h += `<span class="sym">${pix('=')}</span><span id="answer" class="${state || (fight.input ? 'typed' : '')}">${pix(ans)}</span>`;
+  ptextEl.innerHTML = h;
+  stepsEl.innerHTML = 'Slizko je ' + [1, 2, 3, 4].map(i => `<i class="${i <= fight.pos ? 'on' : ''}"></i>`).join('') + ` ${fight.pos} ${fight.pos === 1 ? 'krok' : fight.pos < 5 ? 'kroky' : 'krokov'} od teba`;
+  cardEl.querySelector('#ehp i').style.width = Math.max(0, fight.hp / fight.max * 100) + '%';
+}
+function press(k) {
+  if (!fight.on || fight.phase !== 'ask') return;
+  if (/^[0-9]$/.test(k)) { if (fight.input.length < 3) fight.input += k; if (fight.input.length >= String(fight.p.answer).length) return submit(); }
+  else if (k === '←') fight.input = fight.input.slice(0, -1);
+  else if (k === '✔') return submit();
+  renderCard();
+}
+function submit() {
+  if (!fight.input) return;
+  const p = fight.p, ms = performance.now() - fight.t0, ok = +fight.input === p.answer;
+  recordAnswer(mathS, p, ok, ms);
+  fight.phase = 'wait';
+  if (ok) {
+    renderCard('good');
+    const fast = ms < 3500 + (p.operands.length - 2) * 2500;
+    cast(p.operands, () => {
+      fight.hp -= p.answer; floatNum(p.answer);
+      if (fight.hp <= 0) return win();
+      if (fast) { say('Rýchlo! Slizko odletel späť.'); stepTo(Math.min(STEPS, fight.pos + 1)); }
+      else stepTo(fight.pos - 1);
+      renderCard('good');
+      setTimeout(nextProblem, 900);
+    });
+  } else {
+    renderCard('bad');
+    say(`Správne je ${p.answer}. Nevadí!`);
+    setTimeout(() => { stepTo(fight.pos - 1); setTimeout(nextProblem, 900); }, 900);
+  }
+}
+function stepTo(n) {
+  if (n <= 0) { // dôjde k čarodejníkovi a udrie
+    hopTo(slimeSpot(0), 0.35);
+    setTimeout(() => {
+      fight.hearts--; hearts(true);
+      if (actions.Hit_A) { play('Hit_A', 0.05); casting = 0.8; }
+      for (let s = 0; s < 40; s++) spark(hero.position.x, hero.position.y + 1, hero.position.z, (Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3, 0.6);
+      if (fight.hearts <= 0) { say('Oddýchni si a skús znova!'); fight.hearts = 3; fight.hp = fight.max; setTimeout(() => hearts(), 1200); }
+      fight.pos = STEPS; hopTo(slimeSpot(STEPS), 0.6); renderCard();
+    }, 380);
+    return;
+  }
+  fight.pos = n; hopTo(slimeSpot(n), 0.45); renderCard();
+}
+function hopTo(to, dur) { fight.hop = { from: slime.position.clone(), to: to.clone(), t: 0, dur }; }
+function win() {
+  fight.phase = 'win'; cardEl.classList.add('hidden'); padEl.classList.add('hidden');
+  say('Výhra! Slizko je porazený.');
+  if (actions.Cheer) { play('Cheer', 0.2); casting = 2.2; }
+  fight.dying = 1;
+}
+function floatNum(n) {
+  const v = slime.position.clone().add(new THREE.Vector3(0, 1.4, 0)).project(camera), d = document.createElement('div');
+  d.className = 'float'; d.innerHTML = pix(n);
+  d.style.left = (v.x + 1) / 2 * innerWidth + 'px'; d.style.top = (1 - v.y) / 2 * innerHeight + 'px';
+  document.body.appendChild(d); setTimeout(() => d.remove(), 1100);
+}
+function placeCard() {
+  if (cardEl.classList.contains('hidden')) return;
+  const v = slime.position.clone().add(new THREE.Vector3(0, 1.9, 0)).project(camera);
+  const half = cardEl.offsetWidth / 2 + 12, right = innerWidth - padEl.offsetWidth - 28 - half;
+  cardEl.style.left = Math.max(half, Math.min(right, (v.x + 1) / 2 * innerWidth)) + 'px';
+  cardEl.style.top = Math.max(150, (1 - v.y) / 2 * innerHeight) + 'px';
+}
+function updateFight(dt, t) {
+  // bodky na spočítanie až po 3 sekundách – najprv skús z hlavy
+  if (fight.on && fight.phase === 'ask' && performance.now() - fight.t0 > 3000) cardEl.classList.add('help');
+  // kruh z run sa roztvorí a točí
+  if (runes.visible) { runes.rotation.y += dt * 0.25; runes.scale.setScalar(Math.min(1, runes.scale.x + dt * 3) * (fight.on && fight.phase !== 'win' ? 1 : 1)); }
+  stepStones.forEach((m, i) => {
+    m.visible = fight.on && fight.phase !== 'win';
+    if (!m.visible) return;
+    const p = slimeSpot(i + 1); m.position.set(p.x, groundH(p.x, p.z) + 0.04, p.z);
+    m.material.color.setHex(i + 1 <= fight.pos ? 0xffffff : 0x8dff98);
+  });
+  // skok Slizka
+  if (fight.hop) {
+    const h = fight.hop; h.t += dt; const k = Math.min(1, h.t / h.dur);
+    slime.position.lerpVectors(h.from, h.to, k);
+    slime.position.y = groundH(slime.position.x, slime.position.z) + Math.sin(k * Math.PI) * 0.7;
+    slimeBody.scale.set(1 - Math.sin(k * Math.PI) * 0.12, 0.75 + Math.sin(k * Math.PI) * 0.25, 1 - Math.sin(k * Math.PI) * 0.12);
+    slime.rotation.y = Math.atan2(hero.position.x - slime.position.x, hero.position.z - slime.position.z);
+    if (k >= 1) fight.hop = null;
+  }
+  // porazený Slizko sa rozplynie do iskier, o chvíľu príde nový
+  if (fight.dying) {
+    fight.dying -= dt * 1.2;
+    slimeBody.scale.setScalar(Math.max(0.001, fight.dying));
+    if (Math.random() < 0.8) spark(slime.position.x, slime.position.y + 0.4, slime.position.z, (Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3, 0.8);
+    if (fight.dying <= 0) {
+      fight.dying = 0; fight.on = false; runes.visible = false; slime.visible = false; fight.cool = 4;
+    }
+  }
+  if (!fight.on && fight.cool > 0) {
+    fight.cool -= dt;
+    if (fight.cool <= 0) {
+      const a = Math.random() * Math.PI * 2, x = hero.position.x + Math.cos(a) * 9, z = hero.position.z + Math.sin(a) * 9;
+      slime.position.set(x, groundH(x, z), z); slime.visible = true; slimeBody.scale.set(1, 0.75, 1); fight.hp = fight.max;
+    }
+  }
+  // Slizko si ťa všimne
+  if (!fight.on && slime.visible && fight.cool <= 0 && hero.position.distanceTo(slime.position) < 4.5) startFight();
+}
 
 // ---------- slučka ----------
 const clock = new THREE.Clock();
@@ -387,6 +574,7 @@ function tick() {
   if (dir.lengthSq()) target = null;
   else if (target) { dir.subVectors(target, hero.position).setY(0); if (dir.length() < 0.15) { target = null; dir.set(0, 0, 0); } }
   if (dir.lengthSq()) dir.normalize();
+  if (fight.on) { dir.set(0, 0, 0); target = null; }
   vel.lerp(dir.multiplyScalar(3.2), 1 - Math.exp(-dt * 8));
   const nx = hero.position.x + vel.x * dt, nz = hero.position.z + vel.z * dt;
   if (Math.hypot(nx - 5, nz - 3) > 4.4) { hero.position.x = nx; hero.position.z = nz; } else vel.multiplyScalar(0.5);
@@ -414,38 +602,51 @@ function tick() {
   if (spell) {
     spell.t += dt;
     const cw = crystal.getWorldPosition(new THREE.Vector3());
-    if (spell.t < 0.45) { // nabíjanie: kryštál žiari, iskry sa zbiehajú
-      const k = spell.t / 0.45;
+    const n = spell.operands.length, head = hero.position.clone().add(new THREE.Vector3(0, 2.9, 0));
+    opOrbs.forEach((o, i) => {
+      if (i >= n || spell.t > 0.8) { o.visible = false; return; }
+      const born = i * 0.14, g = Math.min(1, Math.max(0, (spell.t - born) / 0.12));
+      const side = new THREE.Vector3(Math.cos(hero.rotation.y), 0, -Math.sin(hero.rotation.y));
+      const home = head.clone().addScaledVector(side, (i - (n - 1) / 2) * 0.75);
+      const m = Math.max(0, (spell.t - 0.5) / 0.3);
+      o.position.lerpVectors(home, cw, m * m);
+      o.scale.setScalar((0.12 + spell.operands[i] * 0.05) * g * (1 - m * 0.5));
+      o.visible = g > 0;
+    });
+    if (spell.t < 0.8) { // nabíjanie: gule za čísla sa zlejú, kryštál žiari
+      const k = spell.t / 0.8;
       crystal.scale.setScalar(1 + k * 0.8); crystal.scale.y *= 1.6;
       crystalLight.intensity = 2 + k * 14;
       for (let s = 0; s < 4; s++) { const a = Math.random() * 6.28, r = 1.2; spark(cw.x + Math.cos(a) * r, cw.y + (Math.random() - 0.5), cw.z + Math.sin(a) * r, -Math.cos(a) * 2.4, 0, -Math.sin(a) * 2.4, 0.45); }
       spell.from.copy(cw);
-    } else if (spell.t < 1.15) { // let
-      const k = (spell.t - 0.45) / 0.7, e = k * k * (3 - 2 * k);
+    } else if (spell.t < 1.5) { // let
+      const k = (spell.t - 0.8) / 0.7, e = k * k * (3 - 2 * k);
       orb.visible = true; orbLight.intensity = 14;
       orb.position.lerpVectors(spell.from, spell.to, e); orb.position.y += Math.sin(e * Math.PI) * 2.2;
-      orb.scale.setScalar(1 + Math.sin(t * 30) * 0.12);
+      orb.scale.setScalar((0.8 + spell.power * 0.08) * (1 + Math.sin(t * 30) * 0.12));
       for (let s = 0; s < 5; s++) spark(orb.position.x, orb.position.y, orb.position.z, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, 0.6);
       crystalLight.intensity *= 0.9; crystal.scale.set(1, 1.6, 1);
     } else if (!spell.hit) {
       spell.hit = true; orb.visible = false;
       ring.visible = true; ring.position.copy(spell.to).setY(slime.position.y + 0.12); ring.scale.setScalar(0.2);
       for (let s = 0; s < 160; s++) { const a = Math.random() * 6.28, u = Math.random() * 2 - 1, r = 2 + Math.random() * 4; spark(spell.to.x, spell.to.y, spell.to.z, Math.cos(a) * r * Math.sqrt(1 - u * u), Math.abs(u) * r, Math.sin(a) * r * Math.sqrt(1 - u * u), 0.9 + Math.random() * 0.5); }
-      spell.flash = 1;
+      spell.flash = 1; slimeMat.emissive.setScalar(1); spell.onHit();
     } else {
       spell.flash = Math.max(0, spell.flash - dt * 2.2);
       orbLight.intensity = 0;
       ring.scale.setScalar(0.2 + (1 - spell.flash) * 3.2);
       ring.material.color.setScalar(1).lerp(new THREE.Color(0x8dff98), 1);
       slimeBody.scale.set(1 + spell.flash * 0.25, 1 - spell.flash * 0.3, 1 + spell.flash * 0.25);
+      slimeMat.emissive.setScalar(spell.flash * spell.flash);
       crystalLight.intensity += spell.flash * 6;
       fireLight.intensity += spell.flash * 0;
-      if (spell.flash <= 0) { ring.visible = false; spell = null; }
+      if (spell.flash <= 0) { ring.visible = false; spell = null; slimeMat.emissive.setScalar(0); }
     }
     if (spell && spell.hit) { orb.visible = true; orb.position.copy(spell.to); orb.scale.setScalar(spell.flash * 3 + 0.001); orbLight.intensity = spell.flash * 30; }
   } else orb.visible = false;
   // Slizko sa pruží
-  if (!spell || !spell.hit) slimeBody.scale.set(1 + Math.sin(t * 3) * 0.05, 0.75 - Math.sin(t * 3) * 0.05, 1 + Math.sin(t * 3) * 0.05);
+  if ((!spell || !spell.hit) && !fight.hop) slimeBody.scale.set(1 + Math.sin(t * 3) * 0.05, 0.75 - Math.sin(t * 3) * 0.05, 1 + Math.sin(t * 3) * 0.05);
+  updateFight(dt, t);
 
   // iskry
   for (let i = 0; i < PMAX; i++) {
@@ -470,9 +671,11 @@ function tick() {
   scene.background.copy(fogC); scene.fog.color.copy(fogC);
 
   // kamera ide za čarodejníkom
-  camPos.lerp(new THREE.Vector3(hero.position.x, hero.position.y + 13, hero.position.z + 17), 1 - Math.exp(-dt * 3));
+  const focus = fight.on ? hero.position.clone().lerp(slime.position, 0.5) : hero.position;
+  camPos.lerp(new THREE.Vector3(focus.x, focus.y + 13, focus.z + 17), 1 - Math.exp(-dt * 3));
   camera.position.copy(camPos);
-  camera.lookAt(hero.position.x, hero.position.y + 0.9, hero.position.z);
+  camera.lookAt(camPos.x, camPos.y - 13 + 0.9, camPos.z - 17);
+  placeCard();
   sun.target.position.copy(hero.position); sun.position.add(hero.position);
 
   renderer.setRenderTarget(low); renderer.render(scene, camera);
@@ -483,4 +686,4 @@ function tick() {
 }
 resize();
 requestAnimationFrame(tick);
-window.__s = { cast, hero, setNight: v => { night = v; } };
+window.__s = { cast, hero, slime, fight, press, setNight: v => { night = v; } };
