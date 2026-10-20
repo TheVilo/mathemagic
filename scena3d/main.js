@@ -1,6 +1,7 @@
 // Mathemagic – skúšobná 3D scéna: skutočné svetlo a tiene, potom dithering (štýl Obra Dinn) s farebnými akcentmi.
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
@@ -13,7 +14,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(PAPER);
 scene.fog = new THREE.Fog(PAPER, 26, 60);
 // ortografická kamera: žiadna 3D perspektíva, vyzerá ako 2D pixelová hra, ale svetlo a tiene sú skutočné
-const VIEW = 5.2;
+const VIEW = 4.2;
 const camera = new THREE.OrthographicCamera(-VIEW * 16 / 9, VIEW * 16 / 9, VIEW, -VIEW, 0.1, 200);
 
 // spoločné uniformy pre vietor a pohyb
@@ -217,41 +218,61 @@ const fire = new THREE.Group();
   scene.add(fire);
 }
 
-// ---------- čarodejník ----------
+// ---------- čarodejník (KayKit Mage, CC0) ----------
+// Farby modelu prevedieme do šedej (akcent zostáva len kryštál); plášť navyše vlaje.
 const hero = new THREE.Group();
-const heroBody = new THREE.Group(); hero.add(heroBody);
-// plášť: kužeľ, ktorého spodok vlaje vo vetre a za pohybom
-const cloakMat = animate(std(0x6c667c, { flatShading: false, side: THREE.DoubleSide }), `
-  float f = clamp((0.62 - position.y) / 1.1, 0.0, 1.0);
-  float ang = atan(position.z, position.x);
-  float speed = length(uVel.xz);
-  float flap = sin(uTime * (4.0 + speed * 3.0) + ang * 3.0) * (0.035 + speed * 0.05) + sin(uTime * 7.3 + ang * 5.0) * 0.015;
-  transformed.xz += normalize(position.xz + 0.0001) * flap * f;
-  transformed.xz -= uVel.xz * f * f * 0.28;
-  transformed.y += f * f * speed * 0.08;`);
-const cloakGeo = new THREE.ConeGeometry(0.5, 1.25, 28, 10, true).translate(0, 0.0, 0);
-const cloak = new THREE.Mesh(cloakGeo, cloakMat); cloak.position.y = 0.78; cloak.castShadow = cloak.receiveShadow = true; heroBody.add(cloak);
-const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 10), std(0xb8ada2, { flatShading: false })); head.position.y = 1.5; head.castShadow = true; heroBody.add(head);
-const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-for (const sx of [-0.075, 0.075]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), eyeMat); e.position.set(sx, 1.5, 0.19); heroBody.add(e); }
-const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.6, 0.05, 28), std(0x2f2c35, { flatShading: false })); brim.position.y = 1.66; brim.castShadow = true; heroBody.add(brim);
-// špicatý klobúk so zahnutou špičkou, ktorá sa pri chôdzi pohupuje
-const hatMat = animate(std(0x2f2c35, { flatShading: false }), `
-  float t = clamp((position.y + 0.5) / 1.0, 0.0, 1.0);
-  transformed.x -= t * t * (0.32 + uVel.x * 0.15) + sin(uTime * 3.0) * 0.03 * t * t;
-  transformed.z -= t * t * uVel.z * 0.15;`);
-const hat = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.0, 18, 8), hatMat); hat.position.y = 2.16; hat.castShadow = true; heroBody.add(hat);
-// nohy
-const legMat = std(0x25232a);
-const legs = [-0.13, 0.13].map(x => { const pv = new THREE.Group(); pv.position.set(x, 0.32, 0); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.06, 0.34, 6).translate(0, -0.17, 0), legMat); l.castShadow = true; pv.add(l); hero.add(pv); return pv; });
-// palica s kryštálom a jeho svetlom
-const staff = new THREE.Group(); staff.position.set(0.42, 0.95, 0.12); heroBody.add(staff);
-const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.9, 6), std(0x4a3f36)); stick.castShadow = true; staff.add(stick);
-const crystalMat = new THREE.MeshBasicMaterial({ color: 0x6fd27a });
-const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), crystalMat); crystal.position.y = 1.05; crystal.scale.y = 1.6; staff.add(crystal);
-const crystalLight = new THREE.PointLight(0x7dff8a, 1.6, 5, 1.6); crystalLight.position.y = 1.05; staff.add(crystalLight);
 hero.position.set(0, 0, 2);
 scene.add(hero);
+const crystalMat = new THREE.MeshBasicMaterial({ color: 0x6fd27a });
+const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), crystalMat); crystal.scale.y = 1.6;
+const crystalLight = new THREE.PointLight(0x7dff8a, 1.6, 5, 1.6);
+const crystalAnchor = new THREE.Object3D();
+crystalAnchor.add(crystal, crystalLight);
+let mixer = null, actions = {}, current = null, casting = 0;
+function grayify(mat, cape) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = U.time; sh.uniforms.uVel = U.vel; sh.uniforms.uCape = { value: cape || new THREE.Vector2(0, 1) };
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  diffuseColor.rgb = vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))) * 1.08;');
+    if (cape) sh.vertexShader = 'uniform float uTime; uniform vec3 uVel; uniform vec2 uCape;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float f = clamp((uCape.y - position.y) / (uCape.y - uCape.x), 0.0, 1.0);
+      float sp = length(uVel.xz);
+      transformed.z -= f * f * (0.08 + sp * 0.5) + sin(uTime * (5.0 + sp * 4.0) + position.x * 6.0) * f * (0.03 + sp * 0.06);
+      transformed.x += sin(uTime * 3.7 + position.y * 5.0) * f * 0.02;`);
+  };
+  mat.customProgramCacheKey = () => (cape ? 'cape' : 'gray');
+}
+new GLTFLoader().load('modely/Mage.glb', gltf => {
+  const m = gltf.scene;
+  const box = new THREE.Box3().setFromObject(m), h = box.max.y - box.min.y;
+  m.scale.setScalar(2.1 / h);
+  m.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    if (['Spellbook', 'Spellbook_open', '1H_Wand'].includes(o.name)) { o.visible = false; return; }
+    o.material = o.material.clone();
+    if (o.name === 'Mage_Cape') { o.geometry.computeBoundingBox(); const b = o.geometry.boundingBox; grayify(o.material, new THREE.Vector2(b.min.y, b.max.y)); }
+    else grayify(o.material);
+    if (o.name === '2H_Staff') {
+      o.geometry.computeBoundingBox();
+      const b = o.geometry.boundingBox, tip = new THREE.Vector3();
+      const ax = ['x', 'y', 'z'].reduce((a, k) => (b.max[k] - b.min[k] > b.max[a] - b.min[a] ? k : a), 'y');
+      tip.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2); tip[ax] = b.max[ax];
+      crystalAnchor.position.copy(tip); o.add(crystalAnchor);
+      crystalAnchor.scale.setScalar(1 / o.getWorldScale(new THREE.Vector3()).x);
+    }
+  });
+  hero.add(m);
+  mixer = new THREE.AnimationMixer(m);
+  gltf.animations.forEach(a => { actions[a.name] = mixer.clipAction(a); });
+  for (const n of ['Spellcast_Shoot', 'Hit_A', 'Cheer']) { actions[n].setLoop(THREE.LoopOnce); actions[n].clampWhenFinished = true; }
+  play('Idle');
+});
+function play(name, fade = 0.2) {
+  const a = actions[name]; if (!a || current === a) return;
+  a.reset().fadeIn(fade).play();
+  if (current) current.fadeOut(fade);
+  current = a;
+}
 
 // ---------- Slizko ----------
 const slime = new THREE.Group();
@@ -276,6 +297,8 @@ const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 40), new THREE.M
 let spell = null;
 function cast() {
   if (spell) return;
+  if (actions.Spellcast_Shoot) { play('Spellcast_Shoot', 0.1); casting = 1.2; }
+  hero.rotation.y = Math.atan2(slime.position.x - hero.position.x, slime.position.z - hero.position.z);
   spell = { t: 0, from: new THREE.Vector3(), to: slime.position.clone().add(new THREE.Vector3(0, 0.5, 0)) };
 }
 
@@ -371,11 +394,12 @@ function tick() {
   const speed = vel.length();
   if (speed > 0.2) hero.rotation.y = Math.atan2(vel.x, vel.z) + (hero.rotation.y - Math.atan2(vel.x, vel.z)) * Math.exp(-dt * 10);
   walk += dt * speed * 3.2;
-  legs[0].rotation.x = Math.sin(walk) * 0.7 * Math.min(1, speed);
-  legs[1].rotation.x = -Math.sin(walk) * 0.7 * Math.min(1, speed);
-  heroBody.position.y = Math.abs(Math.sin(walk)) * 0.07 * Math.min(1, speed) + Math.sin(t * 2) * 0.015;
-  staff.rotation.z = -0.12 + Math.sin(walk) * 0.12 * Math.min(1, speed);
-  staff.rotation.x = Math.cos(walk) * 0.15 * Math.min(1, speed);
+  if (mixer) {
+    if (casting > 0) casting -= dt;
+    else play(speed > 2.4 ? 'Running_A' : speed > 0.3 ? 'Walking_A' : 'Idle');
+    if (current) current.timeScale = current === actions.Walking_A ? Math.max(0.6, speed / 1.8) : 1;
+    mixer.update(dt);
+  }
   U.hero.value.copy(hero.position);
   // rýchlosť v súradniciach čarodejníka (aby plášť vial dozadu)
   U.vel.value.copy(vel).applyAxisAngle(new THREE.Vector3(0, 1, 0), -hero.rotation.y).multiplyScalar(0.35);
@@ -392,7 +416,7 @@ function tick() {
     const cw = crystal.getWorldPosition(new THREE.Vector3());
     if (spell.t < 0.45) { // nabíjanie: kryštál žiari, iskry sa zbiehajú
       const k = spell.t / 0.45;
-      staff.rotation.x = -0.6 * k; crystal.scale.setScalar(1 + k * 0.8); crystal.scale.y *= 1.6;
+      crystal.scale.setScalar(1 + k * 0.8); crystal.scale.y *= 1.6;
       crystalLight.intensity = 2 + k * 14;
       for (let s = 0; s < 4; s++) { const a = Math.random() * 6.28, r = 1.2; spark(cw.x + Math.cos(a) * r, cw.y + (Math.random() - 0.5), cw.z + Math.sin(a) * r, -Math.cos(a) * 2.4, 0, -Math.sin(a) * 2.4, 0.45); }
       spell.from.copy(cw);
@@ -402,7 +426,7 @@ function tick() {
       orb.position.lerpVectors(spell.from, spell.to, e); orb.position.y += Math.sin(e * Math.PI) * 2.2;
       orb.scale.setScalar(1 + Math.sin(t * 30) * 0.12);
       for (let s = 0; s < 5; s++) spark(orb.position.x, orb.position.y, orb.position.z, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, 0.6);
-      crystalLight.intensity *= 0.9; crystal.scale.set(1, 1.6, 1); staff.rotation.x *= 0.9;
+      crystalLight.intensity *= 0.9; crystal.scale.set(1, 1.6, 1);
     } else if (!spell.hit) {
       spell.hit = true; orb.visible = false;
       ring.visible = true; ring.position.copy(spell.to).setY(slime.position.y + 0.12); ring.scale.setScalar(0.2);
@@ -446,7 +470,7 @@ function tick() {
   scene.background.copy(fogC); scene.fog.color.copy(fogC);
 
   // kamera ide za čarodejníkom
-  camPos.lerp(new THREE.Vector3(hero.position.x, hero.position.y + 22, hero.position.z + 16), 1 - Math.exp(-dt * 3));
+  camPos.lerp(new THREE.Vector3(hero.position.x, hero.position.y + 13, hero.position.z + 17), 1 - Math.exp(-dt * 3));
   camera.position.copy(camPos);
   camera.lookAt(hero.position.x, hero.position.y + 0.9, hero.position.z);
   sun.target.position.copy(hero.position); sun.position.add(hero.position);
