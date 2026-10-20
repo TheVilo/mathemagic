@@ -107,7 +107,7 @@ function lightning(from, to, keep) {
   const mat = new THREE.MeshBasicMaterial({ color: 0xffe14a }), pts = [from.clone()];
   for (let k = 1; k < 8; k++) pts.push(from.clone().lerp(to, k / 8).add(new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8)));
   pts.push(to.clone());
-  for (let k = 0; k < pts.length - 1; k++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(keep ? 0.1 : 0.2, keep ? 0.1 : 0.2, pts[k].distanceTo(pts[k + 1])), mat); seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); seg.layers.enable(4); boltGroup.add(seg); }
+  for (let k = 0; k < pts.length - 1; k++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(keep ? 0.2 : 0.4, keep ? 0.2 : 0.4, pts[k].distanceTo(pts[k + 1])), mat); seg.position.copy(pts[k]).lerp(pts[k + 1], 0.5); seg.lookAt(pts[k + 1]); seg.layers.enable(4); boltGroup.add(seg); }
   if (!keep) for (let b = 0; b < 3; b++) { const i = 2 + Math.floor(Math.random() * 5), a = pts[i]; lightning(a, a.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * 3)), true); }
 }
 // číslo zásahu vyletí z nepriateľa (pixelové písmo vo farbe kúzla)
@@ -116,6 +116,7 @@ function damageNumber(f, v, col) {
   d.className = 'dmg'; d.style.color = '#' + col.toString(16).padStart(6, '0'); d.innerHTML = pix('-' + v);
   d.style.left = (p.x + 1) / 2 * innerWidth + 'px'; d.style.top = (1 - p.y) / 2 * innerHeight + 'px';
   d.style.setProperty('--dx', ((Math.random() - 0.5) * 60).toFixed(0) + 'px');
+  const far = THREE.MathUtils.clamp((f.g.position.distanceTo(camera.position) - 18) / 10, 0, 1); d.style.setProperty('--s', (1.15 - far * 0.55).toFixed(2));   // vzdialený nepriateľ = menšie číslo
   document.body.appendChild(d); setTimeout(() => d.remove(), 1300);
 }
 
@@ -156,12 +157,12 @@ const PALETTE = [0x15161a, 0x2c3a2e, 0x4f6e3f, 0x86a85f, 0xc7d69a, 0x8d8a83, 0xe
 // ---------- shader zo znamienok ----------
 // fine = scéna v jemnom rozlíšení (bodky postáv aj vzorka pre bunky), mask = kde sú postavy
 // amb = tá istá scéna bez slnka → pomer osvetlená/neosvetlená = kde je tieň (nie tmavá farba, ale skutočný tieň); depth = hĺbka
-const fine = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), amb = new THREE.WebGLRenderTarget(16, 16), s1 = new THREE.WebGLRenderTarget(16, 16), s2 = new THREE.WebGLRenderTarget(16, 16), spl = new THREE.WebGLRenderTarget(16, 16), mask = new THREE.WebGLRenderTarget(16, 16), maskS = new THREE.WebGLRenderTarget(16, 16), maskG = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), glyphRT = new THREE.WebGLRenderTarget(16, 16, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
+const fine = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), amb = new THREE.WebGLRenderTarget(16, 16), s1 = new THREE.WebGLRenderTarget(16, 16), s2 = new THREE.WebGLRenderTarget(16, 16), spl = new THREE.WebGLRenderTarget(16, 16), mask = new THREE.WebGLRenderTarget(16, 16), maskS = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), maskG = new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) }), glyphRT = new THREE.WebGLRenderTarget(16, 16, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
 const VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const glyphMat = new THREE.ShaderMaterial({
-  uniforms: { tScene: { value: fine.texture }, tMask: { value: mask.texture }, uRes: { value: new THREE.Vector2() }, uFine: { value: new THREE.Vector2() }, uCell: { value: 7 }, uMode: { value: 1 }, uCharDots: { value: 1 }, uDot: { value: 3 }, tAmb: { value: amb.texture }, tDepth: { value: fine.depthTexture }, uShadow: { value: new THREE.Color(0x2a2f4e) }, uDepth: { value: new THREE.Vector2(0.05, 0.18) }, uLines: { value: 1 }, uSymCol: { value: 0 }, uInvert: { value: 0 }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(5, 7) }, uPal: { value: PALETTE.map(c => new THREE.Vector3(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255)) }, uPalOn: { value: 1 }, uScale: { value: 1 }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture }, tS1: { value: s1.texture }, tS2: { value: s2.texture }, tSpell: { value: spl.texture }, tEdge: { value: null }, uEdgeOn: { value: 1 }, uPolar: { value: 0 }, uAO: { value: 1 }, uSpellG: { value: 3 }, tSpellM: { value: maskS.texture }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) } },
+  uniforms: { tScene: { value: fine.texture }, tMask: { value: mask.texture }, uRes: { value: new THREE.Vector2() }, uFine: { value: new THREE.Vector2() }, uCell: { value: 7 }, uMode: { value: 1 }, uCharDots: { value: 1 }, uDot: { value: 3 }, tAmb: { value: amb.texture }, tDepth: { value: fine.depthTexture }, uShadow: { value: new THREE.Color(0x2a2f4e) }, uDepth: { value: new THREE.Vector2(0.05, 0.18) }, uLines: { value: 1 }, uSymCol: { value: 0 }, uInvert: { value: 0 }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(5, 7) }, uPal: { value: PALETTE.map(c => new THREE.Vector3(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255)) }, uPalOn: { value: 1 }, uScale: { value: 1 }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture }, tS1: { value: s1.texture }, tS2: { value: s2.texture }, tSpell: { value: spl.texture }, tEdge: { value: null }, uEdgeOn: { value: 1 }, uPolar: { value: 0 }, uAO: { value: 1 }, uSpellG: { value: 3 }, tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) } },
   vertexShader: VS,
-  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tMask; uniform vec2 uRes; uniform vec2 uFine; uniform float uCell; uniform int uMode; uniform float uCharDots; uniform float uDot; uniform sampler2D tAmb; uniform sampler2D tDepth; uniform vec3 uShadow; uniform vec2 uDepth; uniform float uLines; uniform float uSymCol; uniform float uInvert; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform vec3 uPal[9]; uniform float uPalOn; uniform float uScale; uniform sampler2D tGround; uniform sampler2D tGDepth; uniform sampler2D tS1; uniform sampler2D tS2; uniform sampler2D tSpell; uniform sampler2D tEdge; uniform float uEdgeOn; uniform float uPolar; uniform float uAO; uniform int uSpellG; uniform sampler2D tSpellM; uniform vec4 uFlash; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tMask; uniform vec2 uRes; uniform vec2 uFine; uniform float uCell; uniform int uMode; uniform float uCharDots; uniform float uDot; uniform sampler2D tAmb; uniform sampler2D tDepth; uniform vec3 uShadow; uniform vec2 uDepth; uniform float uLines; uniform float uSymCol; uniform float uInvert; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform vec3 uPal[9]; uniform float uPalOn; uniform float uScale; uniform sampler2D tGround; uniform sampler2D tGDepth; uniform sampler2D tS1; uniform sampler2D tS2; uniform sampler2D tSpell; uniform sampler2D tEdge; uniform float uEdgeOn; uniform float uPolar; uniform float uAO; uniform int uSpellG; uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform vec4 uFlash; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -173,7 +174,7 @@ const glyphMat = new THREE.ShaderMaterial({
       if (g == 2) return bar(p, w, L);                                                      // −
       if (g == 3) return min(bar(p, w, L), bar(p.yx, w, L));                                // +
       if (g == 4) { vec2 r = vec2(p.x + p.y, p.x - p.y) * 0.7071; return min(bar(r, w, L), bar(r.yx, w, L)); } // ×
-      if (g == 5) return min(bar(p, w, L), min(length(p - vec2(0.0, 0.27)) - w * 1.15, length(p + vec2(0.0, 0.27)) - w * 1.15)); // ÷
+      if (g == 5) return min(bar(p, w, L), min(length(p - vec2(0.0, 0.27)) - max(w * 1.6, 0.09), length(p + vec2(0.0, 0.27)) - max(w * 1.6, 0.09))); // ÷ (výraznejšie bodky)
       if (g == 7) return min(bar(p - vec2(0.0, 0.16), w, L), bar(p + vec2(0.0, 0.16), w, L)); // =
       if (g == 8) return bar(p, 0.4, 0.4);                                                   // ■
       if (g == 9) return min(min(bar(p - vec2(0.0, 0.15), w, L), bar(p + vec2(0.0, 0.15), w, L)), min(bar(p.yx - vec2(0.0, 0.15), w, L), bar(p.yx + vec2(0.0, 0.15), w, L))); // #
@@ -342,13 +343,15 @@ const glyphMat = new THREE.ShaderMaterial({
         fg = mix(fg, bg, far * 0.45);
         if (uSymCol > 0.5) { float mx = max(c.r, max(c.g, c.b)); fg = mix(c / max(mx, 0.05) * mix(0.75, 0.3, k), fg, 0.45); }   // jemná farba toho, čo znak kreslí
         { // KÚZLO ZO ZNAMIENOK: čo žiari (kúzlo, plamene, iskry, blesk), sa kreslí znamienkom kúzla (+ − × ÷) vo farbe kúzla, väčším písmom
-          vec2 cs2 = cs * 2.0, cell2 = floor(frag / cs2), p2 = (frag - (cell2 + 0.5) * cs2) / cs2;
-          vec3 c2 = lin2srgb(texture2D(tSpellM, (cell2 + 0.5) * cs2 / uRes).rgb); float m2 = max(c2.r, max(c2.g, c2.b));
-          if (m2 > 0.12) {                                                  // len to, čo patrí kúzlu (vrstva 4)
+          vec2 cs2 = cs * 3.0, cell2 = floor(frag / cs2), p2 = (frag - (cell2 + 0.5) * cs2) / cs2;   // väčšie znamienka kúzla
+          vec2 uvs = (cell2 + 0.5) * cs2 / uRes;
+          vec3 c2 = lin2srgb(texture2D(tSpellM, uvs).rgb); float m2 = max(c2.r, max(c2.g, c2.b));
+          bool behind = texture2D(tSpellD, uvs).r > texture2D(tDepth, uvs).r + 0.0015;   // HĹBKA: čo je pred kúzlom, ho zakryje
+          if (m2 > 0.12 && !behind) {                                       // len to, čo patrí kúzlu (vrstva 4)
             float inten = clamp((m2 - 0.12) * 1.6, 0.0, 1.0);
-            float dg = glyph(uSpellG, p2, 0.07 + inten * 0.09, 0.36 + inten * 0.08);
+            float dg = glyph(uSpellG, p2, 0.045 + inten * 0.05, 0.34 + inten * 0.06);   // tenšia čiara = znamienko čitateľné aj na mobile
             vec3 sc = c2 / max(m2, 0.01);
-            bg = mix(bg, sc, 0.04 + inten * 0.12);
+            bg = mix(bg, sc, inten * 0.06);
             fg = mix(sc * 0.95, vec3(1.0), inten * 0.25); ink = clamp(0.5 - dg * cs2.y, 0.0, 1.0);
           }
         }
