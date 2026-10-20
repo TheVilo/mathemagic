@@ -61,7 +61,7 @@ const SWAY = IP + `
   transformed.x += sw * 0.045 * hh * hh;
   transformed.z += sw * 0.02 * hh * hh;`;
 const MAT = {
-  ground: std(0xd8d4ca, { flatShading: false }),
+  ground: std(0xffffff, { flatShading: false, vertexColors: true }),
   grass: animate(std(0x5e5b55, { flatShading: false }), IP + `
     float h = position.y / 0.4;
     float wind = sin(uTime * 1.8 + ip.x * 0.35 + ip.z * 0.25) * 0.5 + sin(uTime * 3.1 + ip.x * 1.3) * 0.18;
@@ -85,6 +85,37 @@ GRASS.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0,
 const FLOWER = new THREE.IcosahedronGeometry(0.11, 0);
 const ROCK = new THREE.DodecahedronGeometry(0.8, 0).scale(1, 0.7, 1);
 
+// ---------- modely (Kenney Nature Kit + KayKit Medieval Hexagon, oba CC0) ----------
+// Každý model sa rozloží na časti (geometria + materiál), farby sa prevedú do šedej; stromy sa kývu vo vetre.
+const KENNEY = ['log', 'log_large', 'log_stack', 'stump_old', 'stump_oldTall', 'stump_round', 'rock_largeA', 'rock_largeB', 'rock_largeC', 'rock_largeD', 'rock_smallA', 'rock_smallB', 'rock_smallC', 'rock_smallFlatA', 'rock_tallA', 'rock_tallB',
+  'statue_columnDamaged', 'statue_column', 'statue_obelisk', 'statue_block', 'campfire_stones', 'tent_smallClosed', 'plant_bush', 'plant_bushLarge', 'plant_bushSmall', 'mushroom_redGroup', 'mushroom_tanGroup', 'sign',
+  'tree_oak', 'tree_detailed', 'tree_fat', 'tree_default', 'tree_cone', 'tree_pineDefaultA', 'tree_pineRoundB', 'tree_pineTallA', 'tree_thin', 'tree_tall', 'tree_simple'];
+const KAYKIT = ['building_tower_A_blue', 'building_tower_B_blue', 'building_well_blue'];
+const MODELS = {};
+function prepMat(mat, sway, keepColor) {
+  const m = mat.clone();
+  m.flatShading = true; m.metalness = 0; m.roughness = 0.9;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uTime = U.time;
+    if (!keepColor) sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  diffuseColor.rgb = vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))) * 1.05;');
+    if (sway) sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + SWAY.replace(/0\.045/g, '0.03'));
+  };
+  m.customProgramCacheKey = () => (sway ? 's' : '') + (keepColor ? 'c' : 'g');
+  return m;
+}
+function loadModels() {
+  const loader = new GLTFLoader();
+  const one = (name, url, scale) => new Promise(res => loader.load(url, g => {
+    g.scene.updateMatrixWorld(true);
+    const parts = [], sway = name.startsWith('tree_'), keep = name.startsWith('mushroom_red');
+    g.scene.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry.clone().applyMatrix4(o.matrixWorld).scale(scale, scale, scale), mat: prepMat(o.material, sway, keep && /red/i.test(o.material.name + o.material.color.getHexString()) ) }); });
+    MODELS[name] = parts; res();
+  }, undefined, () => res()));
+  // mierka podľa druhu (čarodejník má 2,1): stromy ~3,5–4,5, kamene a kmene menšie, stavby vyššie
+  const sc = n => n.startsWith('tree_') ? 3.1 : n.startsWith('statue_') ? 2.3 : n.startsWith('tent') || n.startsWith('campfire') ? 2.2 : n === 'sign' ? 2 : 1.7;
+  return Promise.all([...KENNEY.map(n => one(n, `modely/priroda/${n}.glb`, sc(n))), ...KAYKIT.map(n => one(n, `modely/stavby/${n}.gltf`, 3.6))]);
+}
+
 // ---------- miestnosť ----------
 let R = null, room = null; // R = vypočítané dáta, room = objekty v scéne
 const occluders = [];
@@ -105,16 +136,19 @@ function buildRoom(index) {
   const geo = new THREE.PlaneGeometry(R.W + 16, R.H + 16, (R.W + 16) * 2, (R.H + 16) * 2);
   geo.rotateX(-Math.PI / 2); geo.translate(R.W / 2, 0, R.H / 2);
   const pa = geo.attributes.position;
-  for (let i = 0; i < pa.count; i++) pa.setY(i, R.height(pa.getX(i), pa.getZ(i)));
+  const col = new Float32Array(pa.count * 3), c1 = new THREE.Color(0xd8d4ca), c2 = new THREE.Color(0xe4e0d7), cc = new THREE.Color();
+  for (let i = 0; i < pa.count; i++) {
+    const x = pa.getX(i), z = pa.getZ(i); pa.setY(i, R.height(x, z));
+    cc.copy(c1).lerp(c2, R.onPath(x, z) ? 1 : 0); col.set([cc.r, cc.g, cc.b], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
   const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; ground.userData.own = true; ground.name = 'ground'; room.add(ground);
   inst(GRASS, MAT.grass, R.grass, false);
   inst(FLOWER, MAT.flower, R.flowers.map(f => ({ ...f, y: R.height(f.x, f.z) + 0.12 + f.s * 0.05 })));
-  for (let t = 0; t < 3; t++) {
-    const items = R.trees.filter(tr => tr.type === t).map(tr => ({ ...tr, y: R.height(tr.x, tr.z) - 0.05 }));
-    occluders.push(inst(TREE[t].trunk, TREE[t].tm, items), inst(TREE[t].leaf, TREE[t].lm, items));
-  }
-  occluders.push(inst(ROCK, MAT.rock, R.rocks.map(r => ({ ...r, y: R.height(r.x, r.z) + 0.15 }))));
+  const byModel = {};
+  for (const p of R.props) (byModel[p.m] = byModel[p.m] || []).push({ ...p, y: R.height(p.x, p.z) - 0.04 });
+  for (const [name, items] of Object.entries(byModel)) for (const part of MODELS[name] || []) occluders.push(inst(part.geo, part.mat, items));
   buildGate();
   buildCamp();
   buildFinds();
@@ -687,6 +721,7 @@ bW.onclick = () => { save = { seed: 1 + Math.floor(Math.random() * 9999), zone: 
 // ---------- slučka ----------
 const clock = new THREE.Clock();
 const vel = new THREE.Vector3();
+await loadModels();
 buildRoom(save.room || 0);
 const camPos = hero.position.clone().add(new THREE.Vector3(0, 13, 17)), camLook = hero.position.clone();
 let dayK = 1;
@@ -702,7 +737,7 @@ function tick() {
   if (fight.on || changing) { dir.set(0, 0, 0); target = null; }
   vel.lerp(dir.multiplyScalar(3.4), 1 - Math.exp(-dt * 8));
   const nx = hero.position.x + vel.x * dt, nz = hero.position.z + vel.z * dt;
-  const ok = (x, z) => R.inside(x, z) && (camp.done || x < R.gate[0] - 1.2); // kým je horda, bránou sa nedá prejsť
+  const ok = (x, z) => R.inside(x, z) && (camp.done || x < R.gate[0] - 1.2) && R.props.every(p => !p.col || (p.x - x) ** 2 + (p.z - z) ** 2 > (p.col * p.s) ** 2); // kým je horda, bránou sa nedá prejsť
   if (ok(nx, nz)) { hero.position.x = nx; hero.position.z = nz; }
   else if (ok(nx, hero.position.z)) hero.position.x = nx;
   else if (ok(hero.position.x, nz)) hero.position.z = nz;
@@ -758,7 +793,7 @@ function tick() {
   camPos.lerp(wantPos, kc); camLook.lerp(wantLook, kc);
   if (Math.abs(viewZoom - wantView) > 0.001) { viewZoom += (wantView - viewZoom) * kc; setView(viewZoom); }
   camera.position.copy(camPos); camera.lookAt(camLook);
-  sun.position.set(hero.position.x - 14, hero.position.y + 4 + dayK * 12, hero.position.z + 9); sun.target.position.copy(hero.position);
+  sun.position.set(hero.position.x - 15, hero.position.y + 3 + dayK * 7, hero.position.z + 8);   // nízke slnko = dlhé tiene a výrazné hrbole sun.target.position.copy(hero.position);
   placeCard();
   document.getElementById('help').style.opacity = fight.on ? 0 : 1;
 
@@ -782,4 +817,4 @@ function tick() {
 }
 resize();
 requestAnimationFrame(tick);
-window.__s = { get R() { return R; }, hero, fight, press, save, get camp() { return camp; }, nextProblem };
+window.__s = { get R() { return R; }, hero, camera, scene, THREE, fight, press, save, get camp() { return camp; }, nextProblem };

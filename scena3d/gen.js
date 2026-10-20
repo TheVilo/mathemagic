@@ -56,16 +56,26 @@ export function genRoom(seed, index) {
   const smooth = (a, b, t) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
   const gapIn = (x, z) => x < 6 && Math.abs(z - mid) < 2.6, gapOut = (x, z) => x > W - 6 && Math.abs(z - mid) < 2.6;
   const edge = (x, z) => Math.min(x, z, W - x, H - z);
+  // vyšliapaný chodník: krivka od vchodu k bráne, kľukatí sa podľa sínusu a šumu
+  const ph = rng() * 6.28, amp = 1.5 + rng() * 2.5;
+  const pathZ = x => mid + Math.sin(x * 0.19 + ph) * amp * smooth(2, 9, x) * smooth(2, 9, W - x) + (noise(x * 0.08, 3, 13) - 0.5) * 2;
+  const pathD = (x, z) => Math.abs(z - pathZ(x));
+  // zem nie je rovná: veľké vlny + hrbole + drobné nerovnosti (tri vrstvy šumu)
+  const bumps = (x, z) => (noise(x * 0.07, z * 0.07, 1) - 0.5) * 0.8 + (noise(x * 0.24, z * 0.24, 2, 3) - 0.5) * 0.55 + (noise(x * 0.8, z * 0.8, 4, 2) - 0.5) * 0.14;
   const height = (x, z) => {
-    let y = (noise(x * 0.07, z * 0.07, 1) - 0.5) * 1.3;
+    let y = bumps(x, z);
+    const p = smooth(1.6, 0.4, pathD(x, z));                    // na chodníku je zem nižšie a hladšia
+    y = y * (1 - p * 0.6) - p * 0.16;
     const rim = 1 - smooth(0.5, 4.2, edge(x, z));
-    if (!gapIn(x, z) && !gapOut(x, z)) y += rim * rim * 3.4;
+    y += rim * 0.5;                                               // okraj len mierne stúpa, hranicu tvoria stromy
     return y;
   };
+  const onPath = (x, z) => pathD(x, z) < 1.1;
   const inside = (x, z) => edge(x, z) > 2.2 || ((gapIn(x, z) || gapOut(x, z)) && x > -1 && x < W + 1);
 
-  const start = [1.2, mid], gate = [W - 0.8, mid];
-  const camp = boss ? { x: W * 0.62, z: mid, n: 1, boss: true } : { x: W * (0.55 + rng() * 0.12), z: mid + (rng() - 0.5) * 5, n: Math.min(5, 2 + Math.floor(index * 0.6)), boss: false };
+  const start = [1.2, pathZ(1.2)], gate = [W - 0.8, mid];
+  const cx0 = W * (0.55 + rng() * 0.12);
+  const camp = boss ? { x: W * 0.62, z: pathZ(W * 0.62), n: 1, boss: true } : { x: cx0, z: pathZ(cx0) + (rng() - 0.5) * 3, n: Math.min(5, 2 + Math.floor(index * 0.6)), boss: false };
   const tier = index / (ROOMS - 1);
 
   // nálezy: číslo 3 v tretej miestnosti, číslo 4 v piatej, mince inde
@@ -75,7 +85,7 @@ export function genRoom(seed, index) {
   if (index === 4) { const [x, z] = spot(); finds.push({ kind: 'chest', n: 4, x, z }); }
   if (index === 1 || index === 3) { const [x, z] = spot(); finds.push({ kind: 'chest', n: 0, x, z }); }
 
-  const clearing = (x, z) => Math.hypot(x - camp.x, z - camp.z) < (boss ? 7 : 4.5) || finds.some(f => Math.hypot(x - f.x, z - f.z) < 2) || Math.abs(z - mid) < 1.6;
+  const clearing = (x, z) => Math.hypot(x - camp.x, z - camp.z) < (boss ? 7 : 4.5) || finds.some(f => Math.hypot(x - f.x, z - f.z) < 2) || onPath(x, z);
   // kvety: trsy okolo stredov, kde je šum vysoký (ako na inšpirácii)
   const flowers = [];
   for (const [cx, cz] of poisson(W, H, 4.5, rng, (x, z) => inside(x, z) && noise(x * 0.1, z * 0.1, 5) > 0.45)) {
@@ -87,10 +97,45 @@ export function genRoom(seed, index) {
     }
   }
   // tmavé ťahy trávy v ostrovčekoch
-  const grass = poisson(W, H, 0.5, rng, (x, z) => edge(x, z) > 1 && noise(x * 0.16, z * 0.16, 9) > 0.47, 2600).map(([x, z]) => ({ x, z, r: rng() * Math.PI, s: 0.6 + rng() * 0.8 }));
+  const grass = poisson(W, H, 0.5, rng, (x, z) => edge(x, z) > 1 && !onPath(x, z) && noise(x * 0.16, z * 0.16, 9) > 0.47, 2600).map(([x, z]) => ({ x, z, r: rng() * Math.PI, s: 0.6 + rng() * 0.8 }));
   // stromy len po okraji (rám miestnosti), pár kameňov
-  const trees = poisson(W, H, 2.4, rng, (x, z) => edge(x, z) < 2.6 && !gapIn(x, z) && !gapOut(x, z)).map(([x, z]) => ({ x, z, type: noise(x * 0.2, z * 0.2, 3) > 0.5 ? 1 : rng() < 0.3 ? 2 : 0, s: 0.75 + rng() * 0.5, r: rng() * 6.28 }));
-  const rocks = poisson(W, H, 6, rng, (x, z) => inside(x, z) && !clearing(x, z) && rng() < 0.35).map(([x, z]) => ({ x, z, s: 0.4 + rng() * 0.5, r: rng() * 6.28 }));
+  // veci vo svete: názov modelu, poloha, otočenie, veľkosť, polomer na zrážky
+  const props = [], pick = a => a[Math.floor(rng() * a.length)];
+  const put = (m, x, z, s = 1, r = rng() * 6.28, col = 0) => props.push({ m, x, z, s, r, col });
+  const free = (x, z, d = 1.5) => inside(x, z) && !clearing(x, z) && props.every(p => Math.hypot(p.x - x, p.z - z) > d + p.col);
+  // dominanta miestnosti (vypočítaná podľa semienka): ruina zo stĺpov, vežička, studňa alebo obelisk
+  const land = boss ? 'ruins' : pick(['ruins', 'tower', 'well', 'obelisk', 'tower']);
+  for (let k = 0; k < 40; k++) {
+    const x = 8 + rng() * (W - 16), z = rng() < 0.5 ? 5 + rng() * 2.5 : H - 5 - rng() * 2.5;
+    if (!free(x, z, 4)) continue;
+    if (land === 'ruins') { const n = 5 + Math.floor(rng() * 3); for (let i = 0; i < n; i++) { const a = i / n * 6.28; put(rng() < 0.4 ? 'statue_columnDamaged' : 'statue_column', x + Math.cos(a) * 2.2, z + Math.sin(a) * 2.2, 1, rng() * 6, 0.4); } put('statue_block', x, z, 1, rng() * 6, 0.6); }
+    else if (land === 'tower') put(rng() < 0.5 ? 'building_tower_A_blue' : 'building_tower_B_blue', x, z, 1, rng() * 6.28, 1.6);
+    else if (land === 'well') put('building_well_blue', x, z, 1, rng() * 6.28, 1.1);
+    else put('statue_obelisk', x, z, 1, rng() * 6.28, 0.6);
+    break;
+  }
+  // stromy: hustý rám po okraji + pár hájikov vnútri; druh podľa šumu (každá miestnosť má iný ráz)
+  const mood = noise(index * 3.1, seed % 97, 21);
+  const TREES = mood > 0.55 ? ['tree_pineDefaultA', 'tree_pineRoundB', 'tree_pineTallA', 'tree_cone'] : mood > 0.4 ? ['tree_oak', 'tree_detailed', 'tree_fat', 'tree_pineRoundB'] : ['tree_default', 'tree_tall', 'tree_thin', 'tree_simple', 'tree_oak'];
+  // stromy vzadu a po bokoch; na strane ku kamere (dole) len nízke veci, aby nezakrývali výhľad
+  for (const [x, z] of poisson(W, H, 2.3, rng, (x, z) => edge(x, z) < 2.8 && z < H - 3.2 && !gapIn(x, z) && !gapOut(x, z))) put(pick(TREES), x, z, 0.8 + rng() * 0.5, rng() * 6.28, 0.45);
+  for (const [x, z] of poisson(W, H, 1.6, rng, (x, z) => z > H - 2.8 && x > 1 && x < W - 1)) put(pick(['plant_bush', 'plant_bushSmall', 'rock_smallA', 'rock_smallB', 'stump_round', 'plant_bushSmall']), x, z, 0.9 + rng() * 0.5, rng() * 6.28, 0.3);
+  for (let x = 3 + rng() * 4; x < W - 3; x += 6 + rng() * 6) put(rng() < 0.5 ? 'log_large' : 'log', x, H - 1.6 + (rng() - 0.5), 1, rng() * 0.6 - 0.3 + (rng() < 0.5 ? 0 : 3.14), 0.5);
+  // hory v pozadí: rad vysokých skál za zadným okrajom
+  for (let x = -6 + rng() * 3; x < W + 6; x += 3 + rng() * 4) put(pick(['rock_tallA', 'rock_tallB', 'rock_largeC', 'rock_largeD']), x, -3.5 - rng() * 3, 3.2 + rng() * 2.5, rng() * 6.28, 0);
+  for (const [x, z] of poisson(W, H, 7, rng, (x, z) => free(x, z, 3) && noise(x * 0.12, z * 0.12, 22) > 0.62)) for (let k = 0; k < 2 + Math.floor(rng() * 3); k++) { const a = rng() * 6.28, d = rng() * 1.8; if (free(x + Math.cos(a) * d, z + Math.sin(a) * d, 1.2)) put(pick(TREES), x + Math.cos(a) * d, z + Math.sin(a) * d, 0.7 + rng() * 0.4, rng() * 6.28, 0.45); }
+  // tábor hordy: ohnisko a stany za ním
+  if (!boss) { put('campfire_stones', camp.x + 1.2, camp.z + 1.5, 1, 0, 0.5); put('tent_smallClosed', camp.x + 2.8, camp.z - 2.2, 1, 3.5 + rng(), 1.1); if (rng() < 0.6) put('log_stack', camp.x - 0.8, camp.z + 2.6, 1, rng() * 6, 0.6); }
+  // padnuté kmene, pne, skupiny kameňov, kríky, huby
+  for (let k = 0, n = Math.floor(rng() * 3); k < n; k++) { const [x, z] = spot(); if (free(x, z, 2)) put(rng() < 0.5 ? 'log_large' : 'log', x, z, 1, rng() * 6.28, 0.7); }
+  for (let k = 0; k < 2 + Math.floor(rng() * 3); k++) { const [x, z] = spot(); if (free(x, z)) { put(pick(['stump_old', 'stump_round', 'stump_oldTall']), x, z, 1, rng() * 6.28, 0.4); if (rng() < 0.6) put(pick(['mushroom_redGroup', 'mushroom_tanGroup']), x + 0.7, z + 0.4, 1, rng() * 6, 0); } }
+  for (const [x, z] of poisson(W, H, 8, rng, (x, z) => free(x, z, 2) && rng() < 0.4)) {
+    put(pick(['rock_largeA', 'rock_largeB', 'rock_largeC', 'rock_largeD', 'rock_tallA', 'rock_tallB']), x, z, 0.8 + rng() * 0.6, rng() * 6.28, 0.8);
+    for (let k = 0; k < 2; k++) put(pick(['rock_smallA', 'rock_smallB', 'rock_smallC', 'rock_smallFlatA']), x + (rng() - 0.5) * 2.4, z + (rng() - 0.5) * 2.4, 0.8 + rng() * 0.6, rng() * 6.28, 0);
+  }
+  for (const [x, z] of poisson(W, H, 3, rng, (x, z) => edge(x, z) > 2.6 && edge(x, z) < 4.5 && free(x, z, 1) && rng() < 0.5)) put(pick(['plant_bush', 'plant_bushLarge', 'plant_bushSmall']), x, z, 0.9 + rng() * 0.5, rng() * 6.28, 0.3);
+  if (index === 0) put('sign', 4, pathZ(4) + 1.6, 1, -1.2, 0.2);
+  const trees = [], rocks = [];
 
-  return { seed, index, boss, W, H, mid, start, gate, camp, tier, finds, flowers, grass, trees, rocks, height, inside };
+  return { seed, index, boss, W, H, mid, start, gate, camp, tier, finds, flowers, grass, trees, rocks, props, land, height, inside, onPath };
 }
