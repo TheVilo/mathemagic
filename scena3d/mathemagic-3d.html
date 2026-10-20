@@ -1,0 +1,24 @@
+<title>Mathemagic 3D test</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --paper:#dedad0; --ink:#1c1d21; --green:#60be68; }
+  html,body { margin:0; height:100%; background:var(--ink); overflow:hidden; font-family:Rubik,system-ui,sans-serif; touch-action:none; color-scheme:dark; }
+  #c { position:fixed; inset:0; width:100%; height:100%; image-rendering:pixelated; }
+  #help { position:fixed; left:16px; bottom:16px; background:#1c1d21e6; color:var(--paper); font-weight:600; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.6; }
+  #help b { color:#fff; }
+  #cast { position:fixed; right:20px; bottom:20px; width:84px; height:84px; border-radius:50%; border:0; background:var(--green); color:var(--ink); font:800 40px Rubik,sans-serif; box-shadow:0 5px 0 #000; cursor:pointer; }
+  #cast:active { transform:translateY(4px); box-shadow:0 1px 0 #000; }
+  .tg { position:fixed; top:16px; right:16px; display:flex; gap:8px; }
+  .tg button { font:600 13px Rubik,sans-serif; border:0; border-radius:8px; padding:8px 12px; background:#1c1d21e6; color:var(--paper); cursor:pointer; }
+  .tg button.on { background:var(--paper); color:var(--ink); }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<canvas id="c"></canvas>
+<div class="tg">
+  <button id="bNight">Večer</button>
+  <button id="bTones" class="on">3 tóny</button>
+  <button id="bDither" class="on">Dithering</button>
+</div>
+<div id="help"><b>Chôdza:</b> klik na zem alebo WASD · <b>Kúzlo:</b> medzerník alebo zelené tlačidlo</div>
+<button id="cast" aria-label="Zoslať kúzlo">+</button>
+<script type="module" src="main.js"></script>
