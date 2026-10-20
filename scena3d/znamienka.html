@@ -20,6 +20,11 @@
   .dmg { position:fixed; transform:translate(-50%,-50%); pointer-events:none; animation:dmg 1.3s cubic-bezier(.2,1,.3,1) forwards; }
   .dmg .pix { height:34px; filter:drop-shadow(0 3px 0 #1c1d21) drop-shadow(2px 0 0 #1c1d21) drop-shadow(-2px 0 0 #1c1d21) drop-shadow(0 -2px 0 #1c1d21); }
   @keyframes dmg { 0% { transform:translate(-50%,0) scale(.3); opacity:0; } 15% { transform:translate(-50%,-60%) scale(calc(1.25 * var(--s, 1))); opacity:1; } 100% { transform:translate(calc(-50% + var(--dx)),-260%) scale(calc(.9 * var(--s, 1))); opacity:0; } }
+  #spells { position:fixed; right:12px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; }
+  #spells button { width:54px; height:54px; border-radius:14px; background:#1c1d21e6; border:0; display:grid; place-items:center; box-shadow:0 3px 0 #000; }
+  #spells button .pix { height:24px; } #spells button.on { background:var(--paper); box-shadow:0 0 0 3px currentColor, 0 3px 0 #000; }
+  #bUi { position:fixed; left:12px; top:12px; width:44px; height:44px; border-radius:12px; font-size:20px; }
+  #ui.hide { display:none; }
   #loading { position:fixed; inset:0; display:grid; place-items:center; color:var(--paper); font-weight:600; background:var(--ink); }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -33,6 +38,8 @@
   <div class="row" id="opts"><span>Veľkosť znamienka</span><span id="sizes" style="display:flex;gap:6px;padding:0"></span><button id="bChar" class="on">Postavy jemnejšie</button><button id="bBlur">Rozmazanie</button><button id="bZoom">Bližšie</button><button id="bNew">Nový svet</button></div>
 </div>
 <div id="spellName"></div>
+<div id="spells"></div>
+<button id="bUi">⚙</button>
 <div id="loading">Kreslím znamienkami…</div>
 <script type="module" src="znamienka.js"></script>
 </body>

@@ -8,7 +8,7 @@ import { pix, points } from './svet.js';
 
 // ---------- scéna: čistinka, čarodejník a štyria bojovníci ----------
 await Promise.all([loadProps(), loadFighters(), loadHero()]);
-let room = null, R = null;
+let room = null, R = null, groundMesh = null;
 const fighters = [];
 function build(seed) {
   if (room) scene.remove(room);
@@ -20,7 +20,7 @@ function build(seed) {
   const pa = geo.attributes.position, col = new Float32Array(pa.count * 3), c1 = new THREE.Color(0xd8d4ca), c2 = new THREE.Color(0xe4e0d7), cc = new THREE.Color();
   for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i); pa.setY(i, R.height(x, z)); cc.copy(c1).lerp(c2, R.onPath(x, z) ? 1 : 0); col.set([cc.r, cc.g, cc.b], i * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; room.add(ground); ground.layers.enable(2);
+  const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; room.add(ground); ground.layers.enable(2); groundMesh = ground;
   inst(room, GRASS, MAT.grass, R.grass, R.height, false).layers.enable(2);
   inst(room, FLOWER, MAT.flower, R.flowers.map(f => ({ ...f, y: R.height(f.x, f.z) + 0.12 + f.s * 0.05 })), R.height);
   const c = R.camp;
@@ -89,9 +89,11 @@ function makeProblem(op) {
   if (op === '×') { const a = r(2, 9), b = r(2, 9); return { text: `${a}×${b}`, v: a * b }; }
   const b = r(2, 9), v = r(2, 9); return { text: `${b * v}÷${b}`, v };
 }
-function castNext() {
-  const f = fighters[Math.floor(Math.random() * fighters.length)];
-  spell = SPELLS[spellI++ % SPELLS.length]; prob = makeProblem(spell.op);
+let chosen = 0, auto = false;
+function castNext(target) {
+  if (spellTo) return;
+  const f = target || fighters[Math.floor(Math.random() * fighters.length)];
+  spell = auto ? SPELLS[spellI++ % SPELLS.length] : SPELLS[chosen]; prob = makeProblem(spell.op);
   spellTo = f; spellT = 0; spellCol = spell.col; glyphMat.uniforms.uSpellG.value = { '+': 3, '-': 2, '×': 4, '÷': 5 }[spell.op];
   orb.material.color.set(spellCol).lerp(new THREE.Color(0xffffff), 0.12); orbLight.color.set(spellCol);
   hero.rotation.y = Math.atan2(f.g.position.x - hero.position.x, f.g.position.z - hero.position.z);
@@ -482,16 +484,39 @@ bChar.onclick = () => { const v = 1 - glyphMat.uniforms.uCharDots.value; glyphMa
 bBlur.onclick = () => { const v = 1 - blurMat.uniforms.uOn.value; blurMat.uniforms.uOn.value = v; bBlur.classList.toggle('on', v > 0.5); };
 bZoom.onclick = () => { view = view < 4 ? 4.6 : 2.8; bZoom.classList.toggle('on', view < 4); resize(); };
 document.getElementById('bNew').onclick = () => { build(1 + Math.floor(Math.random() * 9999)); styleChars(); };
-addEventListener('keydown', e => { const m = +e.key - 1; if (m >= 0 && m < MODES.length) setMode(m); });
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; const m = +e.key - 1; if (m >= 0 && m < 4) pickSpell(m); if (e.key === ' ') castNearest(); });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+// výber kúzla
+const spBar = document.getElementById('spells');
+function pickSpell(i) { chosen = i; [...spBar.children].forEach((b, k) => b.classList.toggle('on', k === i)); }
+SPELLS.forEach((sp, i) => { const b = document.createElement('button'); b.innerHTML = pix(sp.op); b.style.color = '#' + sp.col.toString(16).padStart(6, '0'); b.onclick = e => { e.stopPropagation(); pickSpell(i); }; spBar.appendChild(b); });
+pickSpell(0);
+function castNearest() { let best = null, bd = 1e9; for (const f of fighters) { const d = f.g.position.distanceTo(hero.position); if (d < bd) { bd = d; best = f; } } if (best) castNext(best); }
+// ťuk: na nepriateľa = kúzlo, na zem = choď tam
+const ray = new THREE.Raycaster(), mp = new THREE.Vector2();
+document.getElementById('c').addEventListener('pointerdown', e => {
+  mp.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mp, camera);
+  const hitF = ray.intersectObjects(fighters.map(f => f.g), true)[0];
+  if (hitF) { const f = fighters.find(f => { let o = hitF.object; while (o) { if (o === f.g) return true; o = o.parent; } return false; }); if (f) return castNext(f); }
+  const hg = groundMesh && ray.intersectObject(groundMesh)[0]; if (hg) walkTo = hg.point.clone();
+});
 
 // ---------- slučka ----------
 const clock = new THREE.Clock();
-let t = 0, nextCast = 1.5;
+let t = 0, nextCast = 1.5, walkTo = null; const hvel = new THREE.Vector3(), keys = {};
 function update(dt) {
   t += dt; U.time.value = t; U.hero.value.copy(hero.position);
-  updateHero(dt, 0, false);
+  // pohyb: ťuk na zem / WASD
+  const dir = new THREE.Vector3((keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), 0, (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0));
+  if (dir.lengthSq()) walkTo = null; else if (walkTo) { dir.subVectors(walkTo, hero.position).setY(0); if (dir.length() < 0.15) { walkTo = null; dir.set(0, 0, 0); } }
+  if (dir.lengthSq()) dir.normalize();
+  if (spellTo) dir.set(0, 0, 0);
+  hvel.lerp(dir.multiplyScalar(3.4), 1 - Math.exp(-dt * 8));
+  hero.position.x += hvel.x * dt; hero.position.z += hvel.z * dt; hero.position.y = R.height(hero.position.x, hero.position.z);
+  const hs = hvel.length(); if (hs > 0.2 && !spellTo) hero.rotation.y = Math.atan2(hvel.x, hvel.z);
+  updateHero(dt, hs, false);
   for (const f of fighters) f.mixer.update(dt);
-  nextCast -= dt; if (nextCast <= 0) { nextCast = 2.6; castNext(); }
+  if (auto) { nextCast -= dt; if (nextCast <= 0) { nextCast = 2.6; castNext(); } }
   if (spellTo) {
     spellT += dt;
     const from = crystal.getWorldPosition(new THREE.Vector3()), to = spellTo.g.position.clone().add(new THREE.Vector3(0, 1, 0));
@@ -535,7 +560,7 @@ function update(dt) {
   updateParticles(dt);
 }
 function draw() {
-  const c = R.camp, look = new THREE.Vector3(c.x - 1.4, hero.position.y + 0.9, c.z);
+  const look = hero.position.clone().add(new THREE.Vector3(2.4, 0.9, 0));
   const sh = new THREE.Vector3((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.6, 0);   // otrasy zeme
   camera.position.copy(look).add(new THREE.Vector3(0, 12.1, 17)).add(sh); camera.lookAt(look.clone().add(sh));
   const dc = 20.9; glyphMat.uniforms.uDepth.value.set((dc - 9) / 199.9, (dc + 14) / 199.9);
@@ -549,5 +574,6 @@ function draw() {
 }
 function tick() { const dt = Math.min(0.05, clock.getDelta()); if (!window.__pause) update(dt); draw(); requestAnimationFrame(tick); }
 document.getElementById('loading').remove();
+document.getElementById('ui').classList.add('hide'); document.getElementById('bUi').onclick = () => document.getElementById('ui').classList.toggle('hide');
 requestAnimationFrame(tick);
 window.__z = { get sp() { return { spellT, on: !!spellTo, op: spell.op, next: nextCast }; }, amb, fine, renderer, set view(v) { view = v; resize(); }, step(s) { for (let k = 0; k < s * 30; k++) update(1 / 30); draw(); }, setMode, glyphMat };
