@@ -63,19 +63,46 @@ export function bossOf(zone, seed) {
 export const FINAL_ZONE = 8;
 export const bossHpMul = id => id === 'nula' ? 3 : id === 'zrkadlo' ? 1.3 : 1;   // násobí základný život vodcu
 
-// VÝBER PO ÚROVNI (1 z 3) – generovaný: čím vyššia úroveň, tým väčšie čísla a silnejšie ponuky
-export function levelOffers(L, run, rng = Math.random) {
-  // ÚROVEŇ = VYLEPŠENIA (nie čísla – tie sú len na mape). Vylepšenie klávesu: 7 → 7★ (×2) → 7★★ (×3) …
-  const P = run.pack, pool = [], stars = P.stars || {};
-  const owned = [...new Set(P.inv.filter(t => t.t === 'n').map(t => t.v))].sort((a, b) => b - a);
-  for (const v of owned.slice(0, 4)) { const s = stars[v] || 0; if (s < 4) pool.push({ id: 'star' + v, w: 3, title: `Kláves ${v}${'★'.repeat(s + 1)}`, text: `každá ${v} vo vzorci sa ráta ako ${v * (s + 2)} (×${s + 2})`, give: { t: 'star', v } }); }
-  pool.push({ id: 'magnet', w: 1, title: 'Magnet', text: 'kryštály skúseností priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
-  pool.push({ id: 'heart', w: 1, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
-  if (P.slots < 13) pool.push({ id: 'slot', w: 2, title: '+2 políčka', text: 'dlhší vzorec na displeji', give: { t: 'slot' } });
-  if (P.staff < 5) pool.push({ id: 'staff', w: 2, title: 'Lepšia palica', text: '+25 % damage, rýchlejšie nabíjanie', give: { t: 'staff' } });
-  if (P.rows.length < 3) pool.push({ id: 'row', w: 1, title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
-  const sp = nextSpecial(P.unlock || {}); if (sp && L >= 3) pool.push({ id: 'spec', w: 1 + L * 0.15, title: `${sp.key} ${sp.name}`, text: sp.text, give: { t: 'spec', k: sp.k } });
-  const out = [];
-  while (out.length < 3 && pool.length) { const sum = pool.reduce((a, b) => a + b.w, 0); let r = rng() * sum; const i = pool.findIndex(p => (r -= p.w) <= 0); out.push(pool.splice(i < 0 ? 0 : i, 1)[0]); }
+// ============ VÝBER PO ÚROVNI ============
+// Každá úroveň: s pravdepodobnosťou P_CALC ponuka 3 VECÍ DO KALKULAČKY (čísla, znamienka, funkcie), inak 3 KARTY (efekty, palica…).
+// Silné veci sú vzácne a prídu až neskôr: váha = základ · g(L, L_min),  g = 0 pod L_min, inak 1 − e^(−(L − L_min + 1) / 3)
+// Čísla: váha čísla v = e^(−(v − μ)² / 2σ²),  μ = 1 + 0,5·L (typické ponúkané číslo rastie s úrovňou), σ = 1,6
+export const P_CALC = 0.6;
+export const gate = (L, Lmin) => L < Lmin ? 0 : 1 - Math.exp(-(L - Lmin + 1) / 3);
+export const ITEMS = [   // veci do kalkulačky okrem čísel
+  { id: '+', t: 'o', v: '+', Lmin: 1, w: 1.0, title: 'Znamienko +', text: 'sčítanie · zem omráči' },
+  { id: '-', t: 'o', v: '-', Lmin: 2, w: 0.5, title: 'Znamienko −', text: 'odčítanie · voda zamrazí' },
+  { id: '×', t: 'o', v: '×', Lmin: 4, w: 0.55, title: 'Znamienko ×', text: 'násobenie · oheň' },
+  { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: 'delenie · vzduch odhodí' },
+  { id: 'p', t: 'spec', k: 'p', Lmin: 6, w: 0.35, title: 'Zátvorky ( )', text: '(2+3)×4 = 20 – počíta sa najprv v zátvorke' },
+  { id: 's', t: 'spec', k: 's', Lmin: 8, w: 0.3, title: 'Odmocnina √', text: '√16 = 4 · prerazí štít' },
+  { id: 'q', t: 'spec', k: 'q', Lmin: 10, w: 0.3, title: 'Mocnina x²', text: '6² = 36' },
+  { id: 'c', t: 'spec', k: 'c', Lmin: 14, w: 0.22, title: 'Mocnina x³', text: '4³ = 64' },
+  { id: 'f', t: 'spec', k: 'f', Lmin: 18, w: 0.16, title: 'Faktoriál !', text: '5! = 120 (až do 12!)' },
+  { id: 'slot', t: 'slot', Lmin: 2, w: 0.7, title: '+2 políčka', text: 'dlhší vzorec na displeji' },
+];
+export const numWeight = (v, L) => Math.exp(-((v - (1 + 0.5 * L)) ** 2) / (2 * 1.6 * 1.6));
+function pickW(pool, rng) { const sum = pool.reduce((a, b) => a + b.w, 0); let r = rng() * sum; const i = pool.findIndex(p => (r -= p.w) <= 0); return pool.splice(i < 0 ? pool.length - 1 : i, 1)[0]; }
+export function calcOffers(L, run, rng = Math.random) {
+  const P = run.pack, U = P.unlock || {}, pool = [];
+  for (let v = 1; v <= 9; v++) { const w = numWeight(v, L) * 1.6; if (w > 0.02) pool.push({ id: 'n' + v, w, title: `Číslo ${v}`, text: (P.stars && P.stars[v]) ? `máš ${v}${'★'.repeat(P.stars[v])}` : 'nový kláves', give: { t: 'n', v } }); }
+  for (const it of ITEMS) {
+    if (it.t === 'spec' && U[it.k]) continue;
+    if (it.t === 'slot' && P.slots >= 13) continue;
+    const w = it.w * gate(L, it.Lmin); if (w > 0) pool.push({ id: it.id, w, title: it.title, text: it.text, give: it.t === 'o' ? { t: 'o', v: it.v } : it.t === 'spec' ? { t: 'spec', k: it.k } : { t: 'slot' } });
+  }
+  const out = []; while (out.length < 3 && pool.length) out.push(pickW(pool, rng));
   return out;
+}
+export function cardOffers(L, run, cards, rng = Math.random) {
+  const P = run.pack, pool = cards.map(c => ({ id: 'card' + c.id, w: 1, title: c.name, text: c.text, give: { t: 'card', id: c.id } }));
+  if (P.staff < 5) pool.push({ id: 'staff', w: 1.2, title: 'Lepšia palica', text: '+25 % damage, rýchlejšie nabíjanie', give: { t: 'staff' } });
+  if (P.rows.length < 3) pool.push({ id: 'row', w: 0.6 * gate(L, 5), title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
+  pool.push({ id: 'magnet', w: 0.5, title: 'Magnet', text: 'kryštály priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
+  pool.push({ id: 'heart', w: 0.6, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
+  const live = pool.filter(p => p.w > 0), out = []; while (out.length < 3 && live.length) out.push(pickW(live, rng));
+  return out;
+}
+export function levelOffers(L, run, rng = Math.random, cards = []) {
+  return rng() < P_CALC ? { type: 'calc', items: calcOffers(L, run, rng) } : { type: 'card', items: cardOffers(L, run, cards, rng) };
 }

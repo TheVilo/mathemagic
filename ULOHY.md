@@ -1,5 +1,14 @@
 # Mathemagic – zoznam úloh
 
+## ▶ ZAČNI TU (nový chat, 21. 10. 2026)
+**Téma na ďalší chat: palica = kalkulačka (ako palica v Magicrafte).** Návrh na schválenie:
+- Každá palica je model kalkulačky: **displej** (políčka), **energia** (max), **dobíjanie**/s, **pamäte M1–M3** (kúzla v poradí). Palice z obchodu a od vodcov, parametre a vzácnosť zo vzorca.
+- **Každý kláves stojí energiu:** číslo 1 · + − 1 · × ÷ 2 · ( ) 2 · √ 3 · x² 4 · x³ 6 · ! 8. Výstrel zoberie súčet → silné kombo je drahé, hra sa dá rozbiť až s veľkou palicou.
+- **Z nepriateľov padajú len kryštály XP** (hotové). **Úroveň = 3 klávesy do kalkulačky ALEBO 3 karty** (hotové v `scena3d/balance.js`: P_CALC 0,6, vzácnosť `gate(L, Lmin)`, čísla okolo μ = 1 + 0,5·L).
+- **Prepočítať simuláciou** (Node): damage/s najlepšieho vzorca s energiou vs. životy nepriateľov v každej horde → bežný nepriateľ 1–4 strely, vodca desiatky. Doladiť ceny energie, rast HP, vzácnosť.
+- Kód: `scena3d/hra.js` (hra), `suboj.js` (súboj, streľba), `ruksak.js` (kalkulačka, výpočet vzorca s prioritou), `balance.js` (všetky vzorce rovnováhy), `world.js` (svet, `open` = Majster), `zvuk.js`, `kresba.js` (shader). Testovanie: https://hry.partaci.com/mathemagic/ (nahrať `bash nahraj-na-server.sh`).
+
+
 Všetko, čo Lukáš zadal. Stav: ✅ hotové a overené v hre · 🟡 hotové, neoverené alebo čiastočne · ⬜ neurobené.
 Nič z toho ešte nie je nahrané na server (čaká na „nahraj“).
 

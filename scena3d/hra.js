@@ -68,7 +68,7 @@ const G = {
   onWin: opts => winFight(opts),
   enemyHp: (kind, boss, elite, trait) => Math.round(enemyHpM(kind, adv() ? (Math.max(1, hordeN) - 1) % HPZ + 1 : Math.max(1, hordeN), run.zone, { boss, elite }) * (trait ? bossHpMul(trait) : 1)),   // život podľa hordy v zóne a zóny
   bossTrait: id => BOSSES[id],
-  onKill: e => { dropGems(e.g.position, xpFor(e.maxHp || 4)); dropLoot(e); },
+  onKill: e => { dropGems(e.g.position, xpFor(e.maxHp || 4)); },   // z nepriateľov padajú len kryštály (Lukáš 21. 10.)
 };
 initFight(G);
 
@@ -843,8 +843,11 @@ function renderXp() {
   const L = run.lvl || 1; el.innerHTML = `<span>úr. ${L}</span><i><b style="width:${Math.round((run.xp || 0) / xpNeed(L) * 100)}%"></b></i>`;
 }
 function openLevelUp() {
-  lvlQueue--; efekt('objav', 0.7); const offers = levelOffers(run.lvl, run);
-  const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">Vyber si jedno vylepšenie. Silnejší vzorec = väčšia šupa.</p>
+  lvlQueue--; efekt('objav', 0.7);
+  // ponuka: 3 veci do kalkulačky ALEBO 3 karty (balance.js levelOffers – vzácnosť silných vecí podľa úrovne)
+  const cards = offer(run, Math.random, 6).map(id => ({ id, name: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1) }));
+  const pack = levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
+  const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">${pack.type === 'calc' ? 'Vyber si kláves do kalkulačky.' : 'Vyber si kartu.'} Silnejší vzorec = väčšia šupa.</p>
     <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel" data-i="${i}"><b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
   el.querySelectorAll('.lvo').forEach(b => b.onclick = () => {
     const o = offers[+b.dataset.i], g = o.give;
@@ -853,7 +856,8 @@ function openLevelUp() {
     else if (g.t === 'magnet') run.magnet = (run.magnet || 0) + 1;
     else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts++; renderHearts(); }
     else if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; }
-    else for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g);
+    else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
+    else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
     persist(); closeOverlay(); say(`${o.title}!`);
   });
 }
