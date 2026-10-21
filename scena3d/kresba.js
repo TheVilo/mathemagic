@@ -20,11 +20,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -58,19 +58,40 @@ export const kresbaMat = new THREE.ShaderMaterial({
         k = smoothstep(0.1, 0.88, k);                                    // silnejší gradient svetlo → tieň
         bool isChar6 = texture2D(tMask, uv6).r > 0.5;
         bool isGround6 = !isChar6 && texture2D(tGround, uv6).r > 0.5 && abs(texture2D(tGDepth, uv6).r - texture2D(tDepth, uv6).r) < 0.0004;
+        // JEDNO PRAVIDLO PRE VŠETKO (uOne): tmavosť = len svetlo (pomer obrazu so slnkom a bez neho), nie farba materiálu.
+        // Odvrátená strana a vrhnutý tieň = čierna na kameni, strome, stane aj kúzelníkovi; materiál dá len jemný tón na svetlej strane.
+        if (uDbg > 0.5) { vec3 ca0 = texture2D(tAmb, uv6).rgb; gl_FragColor = vec4(luma(texture2D(tScene, uv6).rgb) / max(luma(ca0), 0.002) / 8.0, luma(ca0), isGround6 ? 1.0 : isChar6 ? 0.5 : 0.0, 1.0); return; }
+        if (uOne > 0.5 && (!isGround6 || uNight > 0.5)) {
+          vec3 ca = texture2D(tAmb, uv6).rgb;
+          // pomer = 1 + (slnko/obloha)·cos(uhol)·viditeľnosť → svetlo L = (pomer − 1) / (pomer_max − 1) = čistý kosínus dopadu (namerané: plné slnko 3,6, tieň 1,0)
+          float L = clamp((luma(texture2D(tScene, uv6).rgb) / max(luma(ca), 0.002) - uLit.x) / (uLit.y - uLit.x), 0.0, 1.0);
+          float tone = smoothstep(0.15, 0.85, 1.0 - luma(lin2srgb(ca)));
+          k = mix(0.96, 0.1 + tone * 0.2, pow(L, 0.6));                  // L^0,6: stredné tóny svetlejšie, čierna len kam slnko nedopadá
+          if (uNight > 0.5 && isGround6) k = mix(0.97, 0.35, pow(L, 0.7)); // NOC: aj zem len zo svetla (mesiac, palica, ohne)
+          if (isChar6) k = max(k, (1.0 - smoothstep(0.06, 0.5, luma(lin2srgb(ca)))) * 0.92);   // postava: tmavé časti (klobúk, plášť) ostanú tmavé aj na slnku; svieti len to, kam dosvieti palica
+        }
         // JASOVÁ HIERARCHIA: postavy tmavšie ako tieň, tieň na zemi svetlý
-        if (isChar6) {                                                     // postava: svetlo + farba časti (klobúk hustý, tvár riedka) → vidno, kde čo končí
+        if (isChar6 && uOne < 0.5) {                                       // postava: svetlo + farba časti (klobúk hustý, tvár riedka) → vidno, kde čo končí
           float ad = 1.0 - smoothstep(0.08, 0.55, luma(lin2srgb(texture2D(tAmb, uv6).rgb)));
           k = clamp(0.06 + k * 0.38 + ad * 0.62, 0.0, 1.0);             // väčší rozdiel: svetlá časť riedka, tmavá hustá
         }
-        else if (isGround6) k = min(k, 0.42);
+        else if (isGround6 && uNight < 0.5) k = min(k, 0.42);
+        // SVETLO PALICE (napevno okolo čarodejníka vo svete, nie podľa kamery): pri ňom svetlejšie, ďalej tmavšie
+        // uLamp = (polomer svetla palice, kde je už plná tma, sila tmy)
+        if (uOne > 0.5 && uNight < 0.5) {
+          vec4 wp = uInvVP * vec4(uv6 * 2.0 - 1.0, texture2D(tDepth, uv6).r * 2.0 - 1.0, 1.0); wp /= wp.w;
+          float dist = length(wp.xz - uHero.xz);
+          float lamp = 1.0 - smoothstep(0.0, uLamp.x, dist), dark = smoothstep(uLamp.x * 0.6, uLamp.y, dist);
+          k = isGround6 ? max(k, dark * uLamp.z * 0.5) : mix(k, 0.96, dark * uLamp.z);
+          if (!isChar6) k *= 1.0 - lamp * 0.5;          // palica svieti na okolie, nie na samotného čarodejníka – ten má rovnaké slnko ako všetko
+        }
         float d0 = texture2D(tDepth, uv6).r;
         float far = smoothstep(uDepth.x, uDepth.y, d0);                    // 0 = vpredu, 1 = vzadu
-        k *= mix(1.0, 0.45, far);                                          // OD ZADU DOPREDU: vzadu bledšie a redšie
+        k *= mix(1.0, uOne > 0.5 ? 1.0 : 0.45, far);   // pri jednom pravidle svetla bez blednutia – vec nesmie stmavnúť, keď k nej prídeš                                          // OD ZADU DOPREDU: vzadu bledšie a redšie
         float d06 = texture2D(tDepth, uv6).r;
         float far6 = smoothstep(uDepth.x, uDepth.y, d06);
         // AMBIENT OCCLUSION: kúty a záhyby (päta stromu pri zemi, spoj strechy so stenou, okraj klobúka) stmavnú – bez obrysov
-        if (uAO > 0.5) {
+        if (uAO > 0.5 && uNight < 0.5) {                                 // v noci bez tieňov v kútoch – robili tmavý lem (stroke) okolo malých vecí
           float ao = 0.0;
           for (int i = 0; i < 12; i++) {
             float a = float(i) * 2.39996, rr = (1.5 + mod(float(i), 3.0) * 1.6);
@@ -80,17 +101,22 @@ export const kresbaMat = new THREE.ShaderMaterial({
           }
           k = clamp(k + ao / 12.0 * 0.45, 0.0, 1.0);
         }
-        if (!isChar6) k *= mix(1.0, 0.25, far6 * far6);                     // HMLA: čo je ďalej, bledne do papiera
+        if (!isChar6) k *= mix(1.0, uOne > 0.5 ? 1.0 : 0.25, far6 * far6);                     // HMLA: čo je ďalej, bledne do papiera
+        // ČO SAMO SVIETI (častice, kúzlo, kryštál) nie je tieň: pod ním je pozadie, znamienko kúzla sa nakreslí nižšie
+        { vec3 sm = texture2D(tSpellM, uv6).rgb; if (max(sm.r, max(sm.g, sm.b)) > 0.08) k = mix(0.0, 0.15, uDark); }   // čo svieti: v noci svetlé, cez deň papier
+        // TMAVÝ REŽIM (interiér): znaky = svetlo na čiernom, postava ostáva čitateľná
+        k = mix(k, clamp(1.0 - k, 0.0, 1.0), uDark);                         // deň → noc plynulo (uDark 0–1, výber režimu)
         float hsh = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
         float v = k * (uGlyphN - 1.0); float b = floor(v);
         float gi = clamp(b + (v - b > bayer(cell) ? 1.0 : 0.0), 0.0, uGlyphN - 1.0);   // usporiadaný dithering = plynulý gradient
         float ink = px.x < uGlyph.x && px.y < uGlyph.y ? texture2D(tAtlas, vec2((gi * (uGlyph.x + 1.0) + px.x + 0.5) / (uGlyphN * (uGlyph.x + 1.0)), (uGlyph.y - 1.0 - px.y + 0.5) / uGlyph.y)).r : 0.0;
         if (k < 0.04) ink = 0.0;
-        vec3 inkC = vec3(0.07, 0.07, 0.08), bg = vec3(0.87, 0.855, 0.82);
+        vec3 inkC = mix(vec3(0.025, 0.025, 0.03), vec3(0.93, 0.91, 0.86), uDark), bg = mix(vec3(0.87, 0.855, 0.82), vec3(0.045, 0.045, 0.055), uDark);
         vec3 fg = mix(vec3(0.42), inkC, smoothstep(0.2, 0.6, k));         // svetlé tóny sivým, tmavé čiernym (plný rozsah až po čiernu)
         if (isGround6) fg = mix(fg, vec3(0.55), 0.7);                      // tieň na zemi je sivší
-        fg = mix(fg, bg, far * 0.45);
-        if (uSymCol > 0.5) { float mx = max(c.r, max(c.g, c.b)); fg = mix(c / max(mx, 0.05) * mix(0.75, 0.3, k), fg, 0.45); }   // jemná farba toho, čo znak kreslí
+        fg = mix(fg, bg, far * (uOne > 0.5 ? 0.0 : 0.45));
+        if (uSymCol > 0.5) { float mx = max(c.r, max(c.g, c.b)); fg = mix(fg, c / max(mx, 0.05) * mix(0.75, 0.3, k), 0.55 * (1.0 - smoothstep(0.45, 0.8, k))); }   // farba len v svetlých tónoch, tmavé ostávajú čierne
+        if (k > (isChar6 ? 0.74 : 0.86)) bg = mix(bg, inkC, smoothstep(isChar6 ? 0.74 : 0.86, isChar6 ? 0.9 : 1.0, k) * 0.92 * (1.0 - uDark));   // najtmavšie miesta = plná čierna   // jemná farba toho, čo znak kreslí
         { // KÚZLO ZO ZNAMIENOK: čo žiari (kúzlo, plamene, iskry, blesk), sa kreslí znamienkom kúzla (+ − × ÷) vo farbe kúzla, väčším písmom
           vec2 cs2 = cs * 3.0, cell2 = floor(frag / cs2), p2 = (frag - (cell2 + 0.5) * cs2) / cs2;   // väčšie znamienka kúzla
           vec2 uvs = (cell2 + 0.5) * cs2 / uRes;
@@ -100,15 +126,19 @@ export const kresbaMat = new THREE.ShaderMaterial({
             float inten = clamp((m2 - 0.12) * 1.6, 0.0, 1.0);
             float dg = glyph(uSpellG, p2, 0.045 + inten * 0.05, 0.34 + inten * 0.06);   // tenšia čiara = znamienko čitateľné aj na mobile
             vec3 sc = c2 / max(m2, 0.01);
-            bg = mix(bg, sc, inten * 0.06);
-            fg = mix(sc * 0.95, vec3(1.0), inten * 0.25); ink = clamp(0.5 - dg * cs2.y, 0.0, 1.0);
+            bg = mix(mix(bg, sc, inten * 0.06), bg + sc * inten * 0.12, uDark);   // v noci jemná žiara, nie tmavý štvorec
+            float sInk = clamp(0.5 - dg * cs2.y, 0.0, 1.0);                                // znamienko len cez svoju čiaru, okolité znaky ostanú
+            fg = mix(fg, mix(sc * 0.95, vec3(1.0), inten * 0.25), sInk); ink = max(ink * (1.0 - sInk), sInk);
           }
         }
         bg = mix(bg, uFlash.rgb, uFlash.a); fg = mix(fg, uFlash.rgb, uFlash.a * 0.5);   // záblesk (blesk, výbuch)
         vec2 q = vUv - 0.5; float vig = smoothstep(0.32, 0.62, length(q));
         if (uHurt > 0.0 && vig * uHurt > bayer(cell)) { bg = mix(bg, vec3(0.8, 0.25, 0.2), 0.35); }   // len okraje   // zranenie: červené okraje
         if (uFade > 0.0 && bayer(cell) < uFade) { ink = 0.0; bg = vec3(0.87, 0.855, 0.82); }             // prechod: rozpad do papiera
-        gl_FragColor = vec4(mix(bg, fg, ink), 1.0); return;
+        vec3 outC = mix(bg, fg, ink);
+        // ŽIARA PALICE: mäkký kruh vo farbe živlu okolo kryštálu (v noci silná, cez deň jemná)
+        if (uGlow.w > 0.0) { vec2 gq = (vUv - uGlow.xy) * vec2(uRes.x / uRes.y, 1.0); float gl = uGlow.w * exp(-dot(gq, gq) / (uGlow.z * uGlow.z)); outC = mix(mix(outC, uGlowC, gl * 0.5), outC + uGlowC * gl, uDark); }
+        gl_FragColor = vec4(outC, 1.0); return;
       }
     }`,
   depthTest: false, depthWrite: false,
@@ -134,12 +164,23 @@ const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const rim = new THREE.DirectionalLight(0xffffff, 1.6); scene.add(rim, rim.target);
 
 // svetlo a farby, s ktorými bol vzhľad schválený
-export function svetloDen() { hemi.intensity = 1.0; sun.intensity = 3.6; U.gray.value = 0; U.desat.value = 0.35; U.tex.value = 0; }
+const points = []; let frameN = 0;
+// NOC (Pokročilý): slabá modrastá obloha, mesiac ~ ako obloha, svieti palica, ohne a kúzla; obraz = svetlé znaky na čiernom
+// DEŇ ↔ NOC plynulo, t = 0 deň (Učeň) … 1 noc (Majster): svetlá aj kresba sa zmiešajú
+const cDay = new THREE.Color(0xffffff), cSky = new THREE.Color(0x9fb0ff), cMoon = new THREE.Color(0xb8c8ff);
+export function svetloDenNoc(t) {
+  const L = (a, b) => a + (b - a) * t;
+  hemi.intensity = L(1.0, 0.14); hemi.color.copy(cDay).lerp(cSky, t); sun.intensity = L(3.6, 0.1); sun.color.copy(cDay).lerp(cMoon, t); rim.intensity = L(1.6, 0);
+  U.gray.value = 0; U.desat.value = 0.35; U.tex.value = 0;
+  kresbaMat.uniforms.uDark.value = t; kresbaMat.uniforms.uNight.value = t > 0.5 ? 1 : 0;
+}
+export function svetloNoc() { svetloDenNoc(1); }
+export function svetloDen() { svetloDenNoc(0); }
 export const VRSTVA = { postava: 1, zem: 2, kuzlo: 4 };
 export function naVrstvu(obj, v) { obj.traverse(o => o.layers.enable(v)); }
 
 export function resizeKresba() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(2, window.devicePixelRatio || 1, Math.sqrt(3.4e6 / (innerWidth * innerHeight)));   // strop ~3,4 mil. pixelov (veľké Retina okno inak spomalí)
   renderer.setPixelRatio(dpr); renderer.setSize(innerWidth, innerHeight, false);
   const W = Math.round(innerWidth * dpr), H = Math.round(innerHeight * dpr);
   for (const t of [fine, amb, mask, maskG, maskS]) t.setSize(Math.ceil(innerWidth / 3), Math.ceil(innerHeight / 3));   // scéna v 1/3 rozlíšenia (ako v ukážke)
@@ -148,12 +189,18 @@ export function resizeKresba() {
 }
 // focusY = výška čarodejníka na obrazovke (0–1) – pásmo ostrosti
 export function renderKresba(focusY = 0.5, rimFrom = null) {
+  kresbaMat.uniforms.uInvVP.value.copy(camera.matrixWorld).multiply(camera.projectionMatrixInverse);
+  if (rimFrom) kresbaMat.uniforms.uHero.value.copy(rimFrom);
   if (rimFrom) { rim.position.set(rimFrom.x + 8, rimFrom.y + 6, rimFrom.z - 14); rim.target.position.copy(rimFrom); }
   blurMat.uniforms.uFocus.value = focusY;
+  renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;   // tiene len raz za snímok (nie v každom z 5 prechodov)
   renderer.setRenderTarget(fine); renderer.render(scene, camera);
   const si = sun.intensity, gc = hemi.groundColor.getHex(), ri = rim.intensity;
+  // obraz BEZ svetiel (len obloha): palica, ohne a kúzlá sa tak nevykrátia a ich svetlo je vidno
+  if (!(frameN++ % 30)) { points.length = 0; scene.traverse(o => { if (o.isPointLight) points.push(o); }); }
+  const pi = points.map(l => l.intensity); points.forEach(l => { l.intensity = 0; });
   sun.intensity = 0; rim.intensity = 0; hemi.groundColor.set(0xffffff); renderer.setRenderTarget(amb); renderer.render(scene, camera);
-  sun.intensity = si; rim.intensity = ri; hemi.groundColor.set(gc);
+  sun.intensity = si; rim.intensity = ri; hemi.groundColor.set(gc); points.forEach((l, i) => { l.intensity = pi[i]; });
   const bg = scene.background.clone(), fog = scene.fog;
   scene.background.set(0x000000); scene.fog = null; scene.overrideMaterial = white;
   camera.layers.set(1); renderer.setRenderTarget(mask); renderer.render(scene, camera);

@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mathemagic – UI</title>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Pravidlo: farebné sú len karty kúziel. Všetko ostatné 1-bit – čierna, biela, papier. */
+  :root {
+    --ink: #0e0e10; --line: #f2efe6; --paper: #ece8dd; --grey: #8a877f; --dim: #3a3936;
+    --zem: #b8823e; --voda: #3a8fe0; --ohen: #ec6428; --vzduch: #3ec6bc;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Pixelify Sans', monospace; -webkit-font-smoothing: none; }
+  body { padding: 32px 16px 80px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1.kit { font-size: 28px; margin: 0 0 4px; letter-spacing: 1px; }
+  p.kit { margin: 0 0 32px; color: var(--dim); font-size: 15px; }
+  h2.kit { font-size: 18px; margin: 48px 0 12px; display: flex; align-items: center; gap: 10px; }
+  h2.kit span { color: var(--grey); font-weight: 400; font-size: 14px; }
+  nav.kit { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  nav.kit a { color: var(--ink); font-size: 14px; border: 2px solid var(--ink); padding: 4px 10px; text-decoration: none; }
+  nav.kit a:hover { background: var(--ink); color: var(--line); }
+
+  /* ---------- pixel prvky ---------- */
+  .pix { height: 1em; fill: currentColor; display: inline-block; vertical-align: -0.1em; }
+  .ico { width: 1em; height: 1em; display: block; }
+  /* panel s nitmi v rohoch */
+  .panel {
+    position: relative; color: var(--line); border: 2px solid var(--line); outline: 2px solid var(--ink);
+    background:
+      linear-gradient(var(--line), var(--line)) 4px 4px / 4px 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) calc(100% - 4px) 4px / 4px 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) 4px calc(100% - 4px) / 4px 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) calc(100% - 4px) calc(100% - 4px) / 4px 4px no-repeat,
+      var(--ink);
+    box-shadow: 6px 6px 0 rgba(14,14,16,.25);
+  }
+  .panel.thin { border-width: 1px; }
+  .tag { /* štítok nad panelom */
+    position: absolute; left: 50%; top: -14px; transform: translateX(-50%); white-space: nowrap;
+    background: var(--ink); border: 2px solid var(--line); padding: 2px 14px; font-size: 15px; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .btn {
+    font: inherit; color: var(--line); background: var(--ink); border: 2px solid var(--line); outline: 2px solid var(--ink);
+    padding: 7px 18px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 10px;
+  }
+  .btn:hover, .btn.on { background: var(--line); color: var(--ink); }
+  .btn.ghost { border-style: dashed; color: var(--grey); }
+  /* ikonka v kosoštvorci */
+  .dia { width: 34px; height: 34px; position: relative; flex: none; display: grid; place-items: center; color: var(--line); }
+  .dia::before { content: ''; position: absolute; inset: 5px; border: 2px solid currentColor; transform: rotate(45deg); }
+  .dia .ico { width: 14px; height: 14px; position: relative; }
+  .dia.big { width: 56px; height: 56px; } .dia.big::before { inset: 8px; } .dia.big .ico { width: 22px; height: 22px; }
+  .dia.fill::before { background: var(--line); } .dia.fill { color: var(--ink); }
+  .pips { display: flex; gap: 4px; }
+  .pips i { width: 8px; height: 8px; border: 1.5px solid currentColor; transform: rotate(45deg); }
+  .pips i.on { background: currentColor; }
+  .bar { height: 8px; border: 1.5px solid var(--line); position: relative; }
+  .bar b { position: absolute; inset: 1px auto 1px 1px; background: var(--line); }
+
+  /* ---------- obrazovka 16:9 (navrhnutá na 800×450, škáluje sa) ---------- */
+  .screen { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden; border: 2px solid var(--ink); }
+  .screen > .stage { position: absolute; left: 0; top: 0; width: 800px; height: 450px; transform-origin: 0 0; }
+  /* papierový svet za UI – znamienka ako v hre */
+  .world {
+    position: absolute; inset: 0; background-color: var(--paper);
+    background-image:
+      radial-gradient(ellipse 60% 40% at 30% 85%, rgba(14,14,16,.0) 0, rgba(236,232,221,0) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='16'%3E%3Cpath d='M3 4h3M4.5 2.5v3M13 12h3' stroke='%23b9b4a8' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+  }
+  .world .hill { position: absolute; bottom: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6'%3E%3Cpath d='M1 3h3M2.5 1.5v3' stroke='%2353504a' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E"); }
+  .world .tree { position: absolute; bottom: 70px; width: 70px; height: 130px; clip-path: polygon(50% 0, 100% 70%, 62% 70%, 62% 100%, 38% 100%, 38% 70%, 0 70%);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='5' height='5'%3E%3Cpath d='M0 2.5h4M2 .5v4' stroke='%231c1b19' stroke-width='1.2' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E"); }
+  .scrim { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(14,14,16,.55) 0 2px, rgba(14,14,16,.35) 2px 4px); }
+
+  /* ---------- KARTA KÚZLA (jediná farebná vec) ---------- */
+  .cards { display: flex; flex-wrap: wrap; gap: 28px 18px; }
+  .card { width: 168px; flex: none; position: relative; padding: 18px 10px 10px; color: var(--line); }
+  .card .tag { font-size: 13px; padding: 2px 10px; }
+  .card .count { position: absolute; left: -8px; top: 46px; background: var(--ink); border: 2px solid var(--line); font-size: 12px; padding: 1px 5px; z-index: 2; }
+  .art {
+    height: 136px; position: relative; overflow: hidden; border: 2px solid var(--line);
+    background: radial-gradient(circle at 50% 46%, var(--c2) 0, var(--c) 38%, var(--c3) 100%);
+  }
+  .art::before { /* jemné znamienka v pozadí obrázka */
+    content: ''; position: absolute; inset: 0; opacity: .22;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M2 4h4M4 2v4M9 11h4' stroke='white' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+  }
+  .art .ico, .art .pix { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 64px; height: 64px; filter: drop-shadow(0 0 8px rgba(255,255,255,.75)); }
+  .art .pix { width: auto; height: 56px; fill: #fff; }
+  .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+  .art .sign { position: absolute; right: 6px; top: 4px; width: 22px; height: 22px; display: grid; place-items: center; background: var(--ink); border: 2px solid var(--line); }
+  .art .sign .pix { position: static; transform: none; height: 9px; filter: none; fill: var(--line); }
+  .card .meta { display: flex; justify-content: space-between; align-items: center; margin: 8px 2px 6px; color: var(--c); }
+  .card .meta small { color: var(--grey); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .card p { margin: 0 2px; font-size: 13px; line-height: 1.25; min-height: 50px; color: var(--line); }
+  .card .foot { margin-top: 8px; display: flex; justify-content: center; }
+  .card .foot .btn { font-size: 13px; padding: 4px 12px; }
+  .card.mini { width: auto; padding: 14px 6px 6px; }
+  .card.mini .art { height: 84px; } .card.mini .art .ico { width: 40px; height: 40px; } .card.mini .art .pix { height: 34px; }
+  .card.mini .tag { font-size: 11px; top: -12px; }
+  .card.mini .meta { margin: 5px 1px 0; }
+  .card.locked .art { background: var(--dim); } .card.locked .art::before, .card.locked .art > * { display: none; }
+  .card.locked .art::after { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: var(--grey); }
+  .card.locked .meta { color: var(--grey); }
+
+  /* ---------- obsah obrazoviek ---------- */
+  .logo { font-size: 64px; font-weight: 700; letter-spacing: 4px; color: var(--ink); line-height: 1; text-shadow: 4px 4px 0 var(--line); }
+  .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .blink { animation: blink 1.1s steps(2) infinite; } @keyframes blink { 50% { opacity: 0; } }
+  .menu { display: flex; flex-direction: column; gap: 10px; }
+  .menu .row { display: flex; align-items: center; gap: 12px; padding: 4px 16px 4px 6px; font-size: 18px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border: 2px solid transparent; }
+  .menu .row:hover, .menu .row.on { border-color: var(--line); }
+  .menu .row.on .dia::before { background: var(--line); } .menu .row.on .dia { color: var(--ink); }
+  .menu .row.off { color: var(--grey); }
+  .hud-top { position: absolute; left: 14px; right: 14px; top: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .hearts { display: flex; gap: 4px; color: var(--ink); } .hearts .ico { width: 18px; height: 18px; }
+  .hearts .ico.empty path { fill: none; stroke: var(--ink); stroke-width: .2; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 15px; }
+  .chip .ico { width: 14px; height: 14px; }
+  .goal { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); font-size: 14px; color: var(--ink); letter-spacing: 1px; text-transform: uppercase; display: flex; gap: 8px; align-items: center; }
+  .goal::before, .goal::after { content: ''; width: 24px; height: 2px; background: var(--ink); }
+  .problem { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); padding: 8px 22px; font-size: 30px; display: flex; gap: 12px; align-items: center; }
+  .problem .slot { width: 46px; height: 38px; border: 2px dashed var(--line); display: grid; place-items: center; }
+  .keys { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 4px; }
+  .keys button { font: inherit; width: 40px; height: 44px; font-size: 20px; color: var(--line); background: var(--ink); border: 2px solid var(--line); outline: 2px solid var(--ink); cursor: pointer; }
+  .keys button:hover { background: var(--line); color: var(--ink); }
+  .spells { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; }
+  .spells .s { width: 46px; height: 46px; border: 2px solid var(--line); outline: 2px solid var(--ink); display: grid; place-items: center; background: var(--ink); position: relative; }
+  .spells .s .pix { height: 14px; fill: var(--c); }
+  .spells .s.on { background: var(--c); } .spells .s.on .pix { fill: var(--ink); }
+  .spells .s kbd { position: absolute; left: -16px; top: 2px; font: inherit; font-size: 11px; color: var(--ink); }
+  .slots4 { position: absolute; left: 14px; top: 42px; display: flex; gap: 5px; }
+  .slots4 .sl { width: 30px; height: 38px; border: 2px solid var(--line); outline: 2px solid var(--ink); background: var(--ink); display: grid; place-items: center; }
+  .slots4 .sl .ico { width: 18px; height: 18px; }
+  .slots4 .sl.c { background: var(--c); } .slots4 .sl.empty { border-style: dashed; background: rgba(14,14,16,.5); }
+  .story { width: 560px; padding: 26px 30px 22px; font-size: 22px; line-height: 1.35; text-align: center; }
+  .story .dots { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+  .story .dots i { width: 8px; height: 8px; border: 1.5px solid var(--line); transform: rotate(45deg); } .story .dots i.on { background: var(--line); }
+  .story .next { margin-top: 14px; font-size: 13px; color: var(--grey); letter-spacing: 1px; text-transform: uppercase; }
+  .vault { width: 720px; height: 380px; padding: 26px 20px 16px; display: grid; grid-template-columns: 196px 1fr; gap: 18px; }
+  .vault h3, .shop h3 { margin: 0 0 4px; font-size: 22px; font-weight: 500; } .vault .sub { color: var(--grey); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 22px 10px; padding-right: 4px; padding-top: 14px; overflow: hidden; }
+  .stat { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; border-bottom: 1px dashed var(--dim); }
+  .stat:last-child { border: 0; }
+  .shop { width: 660px; padding: 26px 22px 18px; }
+  .shop .row { display: flex; gap: 18px; justify-content: center; margin-top: 18px; }
+  .price { display: flex; align-items: center; gap: 6px; justify-content: center; margin-top: 8px; font-size: 15px; color: var(--line); }
+  .price .ico { width: 14px; height: 14px; }
+  .notes { font-size: 13px; color: var(--dim); margin: 8px 0 0; line-height: 1.45; max-width: 880px; }
+
+  /* ---------- prompty ---------- */
+  .prompts { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .pr { padding: 16px 16px 12px; font-size: 13px; line-height: 1.45; }
+  .pr b { font-size: 15px; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .pr b i { width: 12px; height: 12px; background: var(--c); display: inline-block; }
+  .pr code { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #d9d5ca; white-space: pre-wrap; background: #1a1a1d; padding: 10px; margin: 6px 0 8px; max-height: 190px; overflow: auto; }
+  .pr .btn { font-size: 12px; padding: 3px 10px; }
+  .bible { padding: 18px 20px; font-size: 14px; line-height: 1.5; }
+  .bible code { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre-wrap; background: #1a1a1d; color: #d9d5ca; padding: 12px; margin-top: 8px; }
+  @media (max-width: 600px) { .card { width: 150px; } .art { height: 120px; } .logo { font-size: 48px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="kit">Mathemagic · UI</h1>
+  <p class="kit">Pravidlo: farebné sú len karty kúziel. Všetko ostatné je 1-bit: čierne panely s bielou linkou a nitmi, pixelové písmo, ikonky v kosoštvorci, papierový svet za tým.</p>
+  <nav class="kit">
+    <a href="#karty">Karty</a><a href="#intro">Intro</a><a href="#menu">Menu</a><a href="#hud">Súboj</a><a href="#vyber">Výber karty</a>
+    <a href="#kniha">Kniha kúziel</a><a href="#krcma">Obchod</a><a href="#koniec">Výhra / prehra</a><a href="#ikony">Ikonky</a><a href="#prompty">Prompty pre Gemini</a>
+  </nav>
+
+  <h2 class="kit" id="karty">Karty kúziel <span>4 živly + 8 kariet do Knihy · úroveň 1 a 2</span></h2>
+  <div class="cards" id="cards"></div>
+  <p class="notes">Obrázok v karte: keď uložíš obrázok z Gemini ako <b>mathemagic/zdroj/karty/&lt;id&gt;.jpg</b> (napr. mraz.jpg, zem.jpg), karta ho sama zobrazí namiesto pixelovej ikonky.</p>
+
+  <h2 class="kit" id="intro">Intro <span>úvodná obrazovka a 3 vety príbehu</span></h2>
+  <div class="screen" data-s>
+    <div class="stage">
+      <div class="world"><div class="hill" style="left:-40px;width:420px;height:80px;border-radius:50% 50% 0 0"></div><div class="hill" style="right:-60px;width:480px;height:110px;border-radius:50% 50% 0 0"></div><div class="tree" style="left:90px"></div><div class="tree" style="left:150px;transform:scale(.75);transform-origin:bottom"></div><div class="tree" style="right:120px;transform:scale(1.15);transform-origin:bottom"></div></div>
+      <div class="center">
+        <div style="display:flex;gap:14px;margin-bottom:14px" id="introSigns"></div>
+        <div class="logo">MATHEMAGIC</div>
+        <div style="margin-top:10px;font-size:16px;letter-spacing:3px;text-transform:uppercase">Kúzla, ktoré počítajú</div>
+        <div style="margin-top:56px" class="panel thin"><div class="blink" style="padding:6px 18px;font-size:15px;letter-spacing:2px;text-transform:uppercase">Ťukni a začni</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="cards" style="margin-top:18px;gap:18px">
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center"><div class="panel story"><span class="tag">Kapitola 1</span>Zbojníci ukradli z kráľovstva všetky čísla.<div class="dots"><i class="on"></i><i></i><i></i></div><div class="next blink">Ďalej ▸</div></div></div></div></div>
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center"><div class="panel story"><span class="tag">Kapitola 1</span>Bez čísel nefunguje žiadne kúzlo. Ani jedno.<div class="dots"><i></i><i class="on"></i><i></i></div><div class="next blink">Ďalej ▸</div></div></div></div></div>
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center"><div class="panel story"><span class="tag">Kapitola 1</span>Si posledný čarodejník, ktorý ešte vie počítať.<div class="dots"><i></i><i></i><i class="on"></i></div><div class="next blink">Poďme ▸</div></div></div></div></div>
+  </div>
+
+  <h2 class="kit" id="menu">Hlavné menu</h2>
+  <div class="screen" data-s>
+    <div class="stage">
+      <div class="world"><div class="hill" style="left:-40px;width:520px;height:90px;border-radius:50% 50% 0 0"></div><div class="tree" style="right:90px"></div><div class="tree" style="right:170px;transform:scale(.7);transform-origin:bottom"></div></div>
+      <div style="position:absolute;left:56px;top:46px" class="logo" ><span style="font-size:40px">MATHEMAGIC</span></div>
+      <div class="panel" style="position:absolute;left:56px;top:126px;width:300px;padding:26px 14px 16px">
+        <span class="tag">Menu</span>
+        <div class="menu" id="mainMenu"></div>
+      </div>
+      <div class="panel thin" style="position:absolute;right:30px;top:30px;padding:10px 14px;width:220px;font-size:14px">
+        <div style="display:flex;justify-content:space-between"><span>Zóna 1</span><span style="color:var(--grey)">Les zbojníkov</span></div>
+        <div class="bar" style="margin:8px 0 6px"><b style="width:42%"></b></div>
+        <div style="display:flex;justify-content:space-between;color:var(--grey);font-size:12px"><span>Kariet 5/12</span><span>+ − do 10</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="cards" style="margin-top:18px;gap:18px">
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center">
+      <div class="panel" style="width:380px;padding:28px 18px 18px"><span class="tag">Pauza</span><div class="menu" id="pauseMenu"></div></div></div></div></div>
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center">
+      <div class="panel" style="width:420px;padding:28px 22px 18px;font-size:16px"><span class="tag">Nastavenia</span><div id="settings"></div></div></div></div></div>
+  </div>
+
+  <h2 class="kit" id="hud">Súboj <span>srdcia, mince, cieľ, kúzla, príklad, klávesnica, Kniha v rohu</span></h2>
+  <div class="screen" data-s>
+    <div class="stage">
+      <div class="world"><div class="hill" style="left:-60px;width:900px;height:70px;border-radius:50% 50% 0 0"></div><div class="tree" style="left:60px"></div><div class="tree" style="left:640px;transform:scale(1.2);transform-origin:bottom"></div></div>
+      <div class="hud-top">
+        <div class="hearts" id="hearts"></div>
+        <div style="display:flex;gap:8px"><div class="panel thin chip" id="coins"></div><div class="panel thin chip" id="pauseBtn"></div></div>
+      </div>
+      <div class="goal">Poraz bandu · 2/3</div>
+      <div class="spells" id="spellBtns"></div>
+      <div class="panel problem"><span>7</span><span id="pPlus"></span><span>2</span><span id="pEq"></span><span class="slot blink">?</span></div>
+      <div class="keys" id="keys"></div>
+      <div class="slots4" id="slots4"></div>
+    </div>
+  </div>
+
+  <h2 class="kit" id="vyber">Výber karty po súboji <span>1 z 3</span></h2>
+  <div class="screen" data-s>
+    <div class="stage"><div class="world"></div><div class="scrim"></div>
+      <div class="center"><div style="color:var(--line);font-size:26px;letter-spacing:2px;text-transform:uppercase;margin-bottom:26px;text-shadow:3px 3px 0 var(--ink)">Banda porazená · vyber si kartu</div><div class="cards" id="pick" style="justify-content:center"></div></div>
+    </div>
+  </div>
+
+  <h2 class="kit" id="kniha">Kniha kúziel <span>4 miesta + zbierka</span></h2>
+  <div class="screen" data-s>
+    <div class="stage"><div class="world"></div><div class="scrim"></div>
+      <div class="center"><div class="panel vault"><span class="tag">Kniha kúziel</span>
+        <div>
+          <h3>Kniha</h3><div class="sub">5 / 12 kúziel</div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0 16px" id="bookSlots"></div>
+          <div class="stat"><span>Príklady</span><span>+ −</span></div>
+          <div class="stat"><span>Do</span><span>10</span></div>
+          <div class="stat"><span>Najdlhšia séria</span><span>14</span></div>
+          <div class="stat"><span>Zóna</span><span>1</span></div>
+        </div>
+        <div class="grid" id="vault"></div>
+      </div></div>
+    </div>
+  </div>
+
+  <h2 class="kit" id="krcma">Obchod</h2>
+  <div class="screen" data-s>
+    <div class="stage"><div class="world"></div><div class="scrim"></div>
+      <div class="center"><div class="panel shop"><span class="tag">Obchod</span>
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3>Čo si dáš?</h3><div class="chip" id="coins2"></div></div>
+        <div class="row" id="shop"></div>
+        <div style="display:flex;justify-content:center;margin-top:16px"><button class="btn ghost">Odísť</button></div>
+      </div></div>
+    </div>
+  </div>
+
+  <h2 class="kit" id="koniec">Výhra / prehra</h2>
+  <div class="cards" style="gap:18px">
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center">
+      <div class="panel" style="width:440px;padding:30px 24px 20px;text-align:center"><span class="tag">Vodca porazený</span>
+        <div style="display:flex;justify-content:center;margin-bottom:10px" id="winIco"></div>
+        <div style="font-size:24px">Získal si znamienko</div><div style="font-size:64px;line-height:1.1;margin:6px 0" id="winSign"></div>
+        <div style="color:var(--grey);font-size:14px;margin-bottom:16px">Odteraz aj príklady s mínusom.</div>
+        <button class="btn on">Ďalšia zóna ▸</button></div></div></div></div>
+    <div class="screen" data-s style="flex:1 1 360px"><div class="stage"><div class="world"></div><div class="scrim"></div><div class="center">
+      <div class="panel" style="width:440px;padding:30px 24px 20px;text-align:center"><span class="tag">Koniec behu</span>
+        <div style="display:flex;justify-content:center;margin-bottom:12px" id="loseIco"></div>
+        <div style="font-size:24px;margin-bottom:12px">Zbojníci ťa dostali</div>
+        <div class="stat"><span>Správne</span><span>38</span></div><div class="stat"><span>Séria</span><span>9</span></div><div class="stat"><span>Mince</span><span>12</span></div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:16px"><button class="btn on">Znova</button><button class="btn ghost">Menu</button></div></div></div></div></div>
+  </div>
+
+  <h2 class="kit" id="ikony">Ikonky v kosoštvorci <span>7×7 px, biele, bez farby</span></h2>
+  <div class="panel" style="padding:24px;display:flex;flex-wrap:wrap;gap:18px 26px" id="icons"></div>
+
+  <h2 class="kit" id="prompty">Prompty pre Gemini <span>obrázok do okienka karty · 1:1</span></h2>
+  <div class="panel bible">
+    <b>Ako na to:</b> v gemini.google.com najprv vlož <b>štýlovú bibliu</b> (platí pre všetky karty), potom prompt karty. Jedna karta = jeden rozhovor, vždy rovnaká biblia, aby séria držala štýl. Stiahni, orež na štvorec, ulož ako <b>zdroj/karty/&lt;id&gt;.jpg</b> (512×512 stačí).
+    <code id="bible"></code>
+    <div style="margin-top:8px"><button class="btn" data-copy="bible">Kopírovať bibliu</button></div>
+  </div>
+  <div class="prompts" id="prompts" style="margin-top:14px"></div>
+</div>
+
+<script>
+// ---------- pixelové písmo a ikonky (rovnaké ako svet.js) ----------
+const PIX = {
+  '0': '01110100011001110101110011000101110', '1': '00100011000010000100001000010001110', '2': '01110100010000100010001000100011111', '3': '11111000100010000010000011000101110',
+  '4': '00010001100101010010111110001000010', '5': '11111100001111000001000011000101110', '6': '00110010001000011110100011000101110', '7': '11111000010001000100010000100001000',
+  '8': '01110100011000101110100011000101110', '9': '01110100011000101111000010001001100', '+': '00000001000010011111001000010000000', '-': '00000000000000011111000000000000000',
+  '=': '00000000001111100000111110000000000', '?': '01110100010000100010001000000000100', '←': '00000001000100011111010000010000000', '×': '00000100010101000100010101000100000', '÷': '00100000001111100000001000000000000',
+};
+const pix = s => { const ch = [...String(s)]; let d = ''; ch.forEach((c, k) => { const g = PIX[c]; if (g) for (let i = 0; i < 35; i++) if (g[i] === '1') d += `M${k * 7 + (i % 5)} ${(i / 5) | 0}h1v1h-1z`; }); return `<svg class="pix" viewBox="0 0 ${ch.length * 7 - 2} 7" shape-rendering="crispEdges"><path d="${d}"/></svg>`; };
+const ICO = {
+  snow: ['0001000', '1001001', '0101010', '0011100', '0101010', '1001001', '0001000'], bolt: ['0000110', '0001100', '0011000', '0111110', '0001100', '0011000', '0110000'],
+  fire: ['0001000', '0011000', '0011100', '0111110', '1110111', '1100011', '0111110'], shield: ['1111111', '1111111', '1111111', '1111111', '0111110', '0011100', '0001000'],
+  echo: ['0010100', '0101010', '1010101', '1010101', '1010101', '0101010', '0010100'], coin: ['0011100', '0111110', '1110111', '1101111', '1110111', '0111110', '0011100'],
+  heart: ['0110110', '1111111', '1111111', '1111111', '0111110', '0011100', '0001000'], clock: ['0011100', '0100010', '1001001', '1001111', '1000001', '0100010', '0011100'],
+  swords: ['1000001', '0100010', '0010100', '0001000', '0010100', '0100010', '1000001'], key: ['0111000', '1000100', '1000100', '0111000', '0010000', '0011000', '0011100'],
+  lock: ['0011100', '0100010', '0100010', '1111111', '1110111', '1110111', '1111111'], crown: ['1001001', '1101011', '1111111', '1111111', '1111111', '0000000', '0000000'],
+  mug: ['1111100', '1000110', '1000101', '1000101', '1000110', '1111100', '0000000'], skull: ['0111110', '1111111', '1001001', '1111111', '0111110', '0101010', '0000000'],
+  // nové pre menu
+  play: ['0100000', '0110000', '0111000', '0111100', '0111000', '0110000', '0100000'], book: ['0110110', '1001001', '1001001', '1001001', '1001001', '1111111', '0000000'],
+  gear: ['0101010', '1111111', '0110110', '1100011', '0110110', '1111111', '0101010'], map: ['1100011', '1011101', '1010101', '1010101', '1010101', '1011101', '1100011'],
+  door: ['0111110', '0100010', '0100010', '0100110', '0100010', '0100010', '0111110'], note: ['0001111', '0001001', '0001001', '0001001', '0111001', '1111111', '0110110'],
+  sound: ['0010010', '0110101', '1110101', '1110101', '0110101', '0010010', '0000000'], back: ['0001000', '0011000', '0111111', '1111111', '0111111', '0011000', '0001000'],
+  pause: ['0000000', '0110110', '0110110', '0110110', '0110110', '0110110', '0000000'], star: ['0001000', '0001000', '1111111', '0111110', '0011100', '0110110', '0100010'],
+  rock: ['0000000', '0011100', '0111110', '1101111', '1111011', '1111111', '0000000'], drop: ['0001000', '0011100', '0011100', '0111110', '0111010', '0111110', '0011100'],
+  wind: ['0001100', '1110010', '0000010', '1111100', '0000000', '1111000', '0000100'], hat: ['0001000', '0011000', '0011100', '0111100', '0111110', '1111111', '0000000'],
+};
+const icon = (n, c = 'currentColor', cls = '') => { const g = (ICO[n] || []).join(''); let d = ''; for (let i = 0; i < g.length; i++) if (g[i] === '1') d += `M${i % 7} ${(i / 7) | 0}h1v1h-1z`; return `<svg class="ico ${cls}" viewBox="0 0 7 7" shape-rendering="crispEdges"><path fill="${c}" d="${d}"/></svg>`; };
+const dia = (n, cls = '') => `<span class="dia ${cls}">${icon(n)}</span>`;
+const $ = id => document.getElementById(id);
+
+// ---------- karty (texty z karty.js) ----------
+const ZIVLY = {
+  zem:    { name: 'Zem',    sign: '+', color: '#b8823e', icon: 'rock', kind: 'Živel', text: 'Zem popraská a nepriateľ sa na chvíľu zastaví.' },
+  voda:   { name: 'Voda',   sign: '-', color: '#3a8fe0', icon: 'drop', kind: 'Živel', text: 'Ľadová vlna nepriateľa zamrazí na mieste.' },
+  ohen_z: { name: 'Oheň',   sign: '×', color: '#ec6428', icon: 'fire', kind: 'Živel', text: 'Plameň horí a preskočí na suseda.' },
+  vzduch: { name: 'Vzduch', sign: '÷', color: '#3ec6bc', icon: 'wind', kind: 'Živel', text: 'Víchor odfúkne nepriateľa ďaleko dozadu.' },
+};
+const CARDS = {
+  mraz:   { name: 'Mráz',       color: '#5aa6e0', icon: 'snow',   text: l => `Odpoveď do ${l > 1 ? 3 : 2} s zmrazí cieľ na ${l > 1 ? 5 : 3} s.` },
+  retaz:  { name: 'Reťaz',      color: '#e8c840', icon: 'bolt',   text: l => `Každá ${l > 1 ? 2 : 3}. správna v rade preskočí bleskom na ďalšieho.` },
+  ohen:   { name: 'Oheň',       color: '#e0643a', icon: 'fire',   text: l => `Zásah podpáli: nepriateľ ide ${l > 1 ? '60' : '40'} % pomalšie.` },
+  stit:   { name: 'Štít',       color: '#9a9aa2', icon: 'shield', text: l => `${l > 1 ? 'Prvé dva údery' : 'Prvý úder'} v súboji ťa nebolí.` },
+  ozvena: { name: 'Ozvena',     color: '#b07ad8', icon: 'echo',   text: l => `Výsledok ${l > 1 ? '4' : '6'} a viac vystrelí aj druhé kúzlo.` },
+  zlato:  { name: 'Zlatá ruka', color: '#e8b040', icon: 'coin',   text: l => `Rýchla odpoveď = ${l > 1 ? 2 : 1} ${l > 1 ? 'mince' : 'minca'}.` },
+  srdce:  { name: 'Srdce',      color: '#d43a3a', icon: 'heart',  text: l => `+${l} ${l > 1 ? 'srdiečka' : 'srdiečko'} navyše.` },
+  cas:    { name: 'Pomalý čas', color: '#60be68', icon: 'clock',  text: l => `Nepriatelia sú o ${l > 1 ? 35 : 20} % pomalší.` },
+};
+const ALL = { ...ZIVLY, ...CARDS };
+// odtiene farby: svetlé jadro a tmavý okraj (radiálna žiara ako v predlohe)
+const mix = (hex, t, to) => { const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16); const ch = s => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t); return `rgb(${ch(16)},${ch(8)},${ch(0)})`; };
+const imgId = id => id === 'ohen_z' ? 'ohen-zivel' : id;
+
+function card(id, { l = 1, mini = false, count = 0, foot = '', locked = false } = {}) {
+  const c = ALL[id], z = !!c.sign;
+  const art = z ? pix(c.sign) : icon(c.icon, '#fff');
+  const text = typeof c.text === 'function' ? c.text(l) : c.text;
+  return `<div class="card panel ${mini ? 'mini' : ''} ${locked ? 'locked' : ''}" style="--c:${c.color};--c2:${mix(c.color, .55, '#ffffff')};--c3:${mix(c.color, .62, '#0e0e10')}">
+    <span class="tag">${locked ? '???' : c.name}</span>${count ? `<span class="count">${count} ×</span>` : ''}
+    <div class="art">${art}${z ? '' : ''}<img src="../zdroj/karty/${imgId(id)}.jpg" alt="" onerror="this.remove()">${z && !mini ? `<span class="sign">${pix(c.sign)}</span>` : ''}</div>
+    <div class="meta">${z ? `<small>Živel</small>` : `<div class="pips"><i class="on"></i><i class="${l > 1 ? 'on' : ''}"></i></div>`}${mini ? '' : `<small>${z ? c.sign.replace('-', '−') : 'Úr. ' + l}</small>`}</div>
+    ${mini ? '' : `<p>${text}</p>`}${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
+}
+
+$('cards').innerHTML = Object.keys(ZIVLY).map(id => card(id)).join('') + Object.keys(CARDS).map(id => card(id)).join('') + card('mraz', { l: 2, count: 2 }) + card('srdce', { l: 2 }) + card('cas', { locked: true });
+
+// ---------- intro ----------
+$('introSigns').innerHTML = ['+', '-', '×', '÷'].map(s => `<span class="panel" style="width:42px;height:42px;display:grid;place-items:center">${pix(s).replace('class="pix"', 'class="pix" style="height:14px;fill:var(--line)"')}</span>`).join('');
+
+// ---------- menu ----------
+const menu = (items, on) => items.map(([ic, t, st], i) => `<div class="row ${i === on ? 'on' : ''} ${st || ''}">${dia(ic)}${t}</div>`).join('');
+$('mainMenu').innerHTML = menu([['play', 'Pokračovať'], ['star', 'Nový beh'], ['book', 'Kniha kúziel'], ['map', 'Svet', 'off'], ['gear', 'Nastavenia']], 0);
+$('pauseMenu').innerHTML = menu([['play', 'Pokračovať'], ['book', 'Kniha kúziel'], ['gear', 'Nastavenia'], ['door', 'Do menu']], 0);
+const toggle = (t, on) => `<div class="stat" style="padding:8px 0;align-items:center"><span style="display:flex;gap:10px;align-items:center">${t}</span><span style="display:flex;gap:4px">${['Zap', 'Vyp'].map((x, i) => `<span class="btn ${(i === 0) === on ? 'on' : ''}" style="font-size:12px;padding:2px 8px">${x}</span>`).join('')}</span></div>`;
+$('settings').innerHTML = toggle('Hudba', true) + toggle('Zvuky', true) + toggle('Rozprávač', true) + `<div class="stat" style="padding:8px 0;align-items:center"><span>Príklady do</span><span style="display:flex;gap:4px">${[5, 10, 20].map(n => `<span class="btn ${n === 10 ? 'on' : ''}" style="font-size:12px;padding:2px 8px">${n}</span>`).join('')}</span></div>`;
+
+// ---------- HUD ----------
+$('hearts').innerHTML = icon('heart') + icon('heart') + icon('heart') + icon('heart', 'currentColor', 'empty');
+$('coins').innerHTML = icon('coin', 'var(--line)') + '12';
+$('coins2').innerHTML = `<span class="panel thin chip">${icon('coin', 'var(--line)')}14</span>`;
+$('pauseBtn').innerHTML = icon('pause', 'var(--line)');
+$('pPlus').innerHTML = pix('+').replace('class="pix"', 'class="pix" style="height:20px;fill:var(--line)"');
+$('pEq').innerHTML = pix('=').replace('class="pix"', 'class="pix" style="height:20px;fill:var(--line)"');
+$('spellBtns').innerHTML = Object.values(ZIVLY).map((z, i) => `<div class="s ${i === 0 ? 'on' : ''}" style="--c:${z.color}"><kbd>${i + 1}</kbd>${pix(z.sign)}</div>`).join('');
+$('keys').innerHTML = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(n => `<button>${n}</button>`).join('') + `<button>${pix('←').replace('class="pix"', 'class="pix" style="height:12px;fill:var(--line)"')}</button>`;
+$('slots4').innerHTML = ['mraz', 'ohen', 'srdce'].map(id => `<div class="sl c" style="--c:${CARDS[id].color}">${icon(CARDS[id].icon, '#fff')}</div>`).join('') + `<div class="sl empty"></div>`;
+
+// ---------- výber, kniha, krčma ----------
+$('pick').innerHTML = ['mraz', 'retaz', 'zlato'].map((id, i) => card(id, { foot: `<button class="btn ${i === 0 ? 'on' : ''}">Vybrať</button>` })).join('');
+$('bookSlots').innerHTML = ['mraz', 'ohen', 'srdce'].map(id => `<div class="slots4" style="position:static;transform:none"><div class="sl c" style="--c:${CARDS[id].color};width:100%;height:46px">${icon(CARDS[id].icon, '#fff')}</div></div>`).join('') + `<div class="slots4" style="position:static;transform:none"><div class="sl empty" style="width:100%;height:46px"></div></div>`;
+$('vault').innerHTML = [['zem'], ['voda'], ['mraz', 2], ['ohen'], ['srdce'], ['retaz', 0, 1], ['cas', 0, 1], ['zlato', 0, 1]].map(([id, l, lk]) => card(id, { mini: true, l: l || 1, locked: lk })).join('');
+$('shop').innerHTML = [['ozvena', 12], ['stit', 10], ['srdce', 6]].map(([id, p]) => `<div>${card(id)}<div class="price">${icon('coin', 'var(--line)')}${p}</div></div>`).join('');
+$('winIco').innerHTML = dia('crown', 'big fill');
+$('winSign').innerHTML = pix('-').replace('class="pix"', 'class="pix" style="height:40px;fill:var(--voda)"');
+$('loseIco').innerHTML = dia('skull', 'big');
+
+// ---------- ikonky ----------
+$('icons').innerHTML = Object.keys(ICO).map(n => `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--grey);width:54px">${dia(n, 'big')}${n}</div>`).join('');
+
+// ---------- prompty pre Gemini ----------
+const BIBLE = `Style bible for a series of spell card illustrations (mobile fantasy RPG, kids 6–9 years).
+- Square 1:1 illustration that fills the whole frame, no border, no frame, no card, NO TEXT, no letters, no numbers unless asked.
+- Painted game icon look: one big central subject, strong silhouette, readable at 80 px.
+- Radial glow from the centre: bright, almost white core → saturated main colour → dark edges of the same hue (vignette).
+- ONE dominant colour per card (given below) + white highlights. No other colours fighting it.
+- Soft magical particles, sparks or swirls around the subject. Slight painterly brush texture, crisp edges on the subject.
+- Friendly and magical, not scary or gory. No characters' faces unless asked.
+- Consistent lighting from the top-left, same camera distance for every card.
+- Avoid: generic AI look, plastic 3D render, photorealism, busy background, gradients in rainbow colours, watermarks.`;
+const PR = {
+  zem: ['#b8823e', 'Earth – the plus spell', 'A big glowing plus sign (+) made of cracked earth and stone, bursting up from the ground, rocks and dust flying outward, little grass tufts on the edges. Dominant colour: warm earthy brown-gold (#b8823e).'],
+  voda: ['#3a8fe0', 'Water – the minus spell', 'A horizontal wave of water shaped like a minus sign (−), freezing into ice at its ends, splashing droplets frozen mid-air. Dominant colour: clear blue (#3a8fe0).'],
+  'ohen-zivel': ['#ec6428', 'Fire – the multiply spell', 'Two crossing streams of fire forming a multiplication sign (×), a fireball at the crossing point, embers flying out. Dominant colour: bright orange (#ec6428).'],
+  vzduch: ['#3ec6bc', 'Air – the divide spell', 'A swirling gust of wind forming a division sign (÷): a horizontal whirl of air with two small glowing wind orbs above and below it, leaves blown sideways. Dominant colour: turquoise (#3ec6bc).'],
+  mraz: ['#5aa6e0', 'Frost', 'A large sparkling snowflake-crystal, sharp ice shards growing from it, frosty mist. Dominant colour: icy light blue (#5aa6e0).'],
+  retaz: ['#e8c840', 'Chain lightning', 'A lightning bolt that jumps in a zig-zag chain between three small glowing orbs, electric sparks. Dominant colour: electric yellow (#e8c840).'],
+  ohen: ['#e0643a', 'Burning', 'A single living flame with a hot white core, licking upward, smoke curls and embers. Dominant colour: red-orange (#e0643a).'],
+  stit: ['#9a9aa2', 'Shield', 'A round magic shield made of light with a rune ring, a sword bouncing off it with sparks. Dominant colour: silver grey (#9a9aa2), white highlights.'],
+  ozvena: ['#b07ad8', 'Echo', 'A glowing magic orb with a second ghostly copy of itself flying behind, concentric sound-like rings echoing outward. Dominant colour: violet (#b07ad8).'],
+  zlato: ['#e8b040', 'Golden hand', 'An open magical hand made of light with gold coins popping out of the palm, coin sparkles. Dominant colour: warm gold (#e8b040).'],
+  srdce: ['#d43a3a', 'Heart', 'A big glowing heart crystal, healing light rays and small floating hearts around it. Dominant colour: warm red (#d43a3a).'],
+  cas: ['#60be68', 'Slow time', 'An hourglass wrapped in a spiral of green leaves and light, sand falling in slow motion, a faint clock ring behind. Dominant colour: fresh green (#60be68).'],
+};
+$('bible').textContent = BIBLE;
+$('prompts').innerHTML = Object.entries(PR).map(([id, [c, t, s]]) => {
+  const full = `${BIBLE}\n\nCard: ${t}\n${s}\n\nOutput: one square image, 1024×1024.`;
+  return `<div class="panel pr" style="--c:${c}"><b><i></i>${id}.jpg · ${t}</b><code id="p-${id}">${full.replace(/</g, '&lt;')}</code><button class="btn" data-copy="p-${id}">Kopírovať</button></div>`;
+}).join('');
+document.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (!b) return; navigator.clipboard?.writeText($(b.dataset.copy).textContent); b.textContent = 'Skopírované'; setTimeout(() => b.textContent = 'Kopírovať', 1200); });
+
+// ---------- škálovanie obrazoviek ----------
+const fit = () => document.querySelectorAll('[data-s]').forEach(s => s.querySelector('.stage').style.transform = `scale(${s.clientWidth / 800})`);
+addEventListener('resize', fit); fit(); document.fonts?.ready.then(fit);
+</script>
+</body>
+</html>

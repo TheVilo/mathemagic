@@ -5,7 +5,7 @@ set -e
 HRA="$(cd "$(dirname "$0")" && pwd)"
 CIEL="$HRA/../Rodinne hry/kralovstvo-nasadenie/mathemagic"
 mkdir -p "$CIEL"
-rsync -a --delete --exclude '.git' --exclude '.DS_Store' --exclude 'nastroje' --exclude 'zdroj' \
+rsync -a --delete --exclude '.git' --exclude '.DS_Store' --exclude 'nastroje' --exclude '.claude' --include 'zdroj/' --include 'zdroj/karty/***' --exclude 'zdroj/*' \
   --exclude 'mathemagic.html' --exclude 'scena3d/mathemagic-3d.html' --exclude 'nahraj-na-server.sh' \
   --exclude 'README.md' --exclude '.gitignore' --exclude '.nojekyll' "$HRA/" "$CIEL/"
 cd "$CIEL/.."

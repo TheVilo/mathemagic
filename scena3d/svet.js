@@ -133,7 +133,7 @@ export function loadProps() {
   const raw = (name, url) => loadGlb(url).then(g => { g.scene.traverse(o => { if (o.isMesh) { o.material = prepMat(o.material, false, false, 1.0); o.castShadow = true; o.receiveShadow = true; } }); RAW[name] = g.scene; }).catch(() => {});
   return Promise.all([
     // les a kríky sú tmavé (ako v prírode), skaly a stavby svetlé – jedna paleta pre celý svet
-    ...KENNEY.map(n => one(n, `modely/priroda/${n}.glb`, sc(n), n.startsWith('tree_') ? 0.55 : n.startsWith('plant_') ? 0.6 : n.startsWith('stump') || n.startsWith('log') ? 0.7 : 1.05)),
+    ...KENNEY.map(n => one(n, `modely/priroda/${n}.glb`, sc(n), 0.8)),   // všetky materiály rovnako – tmavosť určuje len svetlo (kresba.js uOne)
     ...STAVBY.map(n => one(n, `modely/stavby/${n}.gltf`, n === 'building_tavern_blue' ? 4.6 : 3.6)),
     ...DUNGEON.map(n => one(n, `modely/dungeon/${n}.glb`, 0.75, 1.0)),
     raw('chest', 'modely/dungeon/chest.glb'), raw('key', 'modely/dungeon/key.glb'),
@@ -268,11 +268,17 @@ const ICO = {
   crown: ['1001001', '1101011', '1111111', '1111111', '1111111', '0000000', '0000000'],
   mug: ['1111100', '1000110', '1000101', '1000101', '1000110', '1111100', '0000000'],
   skull: ['0111110', '1111111', '1001001', '1111111', '0111110', '0101010', '0000000'],
+  play: ['0100000', '0110000', '0111000', '0111100', '0111000', '0110000', '0100000'], book: ['0110110', '1001001', '1001001', '1001001', '1001001', '1111111', '0000000'],
+  gear: ['0101010', '1111111', '0110110', '1100011', '0110110', '1111111', '0101010'], map: ['1100011', '1011101', '1010101', '1010101', '1010101', '1011101', '1100011'],
+  door: ['0111110', '0100010', '0100010', '0100110', '0100010', '0100010', '0111110'], pause: ['0000000', '0110110', '0110110', '0110110', '0110110', '0110110', '0000000'],
+  star: ['0001000', '0001000', '1111111', '0111110', '0011100', '0110110', '0100010'], rock: ['0000000', '0011100', '0111110', '1101111', '1111011', '1111111', '0000000'],
+  drop: ['0001000', '0011100', '0011100', '0111110', '0111010', '0111110', '0011100'], wind: ['0001100', '1110010', '0000010', '1111100', '0000000', '1111000', '0000100'],
+  hat: ['0001000', '0011000', '0011100', '0111100', '0111110', '1111111', '0000000'],
 };
-export function icon(name, color = 'currentColor') {
+export function icon(name, color = 'currentColor', cls = '') {
   const g = (ICO[name] || []).join(''); let d = '';
   for (let i = 0; i < g.length; i++) if (g[i] === '1') d += `M${i % 7} ${(i / 7) | 0}h1v1h-1z`;
-  return `<svg class="ico" viewBox="0 0 7 7" shape-rendering="crispEdges"><path fill="${color}" d="${d}"/></svg>`;
+  return `<svg class="ico ${cls}" viewBox="0 0 7 7" shape-rendering="crispEdges"><path fill="${color}" d="${d}"/></svg>`;
 }
 // textúra s pixelovým číslom (runa na kameni)
 export function digitTexture(str) {

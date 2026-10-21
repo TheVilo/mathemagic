@@ -10,7 +10,7 @@ export function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function makeNoise(seed) {
+export function makeNoise(seed) {
   const h = (x, y, s) => {
     let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041) + Math.imul(seed, 2654435761)) | 0;
     n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16;

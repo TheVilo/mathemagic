@@ -2,21 +2,27 @@
 // Karty fungujú samy, keď počítaš (ako žolíky v Balatro) – v súboji sa nič nevyberá, len počíta.
 
 export const CARDS = {
-  mraz: { name: 'Mráz', color: '#5aa6e0', icon: 'snow', text: l => `Odpoveď do ${l > 1 ? 3 : 2} s zmrazí cieľ na ${l > 1 ? 5 : 3} s.` },
+  mraz: { mode: 'zaklad', name: 'Mráz', color: '#5aa6e0', icon: 'snow', text: l => `Odpoveď do ${l > 1 ? 3 : 2} s zmrazí cieľ na ${l > 1 ? 5 : 3} s.` },
   retaz: { name: 'Reťaz', color: '#e8c840', icon: 'bolt', text: l => `Každá ${l > 1 ? 2 : 3}. správna v rade preskočí bleskom na ďalšieho.` },
   ohen: { name: 'Oheň', color: '#e0643a', icon: 'fire', text: l => `Zásah podpáli: nepriateľ ide ${l > 1 ? '60' : '40'} % pomalšie.` },
   stit: { name: 'Štít', color: '#9a9aa2', icon: 'shield', text: l => `${l > 1 ? 'Prvé dva údery' : 'Prvý úder'} v súboji ťa nebolí.` },
   ozvena: { name: 'Ozvena', color: '#b07ad8', icon: 'echo', text: l => `Výsledok ${l > 1 ? '4' : '6'} a viac vystrelí aj druhé kúzlo.` },
-  zlato: { name: 'Zlatá ruka', color: '#e8b040', icon: 'coin', text: l => `Rýchla odpoveď = ${l > 1 ? 2 : 1} ${l > 1 ? 'mince' : 'minca'}.` },
+  zlato: { mode: 'zaklad', name: 'Zlatá ruka', color: '#e8b040', icon: 'coin', text: l => `Rýchla odpoveď = ${l > 1 ? 2 : 1} ${l > 1 ? 'mince' : 'minca'}.` },
   srdce: { name: 'Srdce', color: '#d43a3a', icon: 'heart', text: l => `+${l} ${l > 1 ? 'srdiečka' : 'srdiečko'} navyše.` },
   cas: { name: 'Pomalý čas', color: '#60be68', icon: 'clock', text: l => `Nepriatelia sú o ${l > 1 ? 35 : 20} % pomalší.` },
+  // Majster: karty na damage (násobenie, kritický zásah)
+  krat: { mode: 'pokrocily', name: 'Násobič', color: '#ff5a22', icon: 'swords', text: l => `Každé kúzlo dá damage ×${l > 1 ? 2 : 1.5}.` },
+  plocha: { mode: 'pokrocily', name: 'Plošný zásah', color: '#ec6428', icon: 'fire', text: l => `Kúzlo zraní aj nepriateľov okolo za ${l > 1 ? 70 : 40} %.` },
+  otras: { mode: 'pokrocily', name: 'Otras zeme', color: '#b8823e', icon: 'rock', text: l => `Každý zásah omráči na ${l > 1 ? '1,5' : '0,8'} s.` },
+  blesk: { mode: 'pokrocily', name: 'Blesk', color: '#e8c840', icon: 'bolt', text: l => `Každé ${l > 1 ? 2 : 3}. kúzlo udrie bleskom 2 ďalších za polovicu.` },
+  krit: { mode: 'pokrocily', name: 'Kritický zásah', color: '#e8c840', icon: 'crown', text: l => `${l > 1 ? 30 : 18} % šanca na kritický zásah ×2 – väčšie znamienka.` },
 };
 export const SLOTS = 4;
 export const lvl = (run, id) => (run.cards.find(c => c.id === id) || { l: 0 }).l;
 
 // tri karty na výber (karta, ktorú už máš na 2. úrovni, sa neponúka)
 export function offer(run, rng, n = 3) {
-  const pool = Object.keys(CARDS).filter(id => lvl(run, id) < 2);
+  const pool = Object.keys(CARDS).filter(id => lvl(run, id) < 2 && (!CARDS[id].mode || CARDS[id].mode === (run.mode || 'zaklad')));
   const out = [];
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   return out;
@@ -26,6 +32,12 @@ export function offer(run, rng, n = 3) {
 // run.ops = ['+'] alebo ['+','-'], run.range = 5 | 10 | 20
 export function makeProblem(run, kind, rng = Math.random) {
   const ri = (a, b) => a + Math.floor(rng() * (b - a + 1));
+  // × a ÷ (od vodcu v 2. a 3. zóne): malá násobilka do 5 × 5, delenie len bezo zvyšku; strieda sa s + a −
+  const hard = run.ops.filter(o => o === '×' || o === '÷');
+  if (hard.length && kind !== 'easy' && kind !== 'missing' && rng() < 0.4) {
+    const op = hard[Math.floor(rng() * hard.length)], a = ri(2, 5), b = ri(1, 5);
+    return op === '×' ? { text: `${a}×${b}`, answer: a * b, op } : { text: `${a * b}÷${a}`, answer: b, op };
+  }
   const R = run.range, minus = run.ops.includes('-') && rng() < 0.5;
   const top = kind === 'easy' ? Math.min(R, 5) : R;
   if (kind === 'missing') {
@@ -45,13 +57,13 @@ export function makeProblem(run, kind, rng = Math.random) {
 }
 
 // ---------- mapa zóny: 7 krokov, v strede sa vyberá z dvoch ciest ----------
-// boj = banda, poklad = nájdi kľúč, zamok = vyskladaj číslo, elita = silný bojovník, obchod = krčma, boss = vodca
+// boj = banda, poklad = nájdi kľúč, zamok = vyskladaj číslo, elita = silný bojovník, obchod = obchod, boss = vodca
 export const ROOM_INFO = {
   boj: { name: 'Banda', goal: 'Poraz bandu' },
   poklad: { name: 'Poklad', goal: 'Nájdi kľúč' },
   zamok: { name: 'Zámok', goal: 'Otvor zámok číslom' },
   elita: { name: 'Elita', goal: 'Poraz silného bojovníka' },
-  obchod: { name: 'Krčma', goal: 'Krčma – obchod' },
+  obchod: { name: 'Obchod', goal: 'Obchod' },
   boss: { name: 'Vodca', goal: 'Poraz vodcu zbojníkov' },
 };
 export function makeMap(rng) {
