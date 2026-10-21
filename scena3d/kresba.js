@@ -7,7 +7,7 @@ import { THREE, renderer, scene, camera, hemi, sun, U } from './svet.js';
 // atlas: znamienka a číslice 3×5 zoradené od najmenej po najviac atramentu
 const FONT = { '·': '000000010000000', '-': '000000111000000', '+': '000010111010000', '1': '010110010010111', '7': '111001010010010', '4': '101101111001001',
   '2': '111001111100111', '3': '111001111001111', '5': '111100111001111', '9': '111101111001111', '6': '111100111101111', '0': '111101101101111', '8': '111101111101111', '■': '111111111111111' };
-const RAMP = Object.keys(FONT).sort((a, b) => FONT[a].split('1').length - FONT[b].split('1').length);
+const RAMP = Object.keys(FONT).filter(c => /[0-9]/.test(c)).sort((a, b) => FONT[a].split('1').length - FONT[b].split('1').length);
 const cv = document.createElement('canvas'); cv.width = RAMP.length * 4; cv.height = 5;
 { const g = cv.getContext('2d'); g.fillStyle = '#fff'; RAMP.forEach((ch, k) => { const b = FONT[ch]; for (let i = 0; i < 15; i++) if (b[i] === '1') g.fillRect(k * 4 + (i % 3), (i / 3) | 0, 1, 1); }); }
 const atlas = new THREE.CanvasTexture(cv); atlas.magFilter = atlas.minFilter = THREE.NearestFilter; atlas.generateMipmaps = false; atlas.flipY = false;
@@ -20,11 +20,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -113,6 +113,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
         if (uNight > 0.5) {
           vec4 wpN = uInvVP * vec4(uv6 * 2.0 - 1.0, texture2D(tDepth, uv6).r * 2.0 - 1.0, 1.0); wpN /= wpN.w;
           float distN = length(wpN.xz - uHero.xz), lightN = 1.0 - smoothstep(uNightR.x, uNightR.y, distN);
+          for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) lightN = max(lightN, 1.0 - smoothstep(uOrbs[o].w * 0.35, uOrbs[o].w, length(wpN.xz - uOrbs[o].xz)));   // KÚZLO SVIETI: let aj dopad osvetlia okolie
           k *= isChar6 ? max(lightN, 0.55) : mix(0.55, 1.0, lightN);
           nightL = isChar6 ? 1.0 : lightN;
         }
@@ -197,6 +198,7 @@ export function resizeKresba() {
   for (const t of [fine, amb, mask, maskG, maskS]) t.setSize(Math.ceil(innerWidth / 3), Math.ceil(innerHeight / 3));   // scéna v 1/3 rozlíšenia (ako v ukážke)
   glyphRT.setSize(W, H);
   kresbaMat.uniforms.uRes.value.set(W, H); blurMat.uniforms.uRes.value.set(W, H);
+  kresbaMat.uniforms.uScale.value = Math.max(2, Math.round(dpr * 2));   // čitateľné číslice (3×5 → 6×10 bodov)
 }
 // focusY = výška čarodejníka na obrazovke (0–1) – pásmo ostrosti
 export function renderKresba(focusY = 0.5, rimFrom = null) {
@@ -221,3 +223,6 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
   quad.material = kresbaMat; renderer.setRenderTarget(glyphRT); renderer.render(quadScene, quadCam);
   quad.material = blurMat; renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
 }
+
+// svetlá kúzla (najviac 4): [{ x, z, r }] – volá suboj.js každý snímok
+export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r : 0); } }

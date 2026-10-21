@@ -5,7 +5,7 @@ import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './post
 import { makeProblem, lvl } from './karty.js';
 import { rollSpell, spellWorks, enemyHp, workingRows, rowCost, used, tokOf } from './ruksak.js';
 import { staffStats, SHOT_MIN } from './balance.js';
-import { kresbaMat } from './kresba.js';
+import { kresbaMat, setOrbs } from './kresba.js';
 import { efekt, akord } from './zvuk.js';
 
 let G = null;
@@ -304,6 +304,8 @@ function cast(t, info) {
   const zl = lvl(G.run, 'zlato');
   if (zl && info.fast && !info.extra) G.addCoins(zl, t);
 }
+// SVETLO KÚZIEL: každé letiace kúzlo osvetlí okolie (3,5 m), pri dopade krátko väčší záblesk (6 m)
+function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
 function updateSpells(dt) {
   for (let i = spells.length - 1; i >= 0; i--) {
     const s = spells[i]; s.t += dt;
@@ -571,7 +573,7 @@ export function updateFight(dt) {
   if (fight.cd2 > 0) fight.cd2 = Math.max(0, fight.cd2 - dt);
   if (G.run.mode === 'pokrocily') for (const h of hasB() ? ['a', 'b'] : ['a']) { const SK = handStats(h), e0 = handEnergy(h); if (e0 < SK.emax) G.run[h === 'b' ? 'energy2' : 'energy'] = Math.min(SK.emax, e0 + SK.regen * dt); }
   if (G.run.mode === 'pokrocily') renderEnergy();
-  updateSpells(dt);
+  updateSpells(dt); spellLights();
   flash.w = Math.max(0, flash.w - dt * 2.2);
   if (!spells.length && fight.charged) { const k = 1.6 + Math.sin(G.now * 12) * 0.25; crystal.scale.set(k, k * 1.6, k); crystalLight.color.set(COL[fight.charged.op] || 0xf2efe6); crystalLight.intensity = lamp.base * 2.5; }
   else if (!spells.length) { crystal.scale.set(1, 1.6, 1); crystalLight.color.set(lamp.color); crystal.material.color.set(lamp.color); crystalLight.intensity = lamp.base + fight.streak * 1.2 + Math.sin(G.now * 4) * 0.3; }
