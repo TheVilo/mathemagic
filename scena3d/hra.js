@@ -457,7 +457,14 @@ function openPack() {
     if (k[0] === '=') { closeOverlay(); if (fight.on) renderInput(); return; }
     if (k[0] === 'C') { P.rows[packRow] = []; persist(); return openPack(); }
     if (k[0] === '⌫') { R0.pop(); persist(); return openPack(); }
-    if (R0.length >= staffStats(SP).disp) { say('Displej je plný – väčšiu palicu kúpiš u obchodníka.'); return; }
+    if (R0.length >= staffStats(SP).disp) {
+      // PLNÝ DISPLEJ: znamienko alebo číslo prepíše posledné rovnakého druhu (1+1 → ťuk × → 1×1)
+      const t = (k[1] === 'o' || k[1] === 'n' || k[1] === 'd') && P.inv.find(x => match(k, x) && !usedIds.has(x.id));
+      const same = x => { const q = tokOf(P, x); return q && (k[1] === 'o' ? q.t === 'o' : q.t === 'n' || q.t === 'd'); };
+      const i = t ? R0.map((x, j) => same(x) ? j : -1).filter(j => j >= 0).pop() : undefined;
+      if (t && i !== undefined) { const old = tokOf(P, R0[i]); R0[i] = t.id; persist(); openPack(); say(`Vymenené: ${old.t === 'd' ? '?' : old.v} → ${k[0]}. Displej má ${staffStats(SP).disp} miesta – dlhší vzorec = väčšia palica.`, 3500); return; }
+      say('Displej je plný – zmaž znak ⌫ a pridaj nový. Dlhší displej má väčšia palica.', 3500); return;
+    }
     if (k[1] === 's') { R0.push(-3); persist(); return openPack(); }
     if (k[1] === 'x') { R0.push(k[2]); persist(); return openPack(); }
     if (k[1] === 'p') { R0.push(wantNum ? -1 : -2); persist(); return openPack(); }
@@ -915,7 +922,7 @@ function openLevelUp() {
     else if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; }
     else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
     else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
-    persist(); closeOverlay(); say(`${o.title}!`);
+    persist(); closeOverlay(); say(['n', 'o', 'spec'].includes(g.t) ? `${o.title}! Je v Knihe – ťukni naň (pri plnom displeji prepíše posledný znak).` : `${o.title}!`, 4000);
     // prvý nový kláves v behu: rovno otvor Knihu, nech ho hráč vloží do vzorca (potom už len vylepšuje)
     if (['n', 'o', 'spec'].includes(g.t) && !meta.knihaTip) { meta.knihaTip = 1; persist(); openPack(); say('Nový kláves je v Knihe – ťukni naň a pridaj ho do vzorca. = zavrie.', 5000); }
   });
