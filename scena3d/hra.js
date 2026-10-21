@@ -20,9 +20,8 @@ const RUN_KEY = 'mm-run', META_KEY = 'mm-meta';
 function newRun(mode = 'zaklad') {
   const seed = 1 + Math.floor(Math.random() * 99999);
   const pack = newPack(); const done = typeof meta !== 'undefined' && meta.tutDone;
-  if (mode === 'pokrocily' && !done) pack.rows = [[]];   // Majster začína úvodom (len prvýkrát): kalkulačku si poskladá sám
   pack.unlock = {};   // funkcie ( ) √ x² x³ ! sa odomykajú v každom behu nanovo (vodcovia zón, vzácne pri úrovni)
-  return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: mode === 'pokrocily' && !done ? 0 : 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
+  return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
 }
 // postup v otvorenom svete zóny: porazené bandy, kľúče, otvorené truhlice a brány, objavené oblasti
 function newWorldState() { return { keys: 0, camps: [], chests: [], bushes: [], gates: [], runes: [], seen: [], nums: [] }; }
@@ -693,7 +692,7 @@ function update(dt, t) {
   U.hero.value.copy(hero.position);
 
   if (!paused && (fight.on || fight.enemies.length || adv())) updateFight(dt);
-  if (R && !scrOn) updateHordes(dt);
+  if (R && !scrOn) { updateHordes(dt); if (adv() && !inside && !G.over && !paused) updateSpawns(dt); }
   if (adv() && lvlQueue > 0 && !paused && !scrOn && !G.over) openLevelUp();
   if (adv() && R && !paused) { updateGems(dt); updateDrops(dt); updateMerchant(dt); }
   hudba(scrOn ? 'uvod' : fight.on ? ((act && act.camp.boss) || fight.hb ? 'boss' : 'suboj') : 'svet');   // hudba podľa situácie (prelína sa)   // Majster: kúzla letia aj mimo súboja
@@ -803,20 +802,29 @@ function updateHordes(dt) {
   hordeT = hordeInterval(wz) + (zoneBoss ? 12 : 0);
   const n = zoneBoss ? Math.max(3, hordeSize(wz, run.zone) - 3) : hordeSize(wz, run.zone), w = kindWeights(wz, run.zone), sum = Object.values(w).reduce((a, b) => a + b, 0);
   const roll = () => { let r = Math.random() * sum; for (const [k, v] of Object.entries(w)) if ((r -= v) <= 0) return k; return 'rogue'; };
-  // miesto 13–16 m od čarodejníka, kde sa dá stáť (nie v pevnosti vodcu)
-  let at = null;
-  for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 11 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
-  if (!at) return;
-  const fs = [];
+  // PRÚD ZO SVETA (Lukáš 21. 10.): nepriatelia nechodia v kope, ale postupne zo všetkých strán spoza okraja obrazovky –
+  // horda sa rozloží na 60 % svojho intervalu, každý príde z iného smeru 15–18 m od čarodejníka a hneď beží po tebe
+  const gap = hordeT * 0.6 / Math.max(1, n);
   for (let i = 0; i < n; i++) {
-    const hb = boss && i === 0, f = makeFighter(hb ? 'barbarian' : roll(), hb ? (zoneBoss ? 1.8 : 1.5) : 1, room), x = at[0] + (Math.random() - 0.5) * 3, z = at[1] + (Math.random() - 0.5) * 3;
-    f.hb = hb; if (hb && zoneBoss) { f.trait = bossOf(run.zone, run.seed); f.zb = true; }
-    f.g.position.set(x, R.height(x, z), z); f.play(f.d.walk); fs.push(f); band.push(f);
+    const hb = boss && i === 0;
+    spawnQ.push({ t: hb ? 0 : gap * i, kind: hb ? 'barbarian' : roll(), size: hb ? (zoneBoss ? 1.8 : 1.5) : 1, hb, zb: hb && zoneBoss, opts: { horde: i === 0 ? 1 : 0, hb: hb && !zoneBoss ? 1 : 0, zb: hb && zoneBoss ? 1 : 0 } });
   }
-  joinFight(fs, { horde: 1, hb: boss && !zoneBoss ? 1 : 0, zb: zoneBoss ? 1 : 0 }); bottomEl.classList.remove('hidden', 'lockmode');
-  if (zoneBoss) say(`VODCA ZÓNY: ${BOSSES[fs[0].trait].name} – ${BOSSES[fs[0].trait].hint}`, 5000);
-  else say(boss ? `Horda ${hordeN} s VODCOM HORDY! (${n})` : `Horda ${hordeN} prichádza! (${n})`, 2800);
+  if (zoneBoss) say('VODCA ZÓNY prichádza!', 3000); else if (boss) say('Prichádza VODCA HORDY!', 2600);
   renderGoal();
+}
+const spawnQ = [];
+function updateSpawns(dt) {
+  for (let i = spawnQ.length - 1; i >= 0; i--) {
+    const q = spawnQ[i]; q.t -= dt; if (q.t > 0) continue;
+    let at = null;
+    for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 15 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
+    if (!at) { q.t = 0.3; continue; }
+    spawnQ.splice(i, 1);
+    const f = makeFighter(q.kind, q.size, room); f.hb = q.hb;
+    if (q.zb) { f.trait = bossOf(run.zone, run.seed); f.zb = true; say(`VODCA ZÓNY: ${BOSSES[f.trait].name} – ${BOSSES[f.trait].hint}`, 5000); }
+    f.g.position.set(at[0], R.height(at[0], at[1]), at[1]); f.play(f.d.walk); band.push(f);
+    joinFight([f], q.opts); bottomEl.classList.remove('hidden', 'lockmode');
+  }
 }
 // ---------- SKÚSENOSTI A ÚROVNE (Majster): XP za zabitie = ⌈HP/3⌉, ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉ → výber 1 z 3 ----------
 let lvlQueue = 0;
@@ -868,6 +876,8 @@ function openLevelUp() {
     else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
     else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
     persist(); closeOverlay(); say(`${o.title}!`);
+    // prvý nový kláves v behu: rovno otvor Knihu, nech ho hráč vloží do vzorca (potom už len vylepšuje)
+    if (['n', 'o', 'spec'].includes(g.t) && !meta.knihaTip) { meta.knihaTip = 1; persist(); openPack(); say('Nový kláves je v Knihe – ťukni naň a pridaj ho do vzorca. = zavrie.', 5000); }
   });
 }
 // PALICE (obchod): každá mení pravidlo streľby – zo vzorcov v suboj.js (cd = nabíjanie, dmg = damage, shots = počet cieľov)
@@ -1014,13 +1024,21 @@ function renderIntro() {
     ${loaded ? '<div class="panel thin tap"><span class="blink">Ťukni a začni</span></div>' : ''}`;
   else inEl.innerHTML = `<div class="panel story"><span class="ptag">Kapitola ${run.zone}</span>${STORY[introStage - 1]}<div class="dots">${STORY.map((_, i) => `<i class="${i === introStage - 1 ? 'on' : ''}"></i>`).join('')}</div><div class="next blink">${introStage === STORY.length ? 'Poďme ▸' : 'Ďalej ▸'}</div></div>`;
 }
+// PRÍBEH: ukáže sa raz, až keď hráč prvýkrát vstúpi do hry (nie pri spustení appky); potom rovno hra
+function showStory() { scrOn = true; paused = true; document.body.classList.add('scron'); $('menuScr').classList.add('hide'); introStage = 1; renderIntro(); $('introScr').classList.remove('hide'); }
 $('introScr').addEventListener('pointerdown', e => {
-  e.stopPropagation(); if (!loaded) return;
-  if (introStage === 0 && meta.intro) { $('introScr').classList.add('hide'); return showMenu(); }
+  e.stopPropagation(); if (introStage < 1) return;
   introStage++;
-  if (introStage > STORY.length) { meta.intro = 1; persist(); $('introScr').classList.add('hide'); return showMenu(); }
+  if (introStage > STORY.length) { meta.intro = 1; persist(); $('introScr').classList.add('hide'); return startGame(); }
   renderIntro();
 });
+// vstup do hry z menu (počká, kým sa dotiahnu modely)
+let markLoaded; const loadedP = new Promise(r => { markLoaded = r; });
+async function startGame() {
+  if (!loaded) { say('Chvíľku, kreslím svet…', 1500); await loadedP; }
+  if (!meta.intro) return showStory();
+  $('menuScr').classList.add('hide'); $('introScr').classList.add('hide'); scrOn = false; paused = false; document.body.classList.remove('scron'); if (iOrb) { scene.remove(iOrb.m); iOrb = null; } snapCam = true; startSay();
+}
 const ZONE_NAMES = ['Les zbojníkov', 'Zasnežené hory', 'Púšť', 'Sopka'];
 function showMenu() {
   scrOn = true; paused = true; document.body.classList.add('scron'); $('menuScr').classList.remove('hide');
@@ -1032,7 +1050,7 @@ function showMenu() {
     if (k === 'book') return adv() ? openPack() : openBook();
     if (k === 'set') return openSettings();
     if (k === 'new' || !going) return chooseMode(mode => { run = newRun(mode); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); });
-    $('menuScr').classList.add('hide'); scrOn = false; paused = false; document.body.classList.remove('scron'); if (iOrb) { scene.remove(iOrb.m); iOrb = null; } snapCam = true; startSay();
+    startGame();
   });
 }
 // ---------- NASTAVENIA: celá obrazovka, stiahnuť do mobilu (PWA) ----------
@@ -1092,7 +1110,8 @@ function modeTick(dt) {
 // rovno do hry po „Nový beh“, do menu po „Menu“ z prehry
 let afterLoad = null;
 for (const [k, v] of [['mm-skip', 'game'], ['mm-menu', 'menu']]) if (sessionStorage.getItem(k)) { sessionStorage.removeItem(k); afterLoad = v; introStage = -1; $('introScr').classList.add('hide'); }
-renderIntro();
+if (!afterLoad) { $('introScr').classList.add('hide'); introStage = -1; showMenu(); }
+hudba('uvod');   // hudba menu hrá od prvého dotyku, aj kým sa ešte dotiahne svet
 
 // ---------- štart ----------
 await Promise.all([loadProps(), loadFighters(), loadHero()]);
@@ -1101,11 +1120,11 @@ buildRoom();
 resize(viewZoom); resizeKresba(); addEventListener('resize', () => { resize(viewZoom); resizeKresba(); });
 renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots(); renderXp();
 bottomEl.classList.add('hidden');
-$('loading').remove();
-loaded = true; if (introStage === 0) renderIntro();
+$('loading') && $('loading').remove();
+loaded = true; markLoaded();
 for (const id of ['introScr', 'menuScr']) { $(id).classList.add('live'); $(id).classList.toggle('night', adv()); }   // za introm a menu beží živá scéna
 const startSay = () => say(adv() ? 'Pohyb: WASD alebo šípky · klik = kúzlo z Knihy.' : run.w.camps.length === 0 && run.zone === 1 ? 'Ťukni na zem a choď. Svet je veľký – nájdi bandy zbojníkov a ich kľúče.' : 'Poraz bandy a nájdi kľúče od brány vodcu.', 4200);
-if (afterLoad === 'game') { scrOn = false; paused = false; document.body.classList.remove('scron'); startSay(); } else if (afterLoad === 'menu') showMenu();
+if (afterLoad === 'game') startGame(); else if (afterLoad === 'menu') showMenu();
 const clock = new THREE.Clock();
 function tick() { const dt = Math.min(0.05, clock.getDelta()); simT += dt; update(dt, simT); draw(dt); requestAnimationFrame(tick); }
 let simT = 0;

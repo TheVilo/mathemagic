@@ -85,13 +85,15 @@ export const numWeight = (v, L) => Math.exp(-((v - (1 + 0.5 * L)) ** 2) / (2 * 1
 function pickW(pool, rng) { const sum = pool.reduce((a, b) => a + b.w, 0); let r = rng() * sum; const i = pool.findIndex(p => (r -= p.w) <= 0); return pool.splice(i < 0 ? pool.length - 1 : i, 1)[0]; }
 export function calcOffers(L, run, rng = Math.random, n = 3) {
   const P = run.pack, U = P.unlock || {}, pool = [];
-  for (let v = 1; v <= 9; v++) { const w = numWeight(v, L) * 1.6; if (w > 0.02) pool.push({ id: 'n' + v, w, title: `Číslo ${v}`, text: (P.stars && P.stars[v]) ? `máš ${v}${'★'.repeat(P.stars[v])}` : 'nový kláves', give: { t: 'n', v } }); }
+  // malé čísla (1–4) prídu po dvoch kusoch (dlhší vzorec, rýchlejšie ★), veľké po jednom a drahšie na energiu
+  for (let v = 1; v <= 9; v++) { const w = numWeight(v, L) * 1.6, two = v <= 4; if (w > 0.02) pool.push({ id: 'n' + v, w, n: two ? 2 : 1, title: two ? `2× číslo ${v}` : `Číslo ${v}`, text: `⚡${numCost(v)} za kláves${two ? ' · dva kusy' : ''}${(P.stars && P.stars[v]) ? ` · máš ${v}${'★'.repeat(P.stars[v])}` : ''}`, give: { t: 'n', v } }); }
   for (const it of ITEMS) {
     if (it.t === 'spec' && U[it.k]) continue;
     if (it.t === 'slot' && P.slots >= 13) continue;
     const w = it.w * gate(L, it.Lmin); if (w > 0) pool.push({ id: it.id, w, title: it.title, text: it.text, give: it.t === 'o' ? { t: 'o', v: it.v } : it.t === 'spec' ? { t: 'spec', k: it.k } : { t: 'slot' } });
   }
-  const out = []; while (out.length < n && pool.length) out.push(pickW(pool, rng));
+  // v jednej ponuke najviac jedno číslo – zvyšok sú znamienka, funkcie, políčka
+  const out = []; while (out.length < n && pool.length) { const o = pickW(pool, rng); out.push(o); if (o.give.t === 'n') for (let i = pool.length - 1; i >= 0; i--) if (pool[i].give.t === 'n') pool.splice(i, 1); }
   return out;
 }
 export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
@@ -155,7 +157,9 @@ export function staffStats(pack) {
   return { ...m, disp: m.disp + Math.max(0, (pack.slots || 3) - 3), emax: Math.round(m.emax * k), regen: m.regen * k, dmg: m.dmg * (1 + 0.25 * lv) };
 }
 // cena vzorca zo zoznamu tokenov ({ t, v })
-export const spellCost = toks => toks.reduce((s, x) => s + (x ? (x.t === 'n' || x.t === 'd' ? KEY_COST.n : KEY_COST[x.v] ?? 1) : 0), 0);
+// číslo: väčšie = drahšie (1–4 → 1, 5–7 → 2, 8–9 → 3) – výber čísla je obchod medzi silou a energiou
+export const numCost = v => v <= 4 ? 1 : v <= 7 ? 2 : 3;
+export const spellCost = toks => toks.reduce((s, x) => s + (x ? (x.t === 'n' ? numCost(x.v) : x.t === 'd' ? KEY_COST.n : KEY_COST[x.v] ?? 1) : 0), 0);
 // faktoriál do 7! = 5040 počas 8 zón; v nekonečne (po Veľkej Nule) až do 12! – vtedy sa hra smie rozbiť
 export const FACT_CAP = 7, FACT_CAP_ENDLESS = 12;
 export const MAX_STARS = 2;   // 3 rovnaké čísla → ★ (×2), ★★ (×3) – viac nie

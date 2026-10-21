@@ -8,15 +8,28 @@ let ac = null, master = null, musicG = null, cur = null, want = null;
 export const zvuk = (() => { try { return Object.assign({ hudba: true, efekty: true }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { hudba: true, efekty: true }; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(zvuk)); } catch (e) {} };
 
-// prehliadač pustí zvuk až po prvom ťuknutí / klávese
+// súbory sa sťahujú hneď pri načítaní (bez čakania na ťuk) – po prvom ťuknutí sa už len dekódujú, hudba ide okamžite
+const RAW = {}; for (const n of FILES) RAW[n] = fetch('../audio/' + n + '.mp3').then(r => r.arrayBuffer()).catch(() => null);
+// prehliadač pustí zvuk až po prvom ťuknutí / klávese (pravidlo prehliadačov, autoplay bez dotyku nejde)
 export function zvukStart() {
   if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
   ac = new (window.AudioContext || window.webkitAudioContext)();
   master = ac.createGain(); master.gain.value = 0.9; master.connect(ac.destination);
   musicG = ac.createGain(); musicG.gain.value = zvuk.hudba ? 0.3 : 0; musicG.connect(master);
-  for (const n of FILES) fetch('../audio/' + n + '.mp3').then(r => r.arrayBuffer()).then(b => ac.decodeAudioData(b)).then(buf => { BUF[n] = buf; if (want === n && !cur) hudba(n); }).catch(() => {});
+  for (const n of FILES) RAW[n].then(b => b && ac.decodeAudioData(b.slice(0))).then(buf => { if (!buf) return; BUF[n] = buf; if (want === n && !cur) hudba(n); }).catch(() => {});
 }
-addEventListener('pointerdown', zvukStart); addEventListener('keydown', zvukStart);
+// capture: aj keď obrazovka zastaví udalosť (stopPropagation), zvuk sa odomkne pri úplne prvom dotyku
+addEventListener('pointerdown', zvukStart, true); addEventListener('keydown', zvukStart, true);
+// KLIK TLAČIDLA: krátky „kalkulačkový“ tón (syntéza, bez súboru); výška podľa druhu tlačidla
+export function klik(pitch = 1) {
+  if (!ac || !zvuk.efekty) return;
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'square'; o.frequency.setValueAtTime(880 * pitch, t); o.frequency.exponentialRampToValueAtTime(660 * pitch, t + 0.05);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  o.connect(g).connect(master); o.start(t); o.stop(t + 0.08);
+}
+const KLIK = 'button, .row, .lvo, .palc, .ck, .tk, .mp, .ovx, .card.pick, .lrow, [data-k]';
+addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest(KLIK); if (!b || b.disabled) return; zvukStart(); klik(b.classList.contains('eq') || b.classList.contains('on') ? 1.5 : b.matches('.ck, .tk') ? 1.25 : 1); }, true);
 
 export function efekt(n, vol = 0.7, rate = 1, delay = 0) {
   if (!ac || !zvuk.efekty || !BUF[n]) return;

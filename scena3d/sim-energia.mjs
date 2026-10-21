@@ -1,7 +1,7 @@
 // SIMULÁCIA BEHU MAJSTRA (Node): palica = kalkulačka s energiou. Spusti: node scena3d/sim-energia.mjs [semienko] [--odomknute]
 // Hráč je „chytrý“: po každej úrovni vyberie z ponuky to, čo mu najviac zvýši damage/s, a vždy si poskladá najlepší vzorec,
 // ktorý mu dovolí displej palice, kľúče v ruksaku a energia. Výstup: koľko striel treba na bežného nepriateľa a na vodcu v každej horde.
-import { enemyHpM, hordeSize, hordeInterval, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, KEY_COST, STAFF_MODELS, staffStats, SHOT_MIN, FACT_CAP, MAX_STARS } from './balance.js';
+import { numCost, enemyHpM, hordeSize, hordeInterval, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, KEY_COST, STAFF_MODELS, staffStats, SHOT_MIN, FACT_CAP, MAX_STARS } from './balance.js';
 
 const seed = +(process.argv[2] || 1), allUnlocked = process.argv.includes('--odomknute');
 let a = seed >>> 0; const rng = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -43,7 +43,7 @@ function tplCost(t) {
   const [, len, ops, fx] = t; let n = len, e = 0;
   for (const [o, k] of Object.entries(ops)) { e += C[o] * k; n -= k; }
   for (const f of fx) { if (f === 'p') { e += C['(']; n -= 2; } else { e += C[{ q: '²', c: '³', f: '!', s: '√' }[f]]; n -= 1; } }
-  return e + n * C.n;   // zvyšok políčok sú čísla
+  return e + n * C.n;   // zvyšok políčok sú čísla (cena čísel sa dopočíta podľa hodnôt v best())
 }
 const tplNums = t => t[1] - Object.values(t[2]).reduce((x, y) => x + y, 0) - t[3].reduce((x, f) => x + (f === 'p' ? 2 : 1), 0);
 function best(stats) {
@@ -53,7 +53,7 @@ function best(stats) {
     const [name, len, ops, fx, f] = t, k = tplNums(t);
     if (len > Math.min(P.slots, stats.disp) || k > nums.length) continue;
     if (Object.entries(ops).some(([o, c]) => (P.ops[o] || 0) < c) || fx.some(x => !P.unlock[x])) continue;
-    const cost = tplCost(t); if (cost > stats.emax) continue;
+    const used = P.nums.slice().sort((x, y) => num(y) - num(x)).slice(0, k), cost = tplCost(t) - k * C.n + used.reduce((a, v) => a + numCost(v), 0); if (cost > stats.emax) continue;
     const v = f(nums.slice(0, k)) * stats.dmg, rate = Math.min(1 / (SHOT_MIN * stats.cd), stats.regen / cost), dps = v * rate * stats.shots;
     if (!top || dps > top.dps) top = { name, v: Math.round(v), cost, rate, dps };
   }
@@ -72,10 +72,10 @@ function choose(offers) {   // chytrý hráč: skúsi každú ponuku a vezme tú
   const s0 = snap(); let pick = null, bv = -1;
   for (const o of offers) {
     const g = o.give; if (!['n', 'o', 'spec', 'slot', 'staff'].includes(g.t)) continue;
-    apply(g); const v = dpsNow() + (g.t === 'spec' ? 0.01 : g.t === 'o' ? 0.005 : 0); Object.assign(P, JSON.parse(s0));
+    for (let i = 0; i < (o.n || 1); i++) apply(g); const v = dpsNow() + (g.t === 'spec' ? 0.01 : g.t === 'o' ? 0.005 : 0); Object.assign(P, JSON.parse(s0));
     if (v > bv) { bv = v; pick = o; }
   }
-  if (pick) apply(pick.give);
+  if (pick) for (let i = 0; i < (pick.n || 1); i++) apply(pick.give);
   return pick;
 }
 
