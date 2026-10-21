@@ -7,7 +7,7 @@ import { THREE, renderer, scene, camera, hemi, sun, U } from './svet.js';
 // atlas: znamienka a číslice 3×5 zoradené od najmenej po najviac atramentu
 const FONT = { '·': '000000010000000', '-': '000000111000000', '+': '000010111010000', '1': '010110010010111', '7': '111001010010010', '4': '101101111001001',
   '2': '111001111100111', '3': '111001111001111', '5': '111100111001111', '9': '111101111001111', '6': '111100111101111', '0': '111101101101111', '8': '111101111101111', '■': '111111111111111' };
-const RAMP = Object.keys(FONT).filter(c => /[0-9]/.test(c)).sort((a, b) => FONT[a].split('1').length - FONT[b].split('1').length);
+const RAMP = Object.keys(FONT).sort((a, b) => FONT[a].split('1').length - FONT[b].split('1').length);
 const cv = document.createElement('canvas'); cv.width = RAMP.length * 4; cv.height = 5;
 { const g = cv.getContext('2d'); g.fillStyle = '#fff'; RAMP.forEach((ch, k) => { const b = FONT[ch]; for (let i = 0; i < 15; i++) if (b[i] === '1') g.fillRect(k * 4 + (i % 3), (i / 3) | 0, 1, 1); }); }
 const atlas = new THREE.CanvasTexture(cv); atlas.magFilter = atlas.minFilter = THREE.NearestFilter; atlas.generateMipmaps = false; atlas.flipY = false;
@@ -198,7 +198,6 @@ export function resizeKresba() {
   for (const t of [fine, amb, mask, maskG, maskS]) t.setSize(Math.ceil(innerWidth / 3), Math.ceil(innerHeight / 3));   // scéna v 1/3 rozlíšenia (ako v ukážke)
   glyphRT.setSize(W, H);
   kresbaMat.uniforms.uRes.value.set(W, H); blurMat.uniforms.uRes.value.set(W, H);
-  kresbaMat.uniforms.uScale.value = Math.max(2, Math.round(dpr * 2));   // čitateľné číslice (3×5 → 6×10 bodov)
 }
 // focusY = výška čarodejníka na obrazovke (0–1) – pásmo ostrosti
 export function renderKresba(focusY = 0.5, rimFrom = null) {
