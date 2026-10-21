@@ -305,6 +305,8 @@ function exitInterior() {
 // ---------- prekryvné okná: karty, kniha, mapa, obchod, koniec ----------
 let paused = false;
 function overlay(title, html, cls = '') { document.body.classList.add('ovon'); ovEl.className = 'ov show ' + cls; ovEl.innerHTML = `<div class="box panel"><span class="ptag">${title}</span>${html}</div>`; paused = true; return ovEl; }
+// ✕ v rohu obrazovky (mimo .box, aby bol vždy vidno aj na nízkom mobile na šírku); klik = rovnaké ako tlačidlo Zavrieť
+function addX(fn) { let x = ovEl.querySelector(':scope > .ovx'); if (!x) { x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', 'Zavrieť'); x.textContent = '✕'; ovEl.appendChild(x); } x.onclick = fn; }
 function closeOverlay() { document.body.classList.remove('ovon'); ovEl.className = 'ov'; ovEl.innerHTML = ''; paused = scrOn; }
 // výber 1 z 3 (po súboji, z truhlice)
 function cardOffer(title, after) {
@@ -338,7 +340,7 @@ function openBook(opts = {}) {
     run.cards[i] = { id: opts.replace, l: 1 }; if (opts.replace === 'srdce') run.hearts++;
     closeOverlay(); renderHearts(); renderSlots(); persist(); say(`Nové kúzlo: ${CARDS[opts.replace].name}`); opts.after && opts.after();
   }));
-  el.querySelector('#close').onclick = () => { closeOverlay(); opts.after && opts.after(); };
+  el.querySelector('#close').onclick = () => { closeOverlay(); opts.after && opts.after(); }; addX(el.querySelector('#close').onclick);
 }
 // mapa sveta: len na orientáciu – kde som, objavené oblasti, neobjavené zahalené (ako v Zelde)
 function openMap() {
@@ -439,7 +441,7 @@ function openPack() {
     </div></div>`;
   if (ovEl.classList.contains('show') && ovEl.classList.contains('pack')) ovEl.querySelector('.box').innerHTML = html;
   else { document.body.classList.add('ovon'); ovEl.className = 'ov show pack'; ovEl.innerHTML = `<div class="box panel">${html}</div>`; paused = true; }
-  const el = ovEl;
+  const el = ovEl; addX(() => { closeOverlay(); if (fight.on) renderInput(); });
   el.querySelectorAll('.lrow').forEach(r => r.onclick = () => { packRow = +r.dataset.r; openPack(); });
   el.querySelectorAll('.ck[data-k]').forEach(b => b.onclick = () => {
     const k = KEYS[+b.dataset.k], R0 = P.rows[packRow];
@@ -1058,7 +1060,7 @@ function openSettings(back) {
   el.querySelector('#vreset').onclick = () => { Object.assign(view, { c: 100, b: 100, s: 100 }); applyView(); try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} openSettings(back); };
   const f = el.querySelector('#fs'); if (f) f.onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen(); screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } } catch (e) {} setTimeout(() => openSettings(back), 150); };
   const i = el.querySelector('#inst'); if (i) i.onclick = async () => { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; openSettings(back); };
-  el.querySelector('#close').onclick = () => { closeOverlay(); back && back(); };
+  el.querySelector('#close').onclick = () => { closeOverlay(); back && back(); }; addX(el.querySelector('#close').onclick);
 }
 // výber režimu pri novom behu
 // Učeň (vľavo, deň) / Majster (vpravo, noc): poloha myši plynulo mení deň a noc, panely sa posúvajú proti sebe (paralax)

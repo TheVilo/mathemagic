@@ -146,6 +146,9 @@
   .ov { position:fixed; inset:0; display:none; place-items:center; padding:24px 16px 16px; overflow:auto; z-index:30;
     background:repeating-linear-gradient(0deg, rgba(14,14,16,.55) 0 2px, rgba(14,14,16,.35) 2px 4px); }
   .ov.show { display:grid; }
+  .ov { touch-action:pan-y; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .ovx { position:fixed; top:calc(10px + env(safe-area-inset-top)); right:calc(10px + env(safe-area-inset-right)); z-index:31; width:40px; height:40px; font:inherit; font-size:20px; line-height:1; color:var(--line); background:var(--ink); border:2px solid var(--line); outline:2px solid var(--ink); cursor:pointer; display:grid; place-items:center; }
+  .ovx:hover { background:var(--line); color:var(--ink); }
   .ov .box { width:100%; max-width:680px; padding:28px 22px 18px; text-align:center; animation:popin .25s steps(4); }
   @keyframes popin { from { transform:scale(.9); opacity:0; } }
   .ov .sub { margin:0 0 6px; color:var(--grey); font-size:14px; line-height:1.4; } .ov .sub b { color:var(--line); font-weight:500; } .ov .sub.warn { color:var(--line); }
@@ -282,6 +285,7 @@
   .ck .star { position:absolute; left:3px; top:1px; font-style:normal; font-size:9px; color:#ffd25a; letter-spacing:-1px; }
   .ck .badge { position:absolute; right:-7px; top:-8px; min-width:18px; height:18px; padding:0 4px; font-size:11px; font-weight:500; line-height:16px; background:var(--line); color:var(--ink); border:1px solid var(--ink); }
   @media (max-height:500px) { .ck { height:34px; } .calc2 { padding:8px; } .lcd2 { margin-bottom:6px; } }
+  @media (max-height:500px) { .fxgrid { gap:14px 6px; padding-top:8px; } .fxgrid .card.mini { min-height:0 !important; padding:10px 4px 4px; } .fxgrid .card.mini .art { height:38px; } .fxgrid .card > span:not(.ptag) { display:none; } .fxgrid .card.mini { height:44px; } .book2 .lp > .sub { display:none; } .ov.pack .box, .ov.small .box { padding-top:16px; } }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
