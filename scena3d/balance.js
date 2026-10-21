@@ -101,7 +101,6 @@ export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
   if (P.staff < 5) pool.push({ id: 'staff', w: 1.2, title: 'Lepšia palica', text: '+25 % damage, +15 % energie a dobíjania', give: { t: 'staff' } });
   if (P.rows.length < 3) pool.push({ id: 'row', w: 0.6 * gate(L, 5), title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
   pool.push({ id: 'magnet', w: 0.5, title: 'Magnet', text: 'kryštály priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
-  pool.push({ id: 'heart', w: 0.6, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
   // nová palica (model kalkulačky) – len lepšia než tá, čo máš (podľa ceny), vzácnosť podľa modelu
   const cur = STAFF_MODELS[P.kind] || STAFF_MODELS.zakladna;
   for (const [k, m] of Object.entries(STAFF_MODELS)) if (k !== P.kind && m.price > cur.price) pool.push({ id: 'pal-' + k, w: 0.3, title: `Palica ${m.name}`, text: `${m.text} · ⚡${m.emax} +${m.regen}/s · displej ${m.disp}`, give: { t: 'pal', k } });

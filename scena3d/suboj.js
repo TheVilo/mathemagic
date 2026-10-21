@@ -402,7 +402,7 @@ function advHit(e, info) {
   const before = e.hp; e.hp -= v;
   const st = G.run.st; if (st) { st.dmg += Math.min(v, Math.max(0, before)); st.hit = Math.max(st.hit, v); if (e.hp <= 0 && before > 0) st.kills++; }
   if (e.hp === 0 && before > 0 && !info.extra) e.exact = true;
-  if (e.hp <= 0 && before > 0 && G.onKill) G.onKill(e);   // skúsenosti
+  if (e.hp <= 0 && before > 0 && G.onKill) G.onKill(e, info);   // skúsenosti
   if (e === fight.boss) { const f = e.hp / e.maxHp; if ((f < 0.67 && fight.summoned < 1) || (f < 0.34 && fight.summoned < 2)) { fight.summoned++; setTimeout(() => fight.on && summon(2), 600); } }
   dmgText(e, info, v);
   if (e.hp <= 0) {
