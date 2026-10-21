@@ -13,15 +13,15 @@
 //   úroveň      výber 1 z 3 (nový kláves, lepšie číslo, viac políčok, palica, špeciálna funkcia)
 
 export const KIND_HP = { rogue: 1, hooded: 1, knight: 1.6, barbarian: 2.2, innkeeper: 1 };
-export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(2.4, Math.max(0, z - 1));
-export const enemyHpM = (kind, w, z, { boss = false, elite = false } = {}) => Math.max(2, Math.round((KIND_HP[kind] || 1) * 4 * difficulty(w, z) * (boss ? 9 : elite ? 1.8 : 1)));
+export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(3, Math.max(0, z - 1));
+export const enemyHpM = (kind, w, z, { boss = false, elite = false } = {}) => Math.max(2, Math.round((KIND_HP[kind] || 1) * 4 * difficulty(w, z) * (boss === 2 ? 9 : boss ? 6 : elite ? 1.8 : 1)));
 export const hordeSize = (w, z) => Math.min(14, 2 + Math.floor(0.7 * w) + (z - 1));
 export const hordeInterval = w => Math.max(9, 24 - 1.3 * w);   // hordy chodia často – nečaká sa
 export const ENEMY_SPEED = 2.2;   // Majster: nepriatelia bežia po hráčovi (×2,2 oproti Učňovi)
 export const AGGRO = 14;          // z koľkých metrov si ťa banda všimne
 export const isBossWave = w => w > 0 && w % 6 === 0;
 export const xpFor = hp => Math.ceil(hp / 3);
-export const xpNeed = L => Math.ceil(12 * Math.pow(1.45, L - 1));
+export const xpNeed = L => Math.ceil(8 * Math.pow(1.45, L - 1));
 // druhy nepriateľov plynulo podľa obtiažnosti (log, aby sa zloženie menilo pozvoľna)
 export function kindWeights(w, z) {
   const d = Math.log(difficulty(w, z)) / Math.log(2.4);   // ≈ 0 na začiatku, 1 po zóne 1, …
@@ -96,7 +96,7 @@ export function calcOffers(L, run, rng = Math.random) {
 }
 export function cardOffers(L, run, cards, rng = Math.random) {
   const P = run.pack, pool = cards.map(c => ({ id: 'card' + c.id, w: 1, title: c.name, text: c.text, give: { t: 'card', id: c.id } }));
-  if (P.staff < 5) pool.push({ id: 'staff', w: 1.2, title: 'Lepšia palica', text: '+25 % damage, rýchlejšie nabíjanie', give: { t: 'staff' } });
+  if (P.staff < 5) pool.push({ id: 'staff', w: 1.2, title: 'Lepšia palica', text: '+25 % damage, +15 % energie a dobíjania', give: { t: 'staff' } });
   if (P.rows.length < 3) pool.push({ id: 'row', w: 0.6 * gate(L, 5), title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
   pool.push({ id: 'magnet', w: 0.5, title: 'Magnet', text: 'kryštály priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
   pool.push({ id: 'heart', w: 0.6, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
@@ -106,3 +106,28 @@ export function cardOffers(L, run, cards, rng = Math.random) {
 export function levelOffers(L, run, rng = Math.random, cards = []) {
   return rng() < P_CALC ? { type: 'calc', items: calcOffers(L, run, rng) } : { type: 'card', items: cardOffers(L, run, cards, rng) };
 }
+
+// ============ PALICA = KALKULAČKA S ENERGIOU (ako palica v Magicrafte) ============
+// Každý kláves vo vzorci stojí energiu; výstrel zoberie súčet. Energia sa dobíja (regen/s) do maxima palice (emax).
+// Silné kombo je drahé → hra sa dá „rozbiť“ až s veľkou palicou. Najkratší čas medzi výstrelmi SHOT_MIN · cd.
+//   cena:   číslo 1 · + − 1 · × ÷ 2 · ( ) 1+1 · √ 3 · x² 4 · x³ 6 · ! 8
+//   displej = model palice + 2 za každé „+2 políčka“; úroveň palice (karta/obchod): damage +25 %, energia a dobíjanie +15 %
+export const KEY_COST = { n: 1, d: 1, '+': 1, '-': 1, '×': 2, '÷': 2, '(': 1, ')': 1, '√': 3, '²': 4, '³': 6, '!': 8 };
+export const SHOT_MIN = 0.35;
+export const STAFF_MODELS = {
+  zakladna: { name: 'Základná', text: 'vyvážená', price: 0, disp: 3, emax: 8, regen: 4, cd: 1, dmg: 1, shots: 1 },
+  rychla:   { name: 'Rýchla', text: 'rýchle dobíjanie, menší damage', price: 30, disp: 3, emax: 8, regen: 7, cd: 0.6, dmg: 0.8, shots: 1 },
+  tazka:    { name: 'Ťažká', text: 'veľká batéria, pomalšia', price: 35, disp: 5, emax: 24, regen: 4.5, cd: 1.4, dmg: 1.3, shots: 1 },
+  dvojita:  { name: 'Dvojitá', text: 'zasiahne 2 nepriateľov', price: 45, disp: 4, emax: 14, regen: 5, cd: 1.1, dmg: 0.75, shots: 2 },
+  vedecka:  { name: 'Vedecká', text: 'dlhý displej, veľká energia', price: 70, disp: 7, emax: 30, regen: 7, cd: 1, dmg: 1, shots: 1 },
+  graficka: { name: 'Grafická', text: 'najväčšia batéria – na faktoriály', price: 120, disp: 9, emax: 50, regen: 10, cd: 1, dmg: 1, shots: 1 },
+};
+export function staffStats(pack) {
+  const m = STAFF_MODELS[pack.kind] || STAFF_MODELS.zakladna, lv = pack.staff || 0, k = 1 + 0.15 * lv;
+  return { ...m, disp: m.disp + Math.max(0, (pack.slots || 3) - 3), emax: Math.round(m.emax * k), regen: m.regen * k, dmg: m.dmg * (1 + 0.25 * lv) };
+}
+// cena vzorca zo zoznamu tokenov ({ t, v })
+export const spellCost = toks => toks.reduce((s, x) => s + (x ? (x.t === 'n' || x.t === 'd' ? KEY_COST.n : KEY_COST[x.v] ?? 1) : 0), 0);
+// faktoriál do 7! = 5040 počas 8 zón; v nekonečne (po Veľkej Nule) až do 12! – vtedy sa hra smie rozbiť
+export const FACT_CAP = 7, FACT_CAP_ENDLESS = 12;
+export const MAX_STARS = 2;   // 3 rovnaké čísla → ★ (×2), ★★ (×3) – viac nie

@@ -4,11 +4,11 @@
 import { THREE, scene, camera, U, sun, hemi, PAPER, MAT, GRASS, FLOWER, RAW, std, inst, placeModels, loadProps, spark, burst, updateParticles, ditherMat, blurMat, resize, setView, render, pix, icon, digitTexture } from './svet.js';
 import { hero, loadHero, heroPlay, updateHero, heroLocked, loadFighters, makeFighter, crystalLight, crystal, lamp, aim } from './postavy.js';
 import { initFight, fight, startFight, joinFight, fightPress, updateFight, drawTags, renderInput, endFight, aimPoint, fireAt, fireAtScreen, elementShape, animShape, curRow } from './suboj.js';
-import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, lootToken, addToken, slotPrice, MAX_SLOTS, MAX_ROWS, MAX_STAFF, rowPrice, staffPrice, allIds, workingRows } from './ruksak.js';
+import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, lootToken, addToken, slotPrice, MAX_SLOTS, MAX_ROWS, MAX_STAFF, rowPrice, staffPrice, allIds, workingRows, rowCost } from './ruksak.js';
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
-import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul } from './balance.js';
+import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
@@ -21,7 +21,7 @@ function newRun(mode = 'zaklad') {
   const seed = 1 + Math.floor(Math.random() * 99999);
   const pack = newPack(); const done = typeof meta !== 'undefined' && meta.tutDone;
   if (mode === 'pokrocily' && !done) pack.rows = [[]];   // Majster začína úvodom (len prvýkrát): kalkulačku si poskladá sám
-  if (typeof meta !== 'undefined') pack.unlock = Object.assign({}, meta.unlock);   // zátvorky / √ odomknuté natrvalo
+  pack.unlock = {};   // funkcie ( ) √ x² x³ ! sa odomykajú v každom behu nanovo (vodcovia zón, vzácne pri úrovni)
   return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: mode === 'pokrocily' && !done ? 0 : 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
 }
 // postup v otvorenom svete zóny: porazené bandy, kľúče, otvorené truhlice a brány, objavené oblasti
@@ -33,7 +33,7 @@ let run = load(RUN_KEY, null); if (!run || !run.w || run.hearts <= 0) run = newR
 if (run.mode === 'pokrocily' && !sessionStorage.getItem('mm-alive') && (run.w.seen.length > 1 || run.zone > 1 || run.st)) run = newRun('pokrocily');
 sessionStorage.setItem('mm-alive', '1');
 run.mode = run.mode || 'zaklad'; run.pack = migratePack(run.pack || newPack()); run.tut = run.tut ?? 99; run.st = run.st || { dmg: 0, kills: 0, hordes: 0, hit: 0 };
-run.pack.unlock = Object.assign({}, meta.unlock, run.pack.unlock);
+run.pack.unlock = run.pack.unlock || {};
 const adv = () => run.mode === 'pokrocily';
 const persist = () => { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bez ukladania */ } };
 const maxHearts = () => 3 + lvl(run, 'srdce') + (run.maxH || 0);
@@ -397,11 +397,11 @@ function openPack() {
   const lcdRow = r => {
     const ids = P.rows[r], ok = spellWorks(run, r), st = ok ? strength(run, mulberry32(7), r) : null, ex = ok ? rollSpell(run, mulberry32(3), r) : null;
     const txt = ids.map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
-    const pad = '_'.repeat(Math.max(0, P.slots - ids.length));
+    const pad = '_'.repeat(Math.max(0, staffStats(P).disp - ids.length));
     const dice = ids.some(id => (tokOf(P, id) || {}).t === 'd');
     const res = ok ? (dice ? `${st.lo}…${st.hi}` : String(ex.answer)) : '?';
     const ops = ok ? [...new Set(ex.ops)].map(o => `<span style="color:${OPC[o]}">${name(o)}</span>`).join(' ') : '';
-    return `<div class="lrow${r === packRow ? ' on' : ''}" data-r="${r}"><span class="ln">${r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
+    return `<div class="lrow${r === packRow ? ' on' : ''}" data-r="${r}"><span class="ln">${r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} · ⚡${rowCost(P, r)} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
   };
   const keyHtml = (k, i) => {
     if (k[1] === 'fn') return `<button class="ck fn${k[0] === '=' ? ' eq' : ''}" data-k="${i}">${k[0]}</button>`;
@@ -430,11 +430,11 @@ function openPack() {
     </div>
     <div class="page rp">
       <div class="calc2">
-        <div class="brand"><b>MATHEMAGIC</b><span>MM-${P.slots} · palica ${P.staff}</span></div>
+        <div class="brand"><b>${staffStats(P).name.toUpperCase()}${P.staff ? ` ${P.staff}★` : ''}</b><span>⚡${staffStats(P).emax} · +${+staffStats(P).regen.toFixed(1)}/s</span></div>
         <div class="lcd2">${lcdRow(packRow).replace('class="lrow', 'class="lrow big')}</div>
         <div class="ckeys">${KEYS.map(keyHtml).join('')}</div>
       </div>
-      <p class="sub" style="margin-top:8px">${pix('?').replace('class="pix"', 'class="pix" style="height:.8em"')} = kocka (vždy iné číslo) · zamknuté klávesy nájdeš alebo kúpiš</p>
+      <p class="sub" style="margin-top:8px">⚡ cena: číslo 1 · + − 1 · × ÷ 2 · ( ) 2 · √ 3 · x² 4 · x³ 6 · ! 8<br>${pix('?').replace('class="pix"', 'class="pix" style="height:.8em"')} = kocka (vždy iné číslo) · zamknuté klávesy nájdeš alebo kúpiš</p>
       ${tutOn() && run.tut <= 4 ? `<p class="sub" style="color:var(--line)">${TUT[run.tut]}</p>` : ''}
     </div></div>`;
   if (ovEl.classList.contains('show') && ovEl.classList.contains('pack')) ovEl.querySelector('.box').innerHTML = html;
@@ -446,7 +446,7 @@ function openPack() {
     if (k[0] === '=') { closeOverlay(); if (fight.on) renderInput(); return; }
     if (k[0] === 'C') { P.rows[packRow] = []; persist(); return openPack(); }
     if (k[0] === '⌫') { R0.pop(); persist(); return openPack(); }
-    if (R0.length >= P.slots) { say('Displej je plný – väčšiu kalkulačku nájdeš alebo kúpiš.'); return; }
+    if (R0.length >= staffStats(P).disp) { say('Displej je plný – väčšiu palicu kúpiš u obchodníka.'); return; }
     if (k[1] === 's') { R0.push(-3); persist(); return openPack(); }
     if (k[1] === 'x') { R0.push(k[2]); persist(); return openPack(); }
     if (k[1] === 'p') { R0.push(wantNum ? -1 : -2); persist(); return openPack(); }
@@ -462,7 +462,7 @@ function openShop() {
   const el = overlay('Obchod', `<div class="shophead">${dia('crown', 'big')}<div><b>Obchodník</b><p class="sub">„Za mince ti predám kúzla a klávesy. Počítať musíš sám.“</p></div><span class="chip">${icon('coin')} <b>${run.coins}</b></span></div>
     <div class="cards">${ids.map(id => card(id, { l: lvl(run, id) + 1, cls: 'pick', data: `data-id="${id}"`, count: lvl(run, id) ? 2 : 0, foot: `<span class="price">${icon('coin')} ${price(id)}</span>` })).join('')}</div>
     <div class="acts"><button class="btn" id="heal" ${heal && run.coins >= 6 ? '' : 'disabled'}>${icon('heart')} Srdiečko · ${icon('coin')} 6</button>${adv() && run.pack.slots < MAX_SLOTS ? `<button class="btn" id="slot" ${run.coins >= slotPrice(run.pack) ? '' : 'disabled'}>+2 políčka · ${icon('coin')} ${slotPrice(run.pack)}</button>` : ''}${adv() && run.pack.rows.length < MAX_ROWS ? `<button class="btn" id="row" ${run.coins >= rowPrice(run.pack) ? '' : 'disabled'}>Ďalšie kúzlo · ${icon('coin')} ${rowPrice(run.pack)}</button>` : ''}${adv() && run.pack.staff < MAX_STAFF ? `<button class="btn" id="staff" ${run.coins >= staffPrice(run.pack) ? '' : 'disabled'}>Lepšia palica · ${icon('coin')} ${staffPrice(run.pack)}</button>` : ''}</div>
-    ${adv() ? `<h3>Palice</h3><div class="row staffs">${Object.entries(STAFFS).map(([k, s]) => `<button class="btn ${run.pack.kind === k ? 'on' : ''}" data-staff="${k}" ${run.pack.kind === k || run.coins < s.price ? 'disabled' : ''}><b>${s.name}</b>&nbsp;${s.text}${run.pack.kind === k ? ' · máš' : ` · ${icon('coin')} ${s.price}`}</button>`).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
+    ${adv() ? `<h3>Palice</h3><div class="row staffs">${Object.entries(STAFFS).map(([k, s]) => `<button class="btn ${run.pack.kind === k ? 'on' : ''}" data-staff="${k}" ${run.pack.kind === k || run.coins < s.price ? 'disabled' : ''}><b>${s.name}</b>&nbsp;${s.text} · ⚡${s.emax} +${s.regen}/s · displej ${s.disp}${run.pack.kind === k ? ' · máš' : ` · ${icon('coin')} ${s.price}`}</button>`).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
   el.querySelectorAll('.card').forEach(c => {
     const id = c.dataset.id; if (run.coins < price(id)) c.classList.add('poor');
     c.addEventListener('click', () => { if (run.coins < price(id)) { say('Nemáš dosť mincí.'); return; } run.coins -= price(id); renderCoins(); closeOverlay(); addCard(id); });
@@ -471,7 +471,7 @@ function openShop() {
   const sl = el.querySelector('#slot'); if (sl) sl.onclick = () => { run.coins -= slotPrice(run.pack); run.pack.slots += 2; renderCoins(); persist(); closeOverlay(); say(`Ruksak má ${run.pack.slots} políčok – dlhšie kúzla!`); };
   const rw = el.querySelector('#row'); if (rw) rw.onclick = () => { run.coins -= rowPrice(run.pack); run.pack.rows.push([]); renderCoins(); persist(); closeOverlay(); say(`Máš ${run.pack.rows.length} kúzla – striedajú sa v poradí.`); };
   el.querySelectorAll('[data-staff]').forEach(b => b.onclick = () => { const s = STAFFS[b.dataset.staff]; run.coins -= s.price; run.pack.kind = b.dataset.staff; renderCoins(); persist(); closeOverlay(); say(`${s.name}!`); });
-  const sf = el.querySelector('#staff'); if (sf) sf.onclick = () => { run.coins -= staffPrice(run.pack); run.pack.staff++; renderCoins(); persist(); closeOverlay(); say(`Palica úrovne ${run.pack.staff}: rýchlejšie nabíjanie.`); };
+  const sf = el.querySelector('#staff'); if (sf) sf.onclick = () => { run.coins -= staffPrice(run.pack); run.pack.staff++; renderCoins(); persist(); closeOverlay(); say(`Palica úrovne ${run.pack.staff}: +25 % damage, viac energie.`); };
   el.querySelector('#close').onclick = closeOverlay;
 }
 function gameOver() {
@@ -520,7 +520,7 @@ function winFight(opts) {
     run.hearts = maxHearts(); renderHearts(); addCoins(20);
     persist();
     setTimeout(() => {
-      const el = overlay('Vodca porazený', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia('crown', 'big fill')}</div>${newOp ? `<div style="font-size:22px">Získal si nový živel</div><div class="cards">${card(newOp)}</div><p class="sub">Odteraz kúzliš aj ${{ '-': 'odčítaním', '×': 'násobením', '÷': 'delením' }[newOp]}.</p>` : '<div style="font-size:22px">Zóna je hotová.</div>'}${specNew ? `<p class="sub" style="color:var(--line)">Nový kláves na kalkulačke: <b>${spO.key} ${spO.name} – ${spO.text}</b>. Ostane ti aj v ďalších behoch.</p>` : ''}<div class="acts"><button class="btn on" id="next">Ďalšia zóna ▸</button></div>`, 'end');
+      const el = overlay('Vodca porazený', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia('crown', 'big fill')}</div>${newOp ? `<div style="font-size:22px">Získal si nový živel</div><div class="cards">${card(newOp)}</div><p class="sub">Odteraz kúzliš aj ${{ '-': 'odčítaním', '×': 'násobením', '÷': 'delením' }[newOp]}.</p>` : '<div style="font-size:22px">Zóna je hotová.</div>'}${specNew ? `<p class="sub" style="color:var(--line)">Nový kláves na kalkulačke: <b>${spO.key} ${spO.name} – ${spO.text}</b>.</p>` : ''}<div class="acts"><button class="btn on" id="next">Ďalšia zóna ▸</button></div>`, 'end');
       el.querySelector('#next').onclick = () => { closeOverlay(); if (adv() && run.zone === FINAL_ZONE) return victory(); cardOffer('Odmena od vodcu', nextZone); };
     }, 2200);
     return;
@@ -529,7 +529,7 @@ function winFight(opts) {
   // Majster: z boja nepadajú čísla (tie sú len na mape) – boj dáva skúsenosti a mince
   persist();
   if (opts.horde) run.st.hordes += opts.horde;
-  if (opts.hb) { const sp = nextSpecial(run.pack.unlock); if (sp) { run.pack.unlock[sp.k] = true; meta.unlock[sp.k] = true; persist(); setTimeout(() => say(`Vodca hordy porazený! Nový kláves: ${sp.key} ${sp.name}`, 4000), 600); } else addCoins(25, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); }
+  if (opts.hb) { addCoins(25, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); setTimeout(() => say('Vodca hordy porazený! +25 mincí', 3000), 600); }   // funkcie dáva len vodca zóny (sim-energia.mjs)
   if (opts.zb) { // vodca zóny porazený: znamienko + špeciálna funkcia, obchodník, ďalšia zóna (po 8. výhra)
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)); if (newOp) { run.ops.push(newOp); addToken(run.pack, { t: 'o', v: newOp }); }
     const sp = nextSpecial(run.pack.unlock); if (sp) { run.pack.unlock[sp.k] = true; meta.unlock[sp.k] = true; }
@@ -862,12 +862,7 @@ function openLevelUp() {
   });
 }
 // PALICE (obchod): každá mení pravidlo streľby – zo vzorcov v suboj.js (cd = nabíjanie, dmg = damage, shots = počet cieľov)
-const STAFFS = {
-  zakladna: { name: 'Základná', text: 'vyvážená', price: 0, cd: 1, dmg: 1, shots: 1 },
-  rychla: { name: 'Rýchla', text: 'nabíjanie ×0,6, damage ×0,8', price: 30, cd: 0.6, dmg: 0.8, shots: 1 },
-  tazka: { name: 'Ťažká', text: 'damage ×1,7, nabíjanie ×1,4', price: 35, cd: 1.4, dmg: 1.7, shots: 1 },
-  dvojita: { name: 'Dvojitá', text: 'zasiahne 2 nepriateľov, damage ×0,75', price: 45, cd: 1.1, dmg: 0.75, shots: 2 },
-};
+const STAFFS = STAFF_MODELS;   // modely kalkulačky: displej, energia, dobíjanie (balance.js)
 G.staffs = STAFFS;
 // ---------- OBCHODNÍK (Majster): objaví sa pri tebe po vodcovi a každú 4. hordu, ostane chvíľu; predáva palice a vylepšenia ----------
 let merchant = null;
@@ -916,7 +911,7 @@ function updateDrops(dt) {
 }
 function mergeNumbers(v) {
   const P = run.pack, used = allIds(P), same = P.inv.filter(t => t.t === 'n' && t.v === v && !used.has(t.id));
-  if (same.length < 3) return;
+  if (same.length < 3 || ((P.stars || {})[v] || 0) >= MAX_STARS) return;
   const del = new Set(same.slice(0, 3).map(t => t.id)); P.inv = P.inv.filter(t => !del.has(t.id));
   P.stars = P.stars || {}; P.stars[v] = (P.stars[v] || 0) + 1;
   say(`3× ${v} → kláves ${v}${'★'.repeat(P.stars[v])} (ráta sa ako ${v * (P.stars[v] + 1)})`, 3500); efekt('objav', 0.7, 1.5);

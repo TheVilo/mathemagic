@@ -1,12 +1,10 @@
 # Mathemagic – zoznam úloh
 
-## ▶ ZAČNI TU (nový chat, 21. 10. 2026)
-**Téma na ďalší chat: palica = kalkulačka (ako palica v Magicrafte).** Návrh na schválenie:
-- Každá palica je model kalkulačky: **displej** (políčka), **energia** (max), **dobíjanie**/s, **pamäte M1–M3** (kúzla v poradí). Palice z obchodu a od vodcov, parametre a vzácnosť zo vzorca.
-- **Každý kláves stojí energiu:** číslo 1 · + − 1 · × ÷ 2 · ( ) 2 · √ 3 · x² 4 · x³ 6 · ! 8. Výstrel zoberie súčet → silné kombo je drahé, hra sa dá rozbiť až s veľkou palicou.
-- **Z nepriateľov padajú len kryštály XP** (hotové). **Úroveň = 3 klávesy do kalkulačky ALEBO 3 karty** (hotové v `scena3d/balance.js`: P_CALC 0,6, vzácnosť `gate(L, Lmin)`, čísla okolo μ = 1 + 0,5·L).
-- **Prepočítať simuláciou** (Node): damage/s najlepšieho vzorca s energiou vs. životy nepriateľov v každej horde → bežný nepriateľ 1–4 strely, vodca desiatky. Doladiť ceny energie, rast HP, vzácnosť.
-- Kód: `scena3d/hra.js` (hra), `suboj.js` (súboj, streľba), `ruksak.js` (kalkulačka, výpočet vzorca s prioritou), `balance.js` (všetky vzorce rovnováhy), `world.js` (svet, `open` = Majster), `zvuk.js`, `kresba.js` (shader). Testovanie: https://hry.partaci.com/mathemagic/ (nahrať `bash nahraj-na-server.sh`).
+## ▶ ZAČNI TU (21. 10. 2026)
+**Palica = kalkulačka s energiou – HOTOVÉ lokálne, nenahraté.** Každý kláves stojí energiu (číslo 1 · + − 1 · × ÷ 2 · ( ) 2 · √ 3 · x² 4 · x³ 6 · ! 8), výstrel zoberie súčet, energia sa dobíja. 6 palíc = modely kalkulačky (displej, ⚡ max, dobíjanie/s) v `balance.js` STAFF_MODELS. Simulácia: `node scena3d/sim-energia.mjs <semienko> [-v] [--odomknute]`.
+- Výsledok simulácie (chytrý hráč, 6 semienok): bežný nepriateľ 1,4–2,4 strely v priemere, vodcovia 10–60, 0–10 z 80 hôrd nestíha (zóna 7–8 so slabou zostavou).
+- Zmeny rovnováhy: HP rast 3×/zónu (bolo 2,4), XP na úroveň 8·1,45^(L−1) (bolo 12), vodca hordy ×6 / vodca zóny ×9, faktoriál max 7! (12! až v nekonečne), hviezdy max ★★, funkcie dáva len vodca zóny (vodca hordy 25 mincí) a **neprenášajú sa do ďalšieho behu**.
+- Ďalej: overiť hraním, či nie je energia frustrujúca na začiatku (zóna 1, horda 5 – vodca ~40 striel); otázka zmenšenia postáv / oddialenia kamery.
 
 
 Všetko, čo Lukáš zadal. Stav: ✅ hotové a overené v hre · 🟡 hotové, neoverené alebo čiastočne · ⬜ neurobené.

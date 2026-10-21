@@ -2,6 +2,8 @@
 // pevné čísla a znamienka. Pri zoslaní sa kocky hodia, ty vypočítaš výsledok = damage. Znamienka pridajú živly.
 // Všetko zo vzorcov – korisť, životy nepriateľov aj ceny. Bez grafiky – dá sa testovať v Node.
 
+import { FACT_CAP, FACT_CAP_ENDLESS, FINAL_ZONE, spellCost } from './balance.js';
+
 // začiatok: 1 + 1 z pevných čísel; lepšie čísla, rozšírenie ruksaku a kocky □ sa nachádzajú, nové znamienko dá vodca
 // rows = kúzla (riadky kalkulačky, max 3) – v súboji sa striedajú v poradí ako na palici v Magicrafte; staff = úroveň palice
 export const newPack = () => ({ slots: 3, inv: [{ id: 1, t: 'n', v: 1 }, { id: 2, t: 'o', v: '+' }, { id: 3, t: 'n', v: 1 }], rows: [[1, 2, 3]], staff: 0, next: 4 });
@@ -19,11 +21,11 @@ export const dieMax = run => (run.range <= 5 ? 4 : 9);
 
 // VÝPOČET VZORCA so správnym poradím: zátvorky → √ → × ÷ → + −  (gramatika: výraz = člen (± člen)*, člen = faktor (×÷ faktor)*,
 // faktor = číslo | □ | ( výraz ) | √ faktor). Vráti hodnotu, text a zoznam znamienok (živly) alebo null, keď vzorec nie je hotový.
-function evalSpell(toks, die, stars = null) {
+function evalSpell(toks, die, stars = null, cap = 12) {
   let i = 0; const ops = [];
   // za číslom / zátvorkou môžu ísť funkcie: ² ³ ! (aj viac za sebou)
-  // faktoriál do 12! = 479 001 600 – v nekonečne sa hra dá „rozbiť“
-  const fact = n => { n = Math.max(0, Math.min(12, Math.round(n))); let r = 1; for (let k = 2; k <= n; k++) r *= k; return r; };
+  // faktoriál do 7! počas 8 zón, v nekonečne do 12! = 479 001 600 – vtedy sa hra dá „rozbiť“
+  const fact = n => { n = Math.max(0, Math.min(cap, Math.round(n))); let r = 1; for (let k = 2; k <= n; k++) r *= k; return r; };
   const factor = () => {
     let f = primary(); if (!f) return null;
     while (toks[i] && toks[i].t === 'x') { const o = toks[i++].v; ops.push(o); f = o === '²' ? { v: f.v * f.v, s: f.s + '²' } : o === '³' ? { v: f.v ** 3, s: f.s + '³' } : { v: fact(f.v), s: f.s + '!' }; }
@@ -60,7 +62,7 @@ export function spellOk(pack, r = 0) {
 // hod: kocky □ padnú náhodne (1 … max podľa rozsahu); damage = výsledok zaokrúhlený, nie menej ako 0 (≈ pri odmocnine a delení)
 function tryRoll(run, rng, r) {
   const pack = run.pack, t = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
-  const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars); if (!res) return null;
+  const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
   const answer = Math.max(0, Math.round(res.value));
   return { text: res.text, answer, exact: Math.abs(res.value - Math.round(res.value)) < 1e-9, ops: res.ops };
 }
@@ -102,5 +104,7 @@ export function addToken(pack, t) {
 export const slotPrice = pack => 4 + pack.slots * 3;
 export const rowPrice = pack => 6 + pack.rows.length * 8;      // ďalšie kúzlo (riadok)
 export const staffPrice = pack => 8 + pack.staff * 7;          // lepšia palica: kratšie nabíjanie, väčšie svetlo
+// energia kúzla = súčet cien klávesov (balance.js KEY_COST)
+export const rowCost = (pack, r) => spellCost(used(pack.rows[r] || []).map(id => tok(pack, id)));
 export const cooldown = (pack, row) => (0.35 + used(pack.rows[row] || []).filter(x => x != null).length * 0.12) * (1 - pack.staff * 0.15);
 export const MAX_SLOTS = 9;

@@ -3,7 +3,8 @@
 import { THREE, scene, camera, spark, burst, pix } from './svet.js';
 import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './postavy.js';
 import { makeProblem, lvl } from './karty.js';
-import { rollSpell, spellWorks, enemyHp, workingRows, cooldown, used, tokOf } from './ruksak.js';
+import { rollSpell, spellWorks, enemyHp, workingRows, rowCost, used, tokOf } from './ruksak.js';
+import { staffStats, SHOT_MIN } from './balance.js';
 import { kresbaMat } from './kresba.js';
 import { efekt, akord } from './zvuk.js';
 
@@ -85,6 +86,8 @@ const rowsOk = () => workingRows(G.run);
 export const curRow = () => { const ok = rowsOk(); return ok.includes(fight.row) ? fight.row : ok[0] ?? 0; };
 function nextRow() { const ok = rowsOk(); if (!ok.length) return; const i = ok.indexOf(curRow()); fight.row = ok[(i + 1) % ok.length]; }
 let lastAim = null;
+// energia palice (run.energy); nový beh začína plnou
+export const energy = () => Math.min(staffStats(G.run.pack).emax, G.run.energy ?? staffStats(G.run.pack).emax);
 export function fireAt(e, groundPoint = null) {
   if (G.run.mode !== 'pokrocily' || fight.cd > 0) return false;   // Majster strieľa kedykoľvek (aj mimo súboja)
   const row = curRow(), r = rollSpell(G.run, Math.random, row); if (!r) { G.say('Kniha: vzorec kúzla nie je hotový.'); return false; }
@@ -93,14 +96,17 @@ export function fireAt(e, groundPoint = null) {
   if (!t && !groundPoint) return false;
   if (!t) { const g = new THREE.Object3D(); g.position.copy(groundPoint); t = { fake: true, g, h: 0, el: { classList: { add() {}, remove() {} } } }; }
   lastAim = { p: targetPos(t), t: G.now };
-  const SK = (G.staffs || {})[G.run.pack.kind || 'zakladna'] || { cd: 1, dmg: 1, shots: 1 };
-  fight.cdMax = cooldown(G.run.pack, row) * SK.cd; fight.cd = fight.cdMax; nextRow();
+  // PALICA = KALKULAČKA S ENERGIOU: výstrel stojí súčet cien klávesov; bez energie sa nestrieľa (dobíja sa samo)
+  const SK = staffStats(G.run.pack), cost = rowCost(G.run.pack, row);
+  if (energy() < cost) { fight.lowE = G.now; G.say(`Málo energie: kúzlo stojí ${cost}, palica má ${Math.floor(energy())}/${SK.emax}.`, 1200); renderInput(); return false; }
+  G.run.energy = energy() - cost;
+  fight.cdMax = SHOT_MIN * SK.cd; fight.cd = fight.cdMax; nextRow();
   // karty: Násobič ×1,5 / ×2; Kritický zásah: šanca 8 % (+10 / +22 % s kartou) na ×2 a väčšie znamienka
-  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * (1 + 0.25 * (G.run.pack.staff || 0)) * (((G.staffs || {})[G.run.pack.kind || 'zakladna'] || {}).dmg || 1));   // palica: +25 % za úroveň, druh palice
+  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * SK.dmg);   // palica: model × úroveň (+25 % za úroveň)
   const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
   cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
   // Dvojitá palica: druhé kúzlo na ďalšieho najbližšieho
-  if ((((G.staffs || {})[G.run.pack.kind] || {}).shots || 1) > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
+  if (SK.shots > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
   renderInput(); return true;
 }
@@ -124,7 +130,7 @@ function addEnemy(f, isBoss, isElite) {
   if (isElite) { e.hp = 3; e.name = 'Kapitán'; }
   if (fight.adv) {
     const tr = (isBoss && fight.opts.trait) || f.trait;
-    e.hp = e.maxHp = f.dummy ? 6 : G.enemyHp ? G.enemyHp(f.kind, isBoss || f.hb, isElite, tr) : enemyHp(G.run, f.kind, isBoss, isElite);
+    e.hp = e.maxHp = f.dummy ? 6 : G.enemyHp ? G.enemyHp(f.kind, f.zb ? 2 : isBoss || f.hb, isElite, tr) : enemyHp(G.run, f.kind, isBoss, isElite);
     if (f.hb) { e.name = f.zb ? 'Vodca zóny' : 'Vodca hordy'; fight.hb = e; }
     if (tr) { e.trait = tr; e.name = G.bossTrait(tr).name; if (tr === 'stit') e.shield = true; }
   }   // Majster: život podľa vlny a zóny (balance.js)
@@ -207,9 +213,9 @@ function advPress() {
 }
 export function renderInput(wrong) {
   if (fight.adv && fight.on) {
-    const P = G.run.pack, txt = row => used(P.rows[row] || []).map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
+    const P = G.run.pack, SK = staffStats(P), txt = row => used(P.rows[row] || []).map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
     const ok = rowsOk(), cur = curRow(), nx = ok.length > 1 ? ok[(ok.indexOf(cur) + 1) % ok.length] : null;
-    G.inpEl.innerHTML = `${ok.length ? `<span class="ph">${cur + 1}</span>` + pix(txt(cur)) : '<span class="ph">poskladaj kúzlo v Knihe</span>'}<span class="cdbar"><b style="width:${Math.round((1 - fight.cd / fight.cdMax) * 100)}%"></b></span>${nx !== null ? `<span class="ph">ďalej ${nx + 1}: ${txt(nx)}</span>` : '<span class="ph">klik</span>'}`; return; }
+    G.inpEl.innerHTML = `${ok.length ? `<span class="ph">${cur + 1}</span>` + pix(txt(cur)) : '<span class="ph">poskladaj kúzlo v Knihe</span>'}<span class="cdbar ebar${fight.lowE && G.now - fight.lowE < 0.6 ? ' low' : ''}" title="energia"><b style="width:${Math.round(energy() / SK.emax * 100)}%"></b><i style="left:${Math.min(100, Math.round(rowCost(P, cur) / SK.emax * 100))}%"></i></span><span class="ph">${Math.floor(energy())}/${SK.emax} · ${rowCost(P, cur)}</span>${nx !== null ? `<span class="ph">ďalej ${nx + 1}: ${txt(nx)}</span>` : '<span class="ph">klik</span>'}`; return; }
   G.inpEl.innerHTML = wrong ? pix(wrong) : fight.input ? pix(fight.input) : '<span class="ph">výsledok</span>';
   for (const t of targets()) t.el.classList.toggle('match', !!fight.input && String(t.p.answer).startsWith(fight.input) && !t.locked);
 }
@@ -526,7 +532,8 @@ export function updateFight(dt) {
     if (k >= 1 && !b.locked) { removeBolt(b, true); hurtHero(); }
   }
   for (let i = chains.length - 1; i >= 0; i--) { const c = chains[i]; c.life -= dt; c.group.visible = Math.random() < 0.8; if (c.life <= 0) { scene.remove(c.group); giveBack(c.light); chains.splice(i, 1); } }
-  if (fight.cd > 0) { fight.cd = Math.max(0, fight.cd - dt); if (fight.on) renderInput(); }
+  if (fight.cd > 0) fight.cd = Math.max(0, fight.cd - dt);
+  if (G.run.mode === 'pokrocily') { const SK = staffStats(G.run.pack), e0 = energy(); if (e0 < SK.emax) { G.run.energy = Math.min(SK.emax, e0 + SK.regen * dt); if (fight.on) renderInput(); } }
   updateSpells(dt);
   flash.w = Math.max(0, flash.w - dt * 2.2);
   if (!spells.length && fight.charged) { const k = 1.6 + Math.sin(G.now * 12) * 0.25; crystal.scale.set(k, k * 1.6, k); crystalLight.color.set(COL[fight.charged.op] || 0xf2efe6); crystalLight.intensity = lamp.base * 2.5; }
