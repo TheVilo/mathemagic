@@ -51,14 +51,14 @@ function floatText(text, e, cls = '') {
   const v = p.project(camera), d = document.createElement('div');
   d.className = 'float ' + cls; d.innerHTML = text;
   d.style.left = (v.x + 1) / 2 * innerWidth + 'px'; d.style.top = (1 - v.y) / 2 * innerHeight + 'px';
-  document.body.appendChild(d); setTimeout(() => d.remove(), 1100);
+  document.body.appendChild(d); d._t = setTimeout(() => d.remove(), 1100); return d;
 }
 function addCoins(n, at) { run.coins += n; renderCoins(true); efekt('minca', 0.45, 0.95 + Math.random() * 0.1); if (at) floatText(icon('coin', 'currentColor') + '+' + n, at, 'coin'); }
 let shakeV = 0, hurtV = 0;
 const G = {
   get run() { return run; }, now: 0, over: false, danger: false, room: null, stats: { ok: 0, bad: 0 },
   tagsEl: $('tags'), inpEl, height: (x, z) => place.height(x, z),
-  say, floatText, renderStreak, addCoins, shake: v => { shakeV = Math.max(shakeV, v); },
+  say, floatText, renderStreak, addCoins, heal: n => { run.hearts = Math.min(maxHearts(), run.hearts + n); renderHearts(); persist(); }, shake: v => { shakeV = Math.max(shakeV, v); },
   hurt() {
     if (G.over) return;
     run.hearts--; renderHearts(true); shakeV = 0.5; hurtV = 1; persist();

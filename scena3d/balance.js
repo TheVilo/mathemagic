@@ -74,9 +74,9 @@ export const P_CALC = 0.6;
 export const gate = (L, Lmin) => L < Lmin ? 0 : 1 - Math.exp(-(L - Lmin + 1) / 3);
 export const ITEMS = [   // veci do kalkulačky okrem čísel
   { id: '+', t: 'o', v: '+', Lmin: 1, w: 1.0, title: 'Znamienko +', text: 'sčítanie · zem omráči' },
-  { id: '-', t: 'o', v: '-', Lmin: 2, w: 0.5, title: 'Znamienko −', text: 'odčítanie · voda zamrazí' },
+  { id: '-', t: 'o', v: '-', Lmin: 2, w: 0.5, title: 'Znamienko −', text: 'doladíš presný zásah · záporné číslo ťa lieči · zamrazí' },
   { id: '×', t: 'o', v: '×', Lmin: 4, w: 0.55, title: 'Znamienko ×', text: 'násobenie · oheň' },
-  { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: 'delenie · vzduch odhodí' },
+  { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: '12÷3 = 3 strely po 4 · odhodí' },
   { id: 'p', t: 'spec', k: 'p', Lmin: 6, w: 0.35, title: 'Zátvorky ( )', text: '(2+3)×4 = 20 – počíta sa najprv v zátvorke' },
   { id: 's', t: 'spec', k: 's', Lmin: 8, w: 0.3, title: 'Odmocnina √', text: '√ zakorení nepriateľa na mieste a prerazí štít' },
   { id: 'q', t: 'spec', k: 'q', Lmin: 10, w: 0.25, title: 'Mocnina x²', text: '6² = 36 · jeden kus' },

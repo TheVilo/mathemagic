@@ -22,7 +22,7 @@ export const dieMax = run => (run.range <= 5 ? 4 : 9);
 // VÝPOČET VZORCA so správnym poradím: zátvorky → √ → × ÷ → + −  (gramatika: výraz = člen (± člen)*, člen = faktor (×÷ faktor)*,
 // faktor = číslo | □ | ( výraz ) | √ faktor). Vráti hodnotu, text a zoznam znamienok (živly) alebo null, keď vzorec nie je hotový.
 function evalSpell(toks, die, stars = null, cap = 12) {
-  let i = 0; const ops = [];
+  let i = 0; const ops = []; let div = 0, divOk = false;   // posledné delenie: deliteľ a či vyšlo bezo zvyšku
   // za číslom / zátvorkou môže ísť JEDNA funkcia: ² ³ ! (reťaz 9²² by hru rozbila hneď)
   // faktoriál do 7! počas 8 zón, v nekonečne do 12! = 479 001 600 – vtedy sa hra dá „rozbiť“
   const fact = n => { n = Math.max(0, Math.min(cap, Math.round(n))); let r = 1; for (let k = 2; k <= n; k++) r *= k; return r; };
@@ -42,7 +42,7 @@ function evalSpell(toks, die, stars = null, cap = 12) {
   };
   const term = () => {
     let a = factor(); if (!a) return null;
-    while (toks[i] && toks[i].t === 'o' && (toks[i].v === '×' || toks[i].v === '÷')) { const o = toks[i++].v; ops.push(o); const b = factor(); if (!b) return null; a = { v: o === '×' ? a.v * b.v : (b.v ? a.v / b.v : 0), s: a.s + o + b.s }; }
+    while (toks[i] && toks[i].t === 'o' && (toks[i].v === '×' || toks[i].v === '÷')) { const o = toks[i++].v; ops.push(o); const b = factor(); if (!b) return null; if (o === '÷') { div = b.v; divOk = !!b.v && Number.isInteger(a.v / b.v); } a = { v: o === '×' ? a.v * b.v : (b.v ? a.v / b.v : 0), s: a.s + o + b.s }; }
     return a;
   };
   const expr = () => {
@@ -52,7 +52,7 @@ function evalSpell(toks, die, stars = null, cap = 12) {
   };
   const e = expr();
   if (!e || i !== toks.length) return null;
-  return { value: e.v, text: e.s, ops };
+  return { value: e.v, text: e.s, ops, div: divOk ? div : 0 };
 }
 export function spellOk(pack, r = 0) {
   const ids = used(pack.rows[r] || []); if (!ids.length || ids.includes(null)) return false;
@@ -64,7 +64,7 @@ function tryRoll(run, rng, r) {
   const pack = run.pack, t = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
   const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
   const answer = Math.max(0, Math.round(res.value));
-  return { text: res.text, answer, exact: Math.abs(res.value - Math.round(res.value)) < 1e-9, ops: res.ops };
+  return { text: res.text, answer, value: res.value, div: res.div, exact: Math.abs(res.value - Math.round(res.value)) < 1e-9, ops: res.ops };
 }
 export function rollSpell(run, rng = Math.random, row = 0) { if (!spellOk(run.pack, row)) return null; return tryRoll(run, rng, row); }
 // vzorec je hotový a dá sa aj vypočítať (napr. 2 − 7 nikdy nevyjde)
