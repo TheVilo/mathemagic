@@ -7,7 +7,7 @@
 //   obtiažnosť  D(w, z) = 1,22^(w−1) · 2,4^(z−1)
 //   život       HP = druh · 4 · D            (zbojník 1, strelec 1, rytier 1,6, barbar 2,2, kapitán ×1,8, vodca ×9)
 //   veľkosť     n = min(14, 2 + ⌊0,7 · w⌋ + (z − 1))
-//   interval    t = max(12, 34 − 1,6 · w) s
+//   interval    t = max(9, 24 − 1,3 · w) s, prvá horda po 8 s; nepriatelia ×2,2 rýchlejší, banda ťa zacíti zo 14 m
 //   vodca hordy každá 6. horda (w = 6, 12, 18 …): jeden silný nepriateľ + sprievod, odmena = špeciálny kláves
 //   skúsenosti  XP za zabitie = ⌈HP / 3⌉,  ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉  → každá úroveň je ťažšia
 //   úroveň      výber 1 z 3 (nový kláves, lepšie číslo, viac políčok, palica, špeciálna funkcia)
@@ -16,7 +16,9 @@ export const KIND_HP = { rogue: 1, hooded: 1, knight: 1.6, barbarian: 2.2, innke
 export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(2.4, Math.max(0, z - 1));
 export const enemyHpM = (kind, w, z, { boss = false, elite = false } = {}) => Math.max(2, Math.round((KIND_HP[kind] || 1) * 4 * difficulty(w, z) * (boss ? 9 : elite ? 1.8 : 1)));
 export const hordeSize = (w, z) => Math.min(14, 2 + Math.floor(0.7 * w) + (z - 1));
-export const hordeInterval = w => Math.max(12, 34 - 1.6 * w);
+export const hordeInterval = w => Math.max(9, 24 - 1.3 * w);   // hordy chodia často – nečaká sa
+export const ENEMY_SPEED = 2.2;   // Majster: nepriatelia bežia po hráčovi (×2,2 oproti Učňovi)
+export const AGGRO = 14;          // z koľkých metrov si ťa banda všimne
 export const isBossWave = w => w > 0 && w % 6 === 0;
 export const xpFor = hp => Math.ceil(hp / 3);
 export const xpNeed = L => Math.ceil(12 * Math.pow(1.45, L - 1));

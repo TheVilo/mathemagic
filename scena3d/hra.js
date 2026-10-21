@@ -9,6 +9,7 @@ import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul } from './balance.js';
+import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
 import { ZIVLY, card, slot, dia, menu } from './ui.js';
@@ -53,7 +54,7 @@ function floatText(text, e, cls = '') {
   d.style.left = (v.x + 1) / 2 * innerWidth + 'px'; d.style.top = (1 - v.y) / 2 * innerHeight + 'px';
   document.body.appendChild(d); setTimeout(() => d.remove(), 1100);
 }
-function addCoins(n, at) { run.coins += n; renderCoins(true); if (at) floatText(icon('coin', 'currentColor') + '+' + n, at, 'coin'); }
+function addCoins(n, at) { run.coins += n; renderCoins(true); efekt('minca', 0.45, 0.95 + Math.random() * 0.1); if (at) floatText(icon('coin', 'currentColor') + '+' + n, at, 'coin'); }
 let shakeV = 0, hurtV = 0;
 const G = {
   get run() { return run; }, now: 0, over: false, danger: false, room: null, stats: { ok: 0, bad: 0 },
@@ -676,7 +677,8 @@ function update(dt, t) {
   if (!paused && (fight.on || fight.enemies.length || adv())) updateFight(dt);
   if (R && !scrOn) updateHordes(dt);
   if (adv() && lvlQueue > 0 && !paused && !scrOn && !G.over) openLevelUp();
-  if (adv() && R && !paused) updateGems(dt);   // Majster: kúzla letia aj mimo súboja
+  if (adv() && R && !paused) updateGems(dt);
+  hudba(scrOn ? 'uvod' : fight.on ? ((act && act.camp.boss) || fight.hb ? 'boss' : 'suboj') : 'svet');   // hudba podľa situácie (prelína sa)   // Majster: kúzla letia aj mimo súboja
   if (!fight.on) for (const f of band) if (f.state !== 'dead' && !fight.enemies.includes(f)) f.mixer.update(dt);
   if (innkeeper && inside) innkeeper.mixer.update(dt);
   if (!inside && R) updateRoom(dt, t); else if (inside) updateInside();
@@ -701,7 +703,7 @@ function updateRoom(dt, t) {
   for (const b of bands) {
     const c = b.camp;
     if (fight.on && adv()) continue;   // počas boja sa ďalšia banda pridá cez hordu, nie novým súbojom
-    if (Math.hypot(c.x - hp.x, c.z - hp.z) < (c.boss ? 8.5 : c.dummy ? 3.6 : adv() ? 10 : 6.5)) {
+    if (Math.hypot(c.x - hp.x, c.z - hp.z) < (c.boss ? 8.5 : c.dummy ? 3.6 : adv() ? 14 : 6.5)) {
       if (adv() && !workingRows(run).length) { if (G.now - (b.warn ?? -9) > 5) { b.warn = G.now; say('Najprv poskladaj kúzlo v Knihe kúziel!'); openPack(); } return; }
       const trait = c.boss && adv() ? bossOf(run.zone, run.seed) : null;
       act = b; startFight(b.f, { boss: c.boss, elite: c.elite, dummy: c.dummy, trait });
@@ -721,7 +723,7 @@ function updateRoom(dt, t) {
   if (lockOn && lock && Math.hypot(lock.gate.x - hp.x, lock.gate.z - hp.z) > 4.5) { lockOn = false; bottomEl.classList.add('hidden'); }
   // truhlice
   for (const c of chests) if (!c.open && hp.distanceTo(c.obj.position) < 1.5) {
-    c.open = true; if (c.n !== 'tut') run.w.chests.push(c.id); persist(); heroPlay('Interact', 0.1, 0.8);
+    c.open = true; if (c.n !== 'tut') run.w.chests.push(c.id); persist(); heroPlay('Interact', 0.1, 0.8); efekt('truhla', 0.7);
     if (c.obj.userData.lid) c.anim = 0;
     burst(c.obj.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 80, 3, 0xffd25a);
     if (c.n === 'tut') { addToken(run.pack, { t: 'n', v: 2 }); persist(); floatText(pix('2'), c.obj.position.clone().add(new THREE.Vector3(0, 2, 0)), 'coin'); say('Nový kláves: 2!'); tutStep(4); continue; }
@@ -763,7 +765,7 @@ function updateRoom(dt, t) {
     if (Math.hypot(n.x - hp.x, n.z - hp.z) < 1.1) {
       n.got = true; run.w.nums = run.w.nums || []; run.w.nums.push(n.id); addToken(run.pack, { t: 'n', v: n.v }); persist();
       burst(n.obj.position.clone().add(new THREE.Vector3(0, 1, 0)), 90, 3, 0xffd25a); floatText(pix(String(n.v)), n.obj.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 'coin');
-      say(`Nový kláves: ${n.v}!`); room.remove(n.obj);
+      say(`Nový kláves: ${n.v}!`); room.remove(n.obj); efekt('objav', 0.5, 1.2);
     }
   }
   // obchod = samostatná obrazovka (nie 3D miestnosť): pri dverách sa otvorí, po odchode stojíš pred dverami
@@ -771,7 +773,7 @@ function updateRoom(dt, t) {
 }
 // ---------- HORDY (Majster, roguelite): svetom chodia skupiny, ktoré ťa zacítia a idú po tebe; čím ďalej, tým väčšie ----------
 // veľkosť n = 2 + ⌊0,8 · vlna⌋ + (zóna − 1), najviac 12; interval = max(16, 38 − 2 · vlna) s; druhy podľa obtiažnosti d = zóna − 1 + vlna / 8
-let hordeT = 30, hordeN = 0, hordeWins = 0;
+let hordeT = 8, hordeN = 0, hordeWins = 0;   // prvá horda hneď na začiatku
 const HW = d => ({ rogue: 1, hooded: Math.min(0.8, Math.max(0, d - 0.15) * 1.8), knight: 0.25 + Math.min(1, d) * 0.5, barbarian: Math.min(0.7, Math.max(0, d - 0.6) * 1.0) });
 function updateHordes(dt) {
   if (!adv() || inside || G.over || tutOn() || paused || fadeT > 0) return;
@@ -781,7 +783,7 @@ function updateHordes(dt) {
   const roll = () => { let r = Math.random() * sum; for (const [k, v] of Object.entries(w)) if ((r -= v) <= 0) return k; return 'rogue'; };
   // miesto 13–16 m od čarodejníka, kde sa dá stáť (nie v pevnosti vodcu)
   let at = null;
-  for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 13 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
+  for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 11 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
   if (!at) return;
   const fs = [];
   for (let i = 0; i < n; i++) {
@@ -806,7 +808,7 @@ function updateGems(dt) {
     const g = gems[i]; g.t += dt; g.m.rotation.y += dt * 3;
     const d = Math.hypot(g.m.position.x - hp.x, g.m.position.z - hp.z);
     if (d < mag || g.pull) { g.pull = true; const k = Math.min(1, dt * (6 + g.t * 4)); g.m.position.x += (hp.x - g.m.position.x) * k; g.m.position.z += (hp.z - g.m.position.z) * k; g.m.position.y += (hp.y + 1 - g.m.position.y) * k; }
-    if (d < 0.5) { room.remove(g.m); gems.splice(i, 1); addXp(g.xp); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
+    if (d < 0.5) { room.remove(g.m); gems.splice(i, 1); addXp(g.xp); efekt('minca', 0.2, 1.7 + Math.random() * 0.3); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
   }
 }
 function addXp(n, e) {
@@ -820,7 +822,7 @@ function renderXp() {
   const L = run.lvl || 1; el.innerHTML = `<span>úr. ${L}</span><i><b style="width:${Math.round((run.xp || 0) / xpNeed(L) * 100)}%"></b></i>`;
 }
 function openLevelUp() {
-  lvlQueue--; const offers = levelOffers(run.lvl, run);
+  lvlQueue--; efekt('objav', 0.7); const offers = levelOffers(run.lvl, run);
   const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">Vyber si jedno vylepšenie. Silnejší vzorec = väčšia šupa.</p>
     <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel" data-i="${i}"><b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
   el.querySelectorAll('.lvo').forEach(b => b.onclick = () => {
@@ -960,9 +962,12 @@ function openSettings(back) {
     <div class="setrow"><span>Stiahnuť do mobilu<small>appka na ploche, spustí sa cez celú obrazovku na šírku</small></span>${inst}</div>
     ${isIOS && !installed() ? `<p class="sub" style="text-align:left">iPhone / iPad: ťukni dole na <b>Zdieľať</b> (štvorček so šípkou) → <b>Pridať na plochu</b> → <b>Pridať</b>.</p>` : ''}
     ${!isIOS && !installEvt && !installed() ? `<p class="sub" style="text-align:left">Android: v Chrome ťukni na <b>⋮</b> → <b>Inštalovať aplikáciu</b> (alebo Pridať na plochu).</p>` : ''}
+    <h3>Zvuk</h3>
+    ${[['hudba', 'Hudba'], ['efekty', 'Zvuky']].map(([k, n]) => `<div class="setrow"><span>${n}</span><button class="btn ${zvuk[k] ? 'on' : ''}" data-z="${k}">${zvuk[k] ? 'Zap' : 'Vyp'}</button></div>`).join('')}
     <h3>Obraz</h3>
     ${[['c', 'Kontrast', 50, 200], ['b', 'Jas', 50, 160], ['s', 'Farebnosť', 0, 250]].map(([k, n, a, b]) => `<div class="setrow"><span>${n}<small id="v-${k}">${view[k]} %</small></span><input type="range" class="sl-${k}" min="${a}" max="${b}" step="5" value="${view[k]}" data-k="${k}"></div>`).join('')}
     <div class="acts"><button class="btn ghost" id="vreset">Pôvodné</button><button class="btn on" id="close">Hotovo</button></div>`, 'small');
+  el.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { nastavZvuk(b.dataset.z, !zvuk[b.dataset.z]); openSettings(back); });
   el.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { view[r.dataset.k] = +r.value; el.querySelector('#v-' + r.dataset.k).textContent = r.value + ' %'; applyView(); try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} });
   el.querySelector('#vreset').onclick = () => { Object.assign(view, { c: 100, b: 100, s: 100 }); applyView(); try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} openSettings(back); };
   const f = el.querySelector('#fs'); if (f) f.onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen(); screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } } catch (e) {} setTimeout(() => openSettings(back), 150); };

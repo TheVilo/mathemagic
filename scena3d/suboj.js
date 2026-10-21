@@ -5,6 +5,7 @@ import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './post
 import { makeProblem, lvl } from './karty.js';
 import { rollSpell, spellWorks, enemyHp, workingRows, cooldown, used, tokOf } from './ruksak.js';
 import { kresbaMat } from './kresba.js';
+import { efekt, akord } from './zvuk.js';
 
 let G = null;
 export function initFight(g) { G = g; }
@@ -67,7 +68,7 @@ export function drawTags(camera) {
 // ---------- začiatok súboja ----------
 // band = bojovníci sediaci pri ohni (z hra.js), opts.boss / opts.elite
 export function startFight(band, opts = {}) {
-  Object.assign(fight, { on: true, enemies: [], bolts: [], streak: 0, input: '', aim: null, boss: null, opts, summoned: 0, adv: G.run.mode === 'pokrocily', target: null, roll: null, charged: null, cd: 0, cdMax: 1, row: 0, combo: 0, lastHit: -9 });
+  Object.assign(fight, { on: true, enemies: [], bolts: [], streak: 0, input: '', aim: null, boss: null, opts, summoned: 0, adv: G.run.mode === 'pokrocily', target: null, roll: null, charged: null, cd: 0, cdMax: 1, row: 0, combo: 0, lastHit: -9, hb: null });
   fight.shield = lvl(G.run, 'stit');
   for (const f of band) addEnemy(f, opts.boss && f.size > 1.2, opts.elite && f === band[0]);
   if (fight.adv) newRoll();
@@ -267,6 +268,7 @@ function cast(t, info) {
   const orb = elementShape(info.op, color);
   const light = borrow(color); orb.visible = false; scene.add(orb);
   spells.push({ t: info.delay ? -info.delay : 0, target: t, color, info, orb, light, from: new THREE.Vector3() });
+  if (!info.extra && !info.visual) akord(info.ops && info.ops.length ? info.ops : [info.op || '+'], info.power ?? 1);   // salva = akord znamienok
   if (!info.extra) { heroPlay('Spellcast_Shoot', 0.08, G.run.mode === 'pokrocily' ? 0.25 : 0.9); fight.aim = t; }   // Majster sa môže hýbať aj pri streľbe
   // Ozvena: veľký výsledok vystrelí aj druhé kúzlo na iného
   const oz = lvl(G.run, 'ozvena');
@@ -300,7 +302,8 @@ function updateSpells(dt) {
       const p = targetPos(s.target);
       if (s.info.visual) { burst(targetPos(s.target), 40, 2.5, s.color, 0.6); s.flash = 0.5; continue; }   // znak salvy: len záblesk, damage nesie posledný
       const pw = s.info.power ?? (s.info.fast ? 1.4 : 1);
-      if (s.info.crit && !s.target.fake) { G.floatText('KRITICKÝ ×2', s.target); G.shake(0.6); }
+      if (s.info.crit && !s.target.fake) { G.floatText('KRITICKÝ ×2', s.target); G.shake(0.6); efekt('zasah', 0.95, 0.7); }
+      else efekt('zasah', s.target.fake ? 0.25 : 0.45 + Math.min(0.4, pw * 0.2), s.target.fake ? 1.4 : 0.9 + Math.random() * 0.2);
       burst(p, Math.round(110 * pw), 2 + 3 * pw, s.color); burst(p, Math.round(30 * pw), 1 + pw, 0xffffff, 0.5);
       if (pw > 1.1) G.shake(0.25 * pw);
       if (s.target.fake) { G.floatText('vedľa', s.target); }
@@ -445,6 +448,7 @@ function chainLightning() {
 // ---------- úder do čarodejníka ----------
 function hurtHero() {
   if (G.over) return;
+  efekt('zasah', 0.85, 0.55);
   if (fight.shield > 0) { fight.shield--; G.say('Štít ťa ochránil!'); burst(hero.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 70, 3, 0xcfd2da, 0.6); return; }
   fight.streak = 0; G.renderStreak();
   heroPlay('Hit_A', 0.05, 0.7);
@@ -480,10 +484,10 @@ export function updateFight(dt) {
     if (e.knock > 0) { const k = Math.min(e.knock, edt * 6); pos.addScaledVector(toHero, -k); e.knock -= k; }
     e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt); e.stun = Math.max(0, (e.stun || 0) - edt);
     if (e.stun > 0 && e.state !== 'dead') { e.mixer.update(edt * 0.15); if (Math.random() < 0.3) spark(e.g.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.1, (Math.random() - 0.5) * 1.2)), 0, 0.8, 0, 0.5, 0xc8923a); continue; }   // zem: stojí v prasklinách
-    const sp = e.speed * slowCard * (e.burn > 0 ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1);
+    const sp = e.speed * slowCard * (fight.adv ? 2.2 : 1) * (e.burn > 0 ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1);   // Majster: bežia po hráčovi
     if (e.burn > 0 && Math.random() < 0.4) spark(pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * e.h * 0.8, (Math.random() - 0.5) * 0.6)), 0, 1.4, 0, 0.5, 0xff8a3a);
     if (e.frozen > 0 && e.state !== 'dead') { e.mixer.update(0); for (const m of e.mats) if (m.emissive) m.emissive.setRGB(0.15, 0.35, 0.6); if (Math.random() < 0.2) spark(targetPos(e), (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.6, 0x9fd8ff); continue; }
-    if (e.state === 'stand') { if (e.t > 1.0) { e.state = 'walk'; e.play(e.d.walk); } }
+    if (e.state === 'stand') { if (e.t > (fight.adv ? 0.4 : 1.0)) { e.state = 'walk'; e.play(fight.adv ? 'Running_A' : e.d.walk); } }
     else if (e.state === 'walk' || e.state === 'charge') {
       if (e.d.charge && dist < 3.6 && e.state === 'walk') { e.state = 'charge'; e.play('Running_A'); G.floatText('Útok!', e); }
       if (e.d.ranged && !fight.adv && dist < 7.6) { e.state = 'aim'; e.t = 0; e.play('2H_Ranged_Aiming'); }
