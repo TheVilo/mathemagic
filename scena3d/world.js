@@ -65,12 +65,15 @@ export function genWorld(seed, zone = 1, opts = {}) {
     if (L) { wall([x0, z], [L.x - GAP, z], 'h', own); wall([L.x + GAP, z], [x1, z], 'h', own); } else wall([x0, z], [x1, z], 'h', own);
   }
   wall([0, 0], [W, 0], 'n', []); wall([0, H], [W, H], 's', []); wall([0, 0], [0, H], 'w', []); wall([W, 0], [W, H], 'e', []);
+  // OTVORENÝ SVET (Majster, ako v hordových hrách): žiadne steny medzi oblasťami, žiadne brány, tábory ani nálezy – len krajina
+  if (opts.open) { for (let i = walls.length - 1; i >= 0; i--) if (!['n', 's', 'w', 'e'].includes(walls[i].o)) walls.splice(i, 1); areas.forEach(a => { a.kind = 'pole'; }); start.kind = 'start'; }
   const nearWall = (x, z) => { let best = { d: 1e9, w: null }; for (const w of walls) { const d = segD(x, z, w.a, w.b); if (d < best.d) best = { d, w }; } return best; };
   const wallD = (x, z) => nearWall(x, z).d;
 
   // chodníky: stred oblasti → priechod → stred suseda
   const paths = [];
   for (const l of links) { const a = areas[l.a], b = areas[l.b], m = [l.x, l.z]; paths.push([[a.cx, a.cz], m], [m, [b.cx, b.cz]]); }
+  if (opts.open) paths.length = 0;   // otvorený svet bez chodníkov
   const pathD = (x, z) => { const wx = x + (noise(x * 0.1, z * 0.1, 31) - 0.5) * 3, wz = z + (noise(x * 0.1, z * 0.1, 37) - 0.5) * 3; let d = 1e9; for (const p of paths) d = Math.min(d, segD(wx, wz, p[0], p[1])); return d; };
   const onPath = (x, z) => pathD(x, z) < 1.1;
 
@@ -125,7 +128,7 @@ export function genWorld(seed, zone = 1, opts = {}) {
   // ČÍSLA NA MAPE (Majster ich zbiera do kalkulačky): v každej oblasti 2–4 svietiace kamene; hodnota s váhou 1/v,
   // najvyššie číslo rastie so zónou: top = min(9, 3 + 2·zóna) → v ďalších zónach väčšie čísla
   const nums = [], top = Math.min(9, 3 + 2 * zone);
-  for (const a of areas) {
+  for (const a of opts.open ? [] : areas) {
     if (a.kind === 'boss') continue;
     for (let k = 0, cnt = 2 + Math.floor(rng() * 3); k < cnt; k++) {
       let sum = 0; const w = []; for (let v = 1; v <= top; v++) { sum += 1 / v; w.push(sum); }
@@ -134,7 +137,7 @@ export function genWorld(seed, zone = 1, opts = {}) {
   }
   const keysNeeded = camps.filter(c => c.key).length + (hides.length ? 1 : 0);
   // brány v priechodoch do vodcu (kľúče) a do trezoru (číslo)
-  for (const [a, kind] of [[boss, 'boss'], [vault, 'lock']]) if (a) {
+  for (const [a, kind] of [[boss, 'boss'], [vault, 'lock']]) if (a && !opts.open) {
     const l = links.find(l => l.a === a.id || l.b === a.id);
     gates.push({ kind, axis: l.axis, x: l.x, z: l.z, need: kind === 'boss' ? keysNeeded : 0, area: a.id });
     take(l.x, l.z, 3);

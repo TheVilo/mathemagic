@@ -15,6 +15,9 @@ Nič z toho ešte nie je nahrané na server (čaká na „nahraj“).
 8. **Salva znamienok a kritický zásah** – overené číslami (damage, krit ×2), vzhľad letu som v náhľade nezachytil.
 
 ## ✅ Hotové
+- **Majster = otvorený svet ako v hordových hrách:** bez stien, brán, kľúčov, táborov a mapy; zóna = 10 hôrd (5. vodca hordy, 10. vodca zóny – 1 z 8), po vodcovi ďalšia zóna, po 8. výhra a nekonečno.
+- **Všetko padá z nepriateľov:** kryštály XP, mince, čísla (každý 3. nepriateľ; väčšie čísla v ďalších zónach), z vodcov a kapitánov aj znamienka. **3 rovnaké čísla sa samy spoja** do vylepšeného klávesu (3× 4 → 4★ = 8).
+- **Obchodník** príde po vodcovi zóny a každú 4. hordu (20–25 s): palice Rýchla / Ťažká / Dvojitá + vylepšenia kalkulačky.
 - **Rovnováha Majstra vo vzorcoch (`scena3d/balance.js`):** život = druh · 4 · 1,22^(vlna−1) · 2,4^(zóna−1); horda = min(14, 2 + ⌊0,7·vlna⌋ + zóna − 1); interval max(12, 34 − 1,6·vlna) s; každá 6. horda má Vodcu hordy (×9 života) → nový špeciálny kláves.
 - **Skúsenosti a úrovne:** XP = ⌈HP/3⌉, ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉, výber 1 z 3 (väčšie číslo, znamienko, kocka, políčka, palica, ďalšie kúzlo, špeciálna funkcia).
 - **Vedecká kalkulačka:** ( ) √ x² x³ ! – odomykajú vodcovia v poradí; správne poradie výpočtu (mocniny a ! pred ×÷, potom +−).

@@ -5,7 +5,7 @@
 // začiatok: 1 + 1 z pevných čísel; lepšie čísla, rozšírenie ruksaku a kocky □ sa nachádzajú, nové znamienko dá vodca
 // rows = kúzla (riadky kalkulačky, max 3) – v súboji sa striedajú v poradí ako na palici v Magicrafte; staff = úroveň palice
 export const newPack = () => ({ slots: 3, inv: [{ id: 1, t: 'n', v: 1 }, { id: 2, t: 'o', v: '+' }, { id: 3, t: 'n', v: 1 }], rows: [[1, 2, 3]], staff: 0, next: 4 });
-export function migratePack(p) { if (!p.rows) { p.rows = [p.spell || []]; delete p.spell; } p.rows = p.rows.map(r => r.filter(x => x != null)); p.staff = p.staff || 0; return p; }
+export function migratePack(p) { if (!p.rows) { p.rows = [p.spell || []]; delete p.spell; } p.rows = p.rows.map(r => r.filter(x => x != null)); p.staff = p.staff || 0; p.kind = p.kind || 'zakladna'; return p; }
 export const MAX_ROWS = 3, MAX_STAFF = 3;
 export const allIds = pack => new Set(pack.rows.flat().filter(x => x != null));
 // špeciálne klávesy (odomknú bossovia, natrvalo): zátvorky a odmocnina – nespotrebúvajú sa, v riadku majú záporné id

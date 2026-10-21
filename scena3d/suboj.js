@@ -93,11 +93,14 @@ export function fireAt(e, groundPoint = null) {
   if (!t && !groundPoint) return false;
   if (!t) { const g = new THREE.Object3D(); g.position.copy(groundPoint); t = { fake: true, g, h: 0, el: { classList: { add() {}, remove() {} } } }; }
   lastAim = { p: targetPos(t), t: G.now };
-  fight.cdMax = cooldown(G.run.pack, row); fight.cd = fight.cdMax; nextRow();
+  const SK = (G.staffs || {})[G.run.pack.kind || 'zakladna'] || { cd: 1, dmg: 1, shots: 1 };
+  fight.cdMax = cooldown(G.run.pack, row) * SK.cd; fight.cd = fight.cdMax; nextRow();
   // karty: Násobič ×1,5 / ×2; Kritický zásah: šanca 8 % (+10 / +22 % s kartou) na ×2 a väčšie znamienka
-  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * (1 + 0.25 * (G.run.pack.staff || 0)));   // palica: +25 % za úroveň
+  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * (1 + 0.25 * (G.run.pack.staff || 0)) * (((G.staffs || {})[G.run.pack.kind || 'zakladna'] || {}).dmg || 1));   // palica: +25 % za úroveň, druh palice
   const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
   cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
+  // Dvojitá palica: druhé kúzlo na ďalšieho najbližšieho
+  if ((((G.staffs || {})[G.run.pack.kind] || {}).shots || 1) > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
   renderInput(); return true;
 }
@@ -112,7 +115,7 @@ export function fireAtScreen(x, y, camera, groundPoint) {
 export function joinFight(fs, opts = {}) {
   if (!fight.on) return startFight(fs, opts);
   for (const f of fs) addEnemy(f, false, false);
-  fight.opts.horde = (fight.opts.horde || 0) + (opts.horde || 0); fight.opts.hb = (fight.opts.hb || 0) + (opts.hb || 0);
+  fight.opts.horde = (fight.opts.horde || 0) + (opts.horde || 0); fight.opts.hb = (fight.opts.hb || 0) + (opts.hb || 0); fight.opts.zb = (fight.opts.zb || 0) + (opts.zb || 0);
 }
 function addEnemy(f, isBoss, isElite) {
   const e = Object.assign(f, { state: f.sitting ? 'stand' : 'walk', t: 0, hp: f.d.hp, shield: !!f.d.shield, flash: 0, shoot: 2.5 + Math.random() * 2, knock: 0, frozen: 0, burn: 0 });
@@ -120,9 +123,9 @@ function addEnemy(f, isBoss, isElite) {
   if (isBoss) { e.hp = 6; e.shield = false; e.name = 'Vodca zbojníkov'; e.speed = 0.32; fight.boss = e; }
   if (isElite) { e.hp = 3; e.name = 'Kapitán'; }
   if (fight.adv) {
-    const tr = isBoss && fight.opts.trait;
+    const tr = (isBoss && fight.opts.trait) || f.trait;
     e.hp = e.maxHp = f.dummy ? 6 : G.enemyHp ? G.enemyHp(f.kind, isBoss || f.hb, isElite, tr) : enemyHp(G.run, f.kind, isBoss, isElite);
-    if (f.hb) { e.name = 'Vodca hordy'; fight.hb = e; }
+    if (f.hb) { e.name = f.zb ? 'Vodca zóny' : 'Vodca hordy'; fight.hb = e; }
     if (tr) { e.trait = tr; e.name = G.bossTrait(tr).name; if (tr === 'stit') e.shield = true; }
   }   // Majster: život podľa vlny a zóny (balance.js)
   e.speed = e.speed || f.d.speed;
