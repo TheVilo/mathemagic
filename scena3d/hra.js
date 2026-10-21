@@ -1039,7 +1039,12 @@ const VIEW_KEY = 'mm-view', view = Object.assign({ c: 100, b: 100, s: 100 }, loa
 const applyView = () => { $('c').style.filter = `contrast(${view.c}%) brightness(${view.b}%) saturate(${view.s}%)`; };
 applyView();
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// appka v mobile: sw.js sa kontroluje vždy (bez HTTP cache); keď príde nový service worker, stránka sa raz obnoví → nová verzia hry
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const had = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !sessionStorage.getItem('mm-swr')) { sessionStorage.setItem('mm-swr', '1'); location.reload(); } });
+}
 const installed = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function openSettings(back) {
