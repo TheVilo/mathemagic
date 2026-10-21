@@ -8,7 +8,7 @@ import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, 
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
-import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS } from './balance.js';
+import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
@@ -68,7 +68,7 @@ const G = {
   onWin: opts => winFight(opts),
   enemyHp: (kind, boss, elite, trait) => Math.round(enemyHpM(kind, adv() ? (Math.max(1, hordeN) - 1) % HPZ + 1 : Math.max(1, hordeN), run.zone, { boss, elite }) * (trait ? bossHpMul(trait) : 1)),   // život podľa hordy v zóne a zóny
   bossTrait: id => BOSSES[id],
-  onKill: e => { dropGems(e.g.position, xpFor(e.maxHp || 4)); },   // z nepriateľov padajú len kryštály (Lukáš 21. 10.)
+  onKill: e => { dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1)); },   // presný zásah = 2× kryštály   // z nepriateľov padajú len kryštály (Lukáš 21. 10.)
 };
 initFight(G);
 
@@ -847,8 +847,12 @@ function openLevelUp() {
   // ponuka: 3 veci do kalkulačky ALEBO 3 karty (balance.js levelOffers – vzácnosť silných vecí podľa úrovne)
   const cards = offer(run, Math.random, 6).map(id => ({ id, name: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1) }));
   const pack = levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
-  const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">${pack.type === 'calc' ? 'Vyber si kláves do kalkulačky.' : 'Vyber si kartu.'} Silnejší vzorec = väčšia šupa.</p>
-    <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel" data-i="${i}"><b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
+  // obrázok: karta → zdroj/karty/<id>.jpg, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
+  const KEYLAB = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' };
+  const art = o => { const g = o.give; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
+    const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.jpg" alt="" onerror="this.remove()"></div>`; };
+  const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">Vyber si kartu alebo kláves do kalkulačky.</p>
+    <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel r-${o.rar}" data-i="${i}" style="--rc:${RARITY[o.rar].col}"><em class="rar">${RARITY[o.rar].name}</em>${art(o)}<b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
   el.querySelectorAll('.lvo').forEach(b => b.onclick = () => {
     const o = offers[+b.dataset.i], g = o.give;
     if (g.t === 'staff') run.pack.staff++;

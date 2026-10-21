@@ -99,15 +99,15 @@ export function fireAt(e, groundPoint = null) {
   lastAim = { p: targetPos(t), t: G.now };
   // PALICA = KALKULAČKA S ENERGIOU: výstrel stojí súčet cien klávesov; bez energie sa nestrieľa (dobíja sa samo)
   const SK = staffStats(G.run.pack), cost = rowCost(G.run.pack, row);
-  if (energy() < cost) { fight.lowE = G.now; G.say(`Málo energie: kúzlo stojí ${cost}, palica má ${Math.floor(energy())}/${SK.emax}.`, 1200); renderInput(); return false; }
+  if (energy() + 1e-6 < cost) { fight.lowE = G.now; G.say(`Málo energie: kúzlo stojí ${cost}, palica má ${Math.floor(energy())}/${SK.emax}.`, 1200); renderInput(); return false; }
   G.run.energy = energy() - cost;
   fight.cdMax = SHOT_MIN * SK.cd; fight.cd = fight.cdMax; nextRow();
   // karty: Násobič ×1,5 / ×2; Kritický zásah: šanca 8 % (+10 / +22 % s kartou) na ×2 a väčšie znamienka
   let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * SK.dmg);   // palica: model × úroveň (+25 % za úroveň)
   const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
-  cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
+  cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, cost, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
   // Dvojitá palica: druhé kúzlo na ďalšieho najbližšieho
-  if (SK.shots > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
+  if (SK.shots > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
   renderInput(); return true;
 }
@@ -350,7 +350,7 @@ function zivel(e, info) {
     for (let n = 0; n < 120; n++) { const a = Math.random() * 6.28, r = 0.3 + Math.random() * 1.2; spark(p.clone().add(new THREE.Vector3(Math.cos(a) * r, Math.random() * 1.2 - 0.4, Math.sin(a) * r)), -Math.sin(a) * 4, 0.5, Math.cos(a) * 4, 0.6, Math.random() < 0.5 ? 0x7fe8d8 : 0xffffff); }
     G.floatText('Odfúknutý!', e);
   }
-  if (info.quiet) return;
+  if (info.quiet || fight.adv) return;   // Majster: číslo zásahu ukáže advHit (skutočný damage + vzorec)
   // číslo zásahu vo farbe živla
   G.floatText(`<span style="color:#${(COL[op] || 0xffffff).toString(16).padStart(6, '0')}">${pix('-' + (info.v ?? ''))}</span>`, e, 'dmg');
 }
@@ -401,10 +401,13 @@ function advHit(e, info) {
   }
   const before = e.hp; e.hp -= v;
   const st = G.run.st; if (st) { st.dmg += Math.min(v, Math.max(0, before)); st.hit = Math.max(st.hit, v); if (e.hp <= 0 && before > 0) st.kills++; }
+  if (e.hp === 0 && before > 0 && !info.extra) e.exact = true;
   if (e.hp <= 0 && before > 0 && G.onKill) G.onKill(e);   // skúsenosti
   if (e === fight.boss) { const f = e.hp / e.maxHp; if ((f < 0.67 && fight.summoned < 1) || (f < 0.34 && fight.summoned < 2)) { fight.summoned++; setTimeout(() => fight.on && summon(2), 600); } }
+  dmgText(e, info, v);
   if (e.hp <= 0) {
-    if (e.hp === 0 && before > 0 && !info.extra) { G.floatText('Presne!', e); G.addCoins(1, e); }
+    // PRESNE DO NULY: kúzlo vráti energiu a padne dvakrát viac kryštálov
+    if (e.hp === 0 && before > 0 && !info.extra) { const c = info.cost || 0; if (c) G.run.energy = Math.min(staffStats(G.run.pack).emax, energy() + c); G.floatText(`Presne! ⚡+${c}`, e); G.addCoins(1, e); }
     e.state = 'dead'; e.t = 0; e.play('Death_A', 0.05); e.el.remove(); e.knock = info.fast ? 1.4 : 0.6;
     if (fight.target === e) fight.target = null;
     afterHit(info); checkEnd(); return;
@@ -412,6 +415,11 @@ function advHit(e, info) {
   renderTag(e); e.state = 'hit'; e.t = 0; e.play('Hit_A', 0.05, true); e.knock = info.fast ? 2 : 1; e.charging = false;
   majsterFx(e, info, v);
   afterHit(info);
+}
+// číslo zásahu (Majster): navrchu vzorec, ktorý palica vypočítala (3×4), pod ním skutočný damage aj s bonusmi (−15)
+function dmgText(e, info, v) {
+  const c = `#${(COL[info.op] || 0xffffff).toString(16).padStart(6, '0')}`, f = info.text && /[^0-9]/.test(info.text) ? info.text : '';
+  G.floatText(`${f ? `<span class="fx">${pix(f)}</span>` : ''}<span style="color:${c}">${pix('-' + Math.max(0, Math.round(v)))}</span>`, e, 'dmg');
 }
 // efekty z Knihy (Majster): plošný zásah, otras zeme, blesk
 let shotN = 0;

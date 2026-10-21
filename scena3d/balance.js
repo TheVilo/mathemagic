@@ -83,7 +83,7 @@ export const ITEMS = [   // veci do kalkulačky okrem čísel
 ];
 export const numWeight = (v, L) => Math.exp(-((v - (1 + 0.5 * L)) ** 2) / (2 * 1.6 * 1.6));
 function pickW(pool, rng) { const sum = pool.reduce((a, b) => a + b.w, 0); let r = rng() * sum; const i = pool.findIndex(p => (r -= p.w) <= 0); return pool.splice(i < 0 ? pool.length - 1 : i, 1)[0]; }
-export function calcOffers(L, run, rng = Math.random) {
+export function calcOffers(L, run, rng = Math.random, n = 3) {
   const P = run.pack, U = P.unlock || {}, pool = [];
   for (let v = 1; v <= 9; v++) { const w = numWeight(v, L) * 1.6; if (w > 0.02) pool.push({ id: 'n' + v, w, title: `Číslo ${v}`, text: (P.stars && P.stars[v]) ? `máš ${v}${'★'.repeat(P.stars[v])}` : 'nový kláves', give: { t: 'n', v } }); }
   for (const it of ITEMS) {
@@ -91,20 +91,43 @@ export function calcOffers(L, run, rng = Math.random) {
     if (it.t === 'slot' && P.slots >= 13) continue;
     const w = it.w * gate(L, it.Lmin); if (w > 0) pool.push({ id: it.id, w, title: it.title, text: it.text, give: it.t === 'o' ? { t: 'o', v: it.v } : it.t === 'spec' ? { t: 'spec', k: it.k } : { t: 'slot' } });
   }
-  const out = []; while (out.length < 3 && pool.length) out.push(pickW(pool, rng));
+  const out = []; while (out.length < n && pool.length) out.push(pickW(pool, rng));
   return out;
 }
-export function cardOffers(L, run, cards, rng = Math.random) {
+export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
   const P = run.pack, pool = cards.map(c => ({ id: 'card' + c.id, w: 1, title: c.name, text: c.text, give: { t: 'card', id: c.id } }));
   if (P.staff < 5) pool.push({ id: 'staff', w: 1.2, title: 'Lepšia palica', text: '+25 % damage, +15 % energie a dobíjania', give: { t: 'staff' } });
   if (P.rows.length < 3) pool.push({ id: 'row', w: 0.6 * gate(L, 5), title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
   pool.push({ id: 'magnet', w: 0.5, title: 'Magnet', text: 'kryštály priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
   pool.push({ id: 'heart', w: 0.6, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
-  const live = pool.filter(p => p.w > 0), out = []; while (out.length < 3 && live.length) out.push(pickW(live, rng));
+  for (const p of pool) { const r = CARD_RAR[p.give.id || p.give.t] || 'v'; p.w *= RAR_W[r] * gate(L, RAR_L[r]); }
+  const live = pool.filter(p => p.w > 0), out = []; while (out.length < n && live.length) out.push(pickW(live, rng));
   return out;
 }
+// ============ VZÁCNOSŤ (karty aj klávesy) ============
+// Bežná · Vzácna · Epická · Legendárna – rám a váha. Kartám sa váha násobí RAR_W a otvára sa až od úrovne RAR_L (gate).
+export const RARITY = { b: { name: 'Bežná', col: '#b8b8b8' }, v: { name: 'Vzácna', col: '#5aa6ff' }, e: { name: 'Epická', col: '#b07ad8' }, l: { name: 'Legendárna', col: '#f0c040' } };
+const RAR_W = { b: 1, v: 0.6, e: 0.3, l: 0.12 }, RAR_L = { b: 1, v: 2, e: 5, l: 9 };
+const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'e', c: 'l', f: 'l' };
+export const CARD_RAR = { magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
+export function rarityOf(o) {
+  const g = o.give || {};
+  if (g.t === 'n') return g.v >= 8 ? 'e' : g.v >= 6 ? 'v' : 'b';
+  if (g.t === 'o') return KEY_RAR[g.v] || 'b';
+  if (g.t === 'spec') return KEY_RAR[g.k] || 'e';
+  if (g.t === 'slot') return 'v';
+  if (g.t === 'card') return CARD_RAR[g.id] || 'v';
+  return CARD_RAR[g.t] || 'b';
+}
+// VÝBER PO ÚROVNI: 3 miesta, každé je náhodne kláves (P_CALC) alebo karta → miešajú sa, vyberáš medzi nimi
 export function levelOffers(L, run, rng = Math.random, cards = []) {
-  return rng() < P_CALC ? { type: 'calc', items: calcOffers(L, run, rng) } : { type: 'card', items: cardOffers(L, run, cards, rng) };
+  const calc = calcOffers(L, run, rng, 99), cpool = cardOffers(L, run, cards, rng, 99), out = [];
+  for (let k = 0; k < 3; k++) {
+    const src = (rng() < P_CALC && calc.length) || !cpool.length ? calc : cpool; if (!src.length) break;
+    out.push(src.splice(0, 1)[0]);
+  }
+  for (const o of out) o.rar = rarityOf(o);
+  return { type: 'mix', items: out };
 }
 
 // ============ PALICA = KALKULAČKA S ENERGIOU (ako palica v Magicrafte) ============
