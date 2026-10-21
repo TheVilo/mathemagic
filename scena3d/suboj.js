@@ -30,7 +30,8 @@ function fresh(kind, self) {
 // ---------- štítky nad hlavami ----------
 function makeTag(t, name) {
   const el = document.createElement('div'); el.className = 'tag';
-  el.innerHTML = `${name ? `<div class="nm">${name}<span class="hp"></span></div>` : ''}<div class="pr"></div>`;
+  // Majster: bez mena – len život (číslo) a štít; Učeň: meno + srdiečka
+  el.innerHTML = fight.adv && G.run.mode === 'pokrocily' ? `<div class="nm"><span class="hp"></span></div><div class="pr"></div>` : `${name ? `<div class="nm">${name}<span class="hp"></span></div>` : ''}<div class="pr"></div>`;
   G.tagsEl.appendChild(el); t.el = el;
 }
 function renderTag(t) {

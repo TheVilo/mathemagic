@@ -1002,7 +1002,7 @@ const STORY = ['Zbojníci ukradli z kráľovstva všetky čísla.', 'Bez čísel
 function renderIntro() {
   const inEl = $('introIn');
   if (introStage === 0) inEl.innerHTML = `<div class="signs">${['+', '-', '×', '÷'].map(o => `<span class="panel">${pix(o)}</span>`).join('')}</div><div class="logo">MATHEMAGIC</div><div class="claim">Kúzla, ktoré počítajú</div>
-    <div class="panel thin tap"><span class="${loaded ? 'blink' : ''}">${loaded ? 'Ťukni a začni' : 'Čarodejník sa chystá…'}</span></div>`;
+    ${loaded ? '<div class="panel thin tap"><span class="blink">Ťukni a začni</span></div>' : ''}`;
   else inEl.innerHTML = `<div class="panel story"><span class="ptag">Kapitola ${run.zone}</span>${STORY[introStage - 1]}<div class="dots">${STORY.map((_, i) => `<i class="${i === introStage - 1 ? 'on' : ''}"></i>`).join('')}</div><div class="next blink">${introStage === STORY.length ? 'Poďme ▸' : 'Ďalej ▸'}</div></div>`;
 }
 $('introScr').addEventListener('pointerdown', e => {
@@ -1101,5 +1101,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
+  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
 };
