@@ -20,11 +20,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -107,11 +107,21 @@ export const kresbaMat = new THREE.ShaderMaterial({
           if (vis && max(sm.r, max(sm.g, sm.b)) > 0.08) k = mix(0.0, 0.15, uDark); }   // čo svieti: v noci svetlé, cez deň papier
         // TMAVÝ REŽIM (interiér): znaky = svetlo na čiernom, postava ostáva čitateľná
         k = mix(k, clamp(1.0 - k, 0.0, 1.0), uDark);                         // deň → noc plynulo (uDark 0–1, výber režimu)
+        float nightL = 1.0;
+        // NOC BEZ ŠUMU (Lukáš 21. 10.): čísla len vo svetle palice – za okruhom plynulo do čiernej; postavy ostanú tlmene viditeľné,
+        // slabé znaky (k < 0,14) sa nekreslia vôbec → tma je tma, nie zrnitý sivý koberec
+        if (uNight > 0.5) {
+          vec4 wpN = uInvVP * vec4(uv6 * 2.0 - 1.0, texture2D(tDepth, uv6).r * 2.0 - 1.0, 1.0); wpN /= wpN.w;
+          float distN = length(wpN.xz - uHero.xz), lightN = 1.0 - smoothstep(uNightR.x, uNightR.y, distN);
+          k *= isChar6 ? max(lightN, 0.55) : mix(0.55, 1.0, lightN);
+          nightL = isChar6 ? 1.0 : lightN;
+        }
         float hsh = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
         float v = k * (uGlyphN - 1.0); float b = floor(v);
         float gi = clamp(b + (v - b > bayer(cell) ? 1.0 : 0.0), 0.0, uGlyphN - 1.0);   // usporiadaný dithering = plynulý gradient
         float ink = px.x < uGlyph.x && px.y < uGlyph.y ? texture2D(tAtlas, vec2((gi * (uGlyph.x + 1.0) + px.x + 0.5) / (uGlyphN * (uGlyph.x + 1.0)), (uGlyph.y - 1.0 - px.y + 0.5) / uGlyph.y)).r : 0.0;
-        if (k < 0.04) ink = 0.0;
+        if (k < (uNight > 0.5 ? 0.12 : 0.04)) ink = 0.0;
+        if (nightL < 1.0 && nightL * nightL < bayer(cell)) ink = 0.0;   // okraj svetla sa rozpadá ditheringom, nie ostrou hranou
         vec3 inkC = mix(vec3(0.025, 0.025, 0.03), vec3(0.93, 0.91, 0.86), uDark), bg = mix(vec3(0.87, 0.855, 0.82), vec3(0.045, 0.045, 0.055), uDark);
         vec3 fg = mix(vec3(0.42), inkC, smoothstep(0.2, 0.6, k));         // svetlé tóny sivým, tmavé čiernym (plný rozsah až po čiernu)
         if (isGround6) fg = mix(fg, vec3(0.55), 0.7);                      // tieň na zemi je sivší
