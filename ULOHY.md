@@ -4,7 +4,8 @@ Všetko, čo Lukáš zadal. Stav: ✅ hotové a overené v hre · 🟡 hotové, 
 Nič z toho ešte nie je nahrané na server (čaká na „nahraj“).
 
 ## ⬜ Neurobené
-1. **Zátvorky, zlomok (/), odmocnina (√)** do ruksaku (nové tlačidlá kalkulačky).
+1. **Cieľ behu a „rozbitie hry“** – finálny boss, potom nekonečný režim s obrovskými číslami; simulácia behov v Node (čaká na Lukášovo áno).
+1b. **Zlomky** – ďalší špeciálny kláves.
 2. **Brány na presné číslo** – „otvor ma kúzlom za presne 12“.
 3. **Vylepšiť ikonky.**
 4. ~~Nahrať na server~~ – nahraté 21. 10. (partaci.com/hry/mathemagic/scena3d/).
@@ -14,6 +15,14 @@ Nič z toho ešte nie je nahrané na server (čaká na „nahraj“).
 8. **Salva znamienok a kritický zásah** – overené číslami (damage, krit ×2), vzhľad letu som v náhľade nezachytil.
 
 ## ✅ Hotové
+- **Rovnováha Majstra vo vzorcoch (`scena3d/balance.js`):** život = druh · 4 · 1,22^(vlna−1) · 2,4^(zóna−1); horda = min(14, 2 + ⌊0,7·vlna⌋ + zóna − 1); interval max(12, 34 − 1,6·vlna) s; každá 6. horda má Vodcu hordy (×9 života) → nový špeciálny kláves.
+- **Skúsenosti a úrovne:** XP = ⌈HP/3⌉, ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉, výber 1 z 3 (väčšie číslo, znamienko, kocka, políčka, palica, ďalšie kúzlo, špeciálna funkcia).
+- **Vedecká kalkulačka:** ( ) √ x² x³ ! – odomykajú vodcovia v poradí; správne poradie výpočtu (mocniny a ! pred ×÷, potom +−).
+- **Vzorce so správnym poradím:** zátvorky → √ → × ÷ → + − (napr. 2 × (5 + 7) − √16 = 20); √ prerazí štít; nehotový vzorec sa odmietne.
+- **Bossovia v Majstrovi odomknú klávesy natrvalo:** zóna 1 → ( ), zóna 2 → √ (ostávajú aj v ďalších behoch).
+- **Koniec behu Majstra:** skóre = damage + 50 × porazení + 200 × hordy + 1000 × prejdené zóny, rekordy (skóre, zóna, hordy, najväčší zásah). Po zatvorení hry Majster začína od nuly, úvod len prvýkrát.
+- **Učeň nič nestratí:** pri prehre začne len zónu znova.
+- **Palica:** +25 % damage za úroveň (k tomu kratšie nabíjanie).
 - **Mobil (Majster):** joystick ľavým palcom = pohyb, ťuk vpravo = výstrel tým smerom.
 - **Nastavenia** (menu aj pauza): celá obrazovka, stiahnuť do mobilu (PWA – Android tlačidlo, iPhone návod Zdieľať → Pridať na plochu), posuvníky kontrast / jas / farebnosť (uložené v prehliadači).
 - **Appka na plochu:** manifest, ikonka (4 znamienka v 1-bit ráme), service worker (najprv sieť, bez siete z pamäte), spustí sa cez celú obrazovku na šírku.

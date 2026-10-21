@@ -77,6 +77,14 @@
   #hearts { position:fixed; top:12px; left:14px; display:flex; gap:4px; color:var(--ink); }
   #hearts .ico { width:18px; height:18px; } #hearts .ico.off path { fill:none; stroke:var(--ink); stroke-width:.22; }
   #hearts .ico.pop { animation:pop .6s; } @keyframes pop { 30% { transform:scale(1.7) rotate(-12deg); } }
+  #xp { position:fixed; top:84px; left:14px; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--line); text-shadow:0 1px 0 var(--ink); }
+  #xp i { width:110px; height:8px; border:1.5px solid var(--line); outline:1.5px solid var(--ink); background:var(--ink); position:relative; } #xp i b { position:absolute; inset:1px auto 1px 1px; background:var(--line); max-width:calc(100% - 2px); }
+  body.scron #xp { visibility:hidden; }
+  .lvopts { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:12px; } .lvo { font:inherit; color:var(--line); padding:16px 10px; display:flex; flex-direction:column; gap:6px; cursor:pointer; text-align:center; } .lvo b { font-size:17px; font-weight:500; } .lvo span { font-size:12px; color:var(--grey); } .lvo:hover { background:var(--line); color:var(--ink); } .lvo:hover span { color:var(--dim); }
+  .ov.lvup .box { max-width:620px; }
+  .zpath { display:flex; align-items:center; justify-content:center; margin:4px 0 12px; } .zl { width:18px; height:2px; background:var(--dim); }
+  .zn { width:30px; height:30px; display:grid; place-items:center; border:1.5px dashed var(--dim); color:var(--grey); font-size:13px; } .zn .ico { width:14px; height:14px; }
+  .zn.done { border:1.5px solid var(--line); color:var(--line); } .zn.cur { background:var(--line); color:var(--ink); border:1.5px solid var(--line); }
   #slots { position:fixed; top:40px; left:14px; display:flex; gap:5px; }
   #goal { position:fixed; top:14px; left:50%; transform:translateX(-50%); font-size:14px; color:var(--ink); letter-spacing:1px; text-transform:uppercase; display:flex; gap:8px; align-items:center; white-space:nowrap; max-width:calc(100vw - 380px); }
   #goal::before, #goal::after { content:''; width:22px; height:2px; background:var(--ink); flex:none; }
@@ -265,11 +273,12 @@
   .lrow { display:grid; grid-template-columns:14px 1fr auto; gap:0 8px; align-items:center; padding:4px 4px; cursor:pointer; text-align:left; } .lrow.on { outline:1px dashed var(--line); }
   .lrow .ln { color:var(--grey); font-size:12px; } .lrow .lf .pix { height:20px; fill:var(--line); } .lrow .lf i { font-style:normal; color:var(--dim); letter-spacing:4px; margin-left:4px; }
   .lrow .lr { font-size:16px; color:var(--line); } .lrow .lr .pix { height:16px; fill:var(--line); } .lrow .lo { grid-column:2 / 4; font-size:11px; color:var(--grey); }
-  .ckeys { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  .ckeys { display:grid; grid-template-columns:repeat(5, 1fr); gap:7px; } .ckeys .ck.fn.eq { grid-column:span 3; } .calc2 { width:370px; }
   .ck { position:relative; height:50px; font:inherit; font-size:20px; color:var(--line); background:var(--ink); border:2px solid var(--line); outline:2px solid var(--ink); cursor:pointer; display:grid; place-items:center; padding:0; }
   .ck .pix { height:18px; fill:currentColor; } .ck:hover:not(:disabled) { background:var(--line); color:var(--ink); }
   .ck.o { color:var(--c); } .ck.d { border-style:dashed; } .ck.fn { color:var(--grey); } .ck.fn.eq { background:var(--line); color:var(--ink); }
   .ck:disabled { opacity:.32; cursor:default; } .ck.locked { opacity:.18; } .ck small { position:absolute; right:3px; bottom:2px; width:10px; height:10px; } .ck small .ico { width:10px; height:10px; }
+  .ck .star { position:absolute; left:3px; top:1px; font-style:normal; font-size:9px; color:#ffd25a; letter-spacing:-1px; }
   .ck .badge { position:absolute; right:-7px; top:-8px; min-width:18px; height:18px; padding:0 4px; font-size:11px; font-weight:500; line-height:16px; background:var(--line); color:var(--ink); border:1px solid var(--ink); }
   @media (max-height:500px) { .ck { height:34px; } .calc2 { padding:8px; } .lcd2 { margin-bottom:6px; } }
 </style>
@@ -281,6 +290,7 @@
 <div id="tags"></div>
 <div id="hearts"></div>
 <div id="slots"></div>
+<div id="xp"></div>
 <div id="goal"></div>
 <div id="topr"><div id="coins" class="panel thin"></div><button class="hb" id="bMap"></button><button class="hb" id="bPack"></button><button class="hb" id="bBook"></button><button class="hb" id="bPause"></button></div>
 <div id="streak" class="hidden"></div>

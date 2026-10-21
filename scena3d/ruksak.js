@@ -8,42 +8,63 @@ export const newPack = () => ({ slots: 3, inv: [{ id: 1, t: 'n', v: 1 }, { id: 2
 export function migratePack(p) { if (!p.rows) { p.rows = [p.spell || []]; delete p.spell; } p.rows = p.rows.map(r => r.filter(x => x != null)); p.staff = p.staff || 0; return p; }
 export const MAX_ROWS = 3, MAX_STAFF = 3;
 export const allIds = pack => new Set(pack.rows.flat().filter(x => x != null));
-const tok = (pack, id) => pack.inv.find(x => x.id === id);
+// špeciálne klávesy (odomknú bossovia, natrvalo): zátvorky a odmocnina – nespotrebúvajú sa, v riadku majú záporné id
+export const SPECIAL = { [-1]: { id: -1, t: 'p', v: '(' }, [-2]: { id: -2, t: 'p', v: ')' }, [-3]: { id: -3, t: 's', v: '√' }, [-4]: { id: -4, t: 'x', v: '²' }, [-5]: { id: -5, t: 'x', v: '³' }, [-6]: { id: -6, t: 'x', v: '!' } };
+const tok = (pack, id) => id < 0 ? SPECIAL[id] : pack.inv.find(x => x.id === id);
+export const tokOf = tok;
 export const isNum = x => x && (x.t === 'd' || x.t === 'n');
-// vzorec je hotový: číslo, znamienko, číslo, … (nepárna dĺžka, začína a končí číslom)
-// vzorec bez prázdnych políčok na konci (prázdne políčko v strede = nehotový vzorec)
 export const used = arr => { const s = [...arr]; while (s.length && s[s.length - 1] == null) s.pop(); return s; };
-export function spellOk(pack, r = 0) {
-  const ids = used(pack.rows[r] || []); if (!ids.length) return false; if (ids.includes(null)) return false;
-  const s = ids.map(id => tok(pack, id));
-  return s.length % 2 === 1 && s.every((x, i) => x && (i % 2 ? x.t === 'o' : isNum(x)));
-}
 export const label = x => x.t === 'd' ? '□' : String(x.v);
 export const dieMax = run => (run.range <= 5 ? 4 : 9);
 
-// hod: kocky dostanú čísla tak, aby výsledok bol vždy celé nezáporné číslo (počíta sa zľava doprava).
-// Pevné číslo sa nikdy nemení: ak by nesedelo (7 od menšieho, delenie so zvyškom), kocky sa hodia znova.
-function tryRoll(run, rng, r) {
-  const pack = run.pack, s = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
-  const ri = (a, b) => a + Math.floor(rng() * (b - a + 1));
-  let cur = s[0].t === 'd' ? ri(1, Math.min(M, run.range - 1)) : s[0].v;
-  const parts = [cur], ops = [];
-  for (let i = 1; i < s.length; i += 2) {
-    const op = s[i].v, nt = s[i + 1], die = nt.t === 'd'; let n;
-    if (op === '+') n = die ? ri(1, cur < run.range ? Math.max(1, Math.min(M, run.range - cur)) : M) : nt.v;   // kocka drží súčet v rozsahu
-    else if (op === '-') { if (!die && nt.v > cur) return null; n = die ? ri(cur > 0 ? 1 : 0, cur) : nt.v; }
-    else if (op === '×') n = die ? ri(1, Math.min(5, M)) : nt.v;
-    else { // ÷ len bezo zvyšku
-      if (!die && (nt.v === 0 || cur % nt.v)) return null;
-      const divs = []; for (let d = 1; d <= Math.max(1, cur); d++) if (cur % d === 0) divs.push(d);
-      n = die ? divs[ri(0, divs.length - 1)] : nt.v;
-    }
-    cur = op === '+' ? cur + n : op === '-' ? cur - n : op === '×' ? cur * n : cur / n;
-    parts.push(op, n); ops.push(op);
-  }
-  return { text: parts.join(''), answer: cur, ops };
+// VÝPOČET VZORCA so správnym poradím: zátvorky → √ → × ÷ → + −  (gramatika: výraz = člen (± člen)*, člen = faktor (×÷ faktor)*,
+// faktor = číslo | □ | ( výraz ) | √ faktor). Vráti hodnotu, text a zoznam znamienok (živly) alebo null, keď vzorec nie je hotový.
+function evalSpell(toks, die, stars = null) {
+  let i = 0; const ops = [];
+  // za číslom / zátvorkou môžu ísť funkcie: ² ³ ! (aj viac za sebou)
+  // faktoriál do 12! = 479 001 600 – v nekonečne sa hra dá „rozbiť“
+  const fact = n => { n = Math.max(0, Math.min(12, Math.round(n))); let r = 1; for (let k = 2; k <= n; k++) r *= k; return r; };
+  const factor = () => {
+    let f = primary(); if (!f) return null;
+    while (toks[i] && toks[i].t === 'x') { const o = toks[i++].v; ops.push(o); f = o === '²' ? { v: f.v * f.v, s: f.s + '²' } : o === '³' ? { v: f.v ** 3, s: f.s + '³' } : { v: fact(f.v), s: f.s + '!' }; }
+    return f;
+  };
+  const primary = () => {
+    const t = toks[i];
+    if (!t) return null;
+    if (t.t === 'n') { i++; const m = 1 + ((stars && stars[t.v]) || 0), v = t.v * m; return { v, s: String(v) }; }   // vylepšený kláves 7★ = 14
+    if (t.t === 'd') { i++; const v = die(); return { v, s: String(v) }; }
+    if (t.t === 's') { i++; ops.push('√'); const f = factor(); return f && { v: Math.sqrt(Math.max(0, f.v)), s: '√' + f.s }; }
+    if (t.t === 'p' && t.v === '(') { i++; const e = expr(); if (!e || !toks[i] || toks[i].v !== ')') return null; i++; return { v: e.v, s: '(' + e.s + ')' }; }
+    return null;
+  };
+  const term = () => {
+    let a = factor(); if (!a) return null;
+    while (toks[i] && toks[i].t === 'o' && (toks[i].v === '×' || toks[i].v === '÷')) { const o = toks[i++].v; ops.push(o); const b = factor(); if (!b) return null; a = { v: o === '×' ? a.v * b.v : (b.v ? a.v / b.v : 0), s: a.s + o + b.s }; }
+    return a;
+  };
+  const expr = () => {
+    let a = term(); if (!a) return null;
+    while (toks[i] && toks[i].t === 'o' && (toks[i].v === '+' || toks[i].v === '-')) { const o = toks[i++].v; ops.push(o); const b = term(); if (!b) return null; a = { v: o === '+' ? a.v + b.v : a.v - b.v, s: a.s + o + b.s }; }
+    return a;
+  };
+  const e = expr();
+  if (!e || i !== toks.length) return null;
+  return { value: e.v, text: e.s, ops };
 }
-export function rollSpell(run, rng = Math.random, row = 0) { if (!spellOk(run.pack, row)) return null; for (let k = 0; k < 60; k++) { const r = tryRoll(run, rng, row); if (r) return r; } return null; }
+export function spellOk(pack, r = 0) {
+  const ids = used(pack.rows[r] || []); if (!ids.length || ids.includes(null)) return false;
+  const t = ids.map(id => tok(pack, id)); if (t.some(x => !x)) return false;
+  return !!evalSpell(t, () => 1);
+}
+// hod: kocky □ padnú náhodne (1 … max podľa rozsahu); damage = výsledok zaokrúhlený, nie menej ako 0 (≈ pri odmocnine a delení)
+function tryRoll(run, rng, r) {
+  const pack = run.pack, t = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
+  const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars); if (!res) return null;
+  const answer = Math.max(0, Math.round(res.value));
+  return { text: res.text, answer, exact: Math.abs(res.value - Math.round(res.value)) < 1e-9, ops: res.ops };
+}
+export function rollSpell(run, rng = Math.random, row = 0) { if (!spellOk(run.pack, row)) return null; return tryRoll(run, rng, row); }
 // vzorec je hotový a dá sa aj vypočítať (napr. 2 − 7 nikdy nevyjde)
 export const spellWorks = (run, row = 0) => spellOk(run.pack, row) && !!rollSpell(run, Math.random, row);
 export const workingRows = run => run.pack.rows.map((_, i) => i).filter(i => spellWorks(run, i));

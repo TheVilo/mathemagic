@@ -122,6 +122,16 @@ export function genWorld(seed, zone = 1, opts = {}) {
     if (a.kind === 'start') { start.sign = [a.cx + 2.5, a.cz - 1.2]; take(a.cx, a.cz, 2.5); take(...start.sign, 1); }
   }
   if (opts.rune) { const a = pick(areas.filter(a => ['boj', 'obchod', 'poklad'].includes(a.kind))); const [x, z] = spot(a, 3, true); take(x, z, 2); finds.push({ id: finds.length, kind: 'rune', n: 10, x, z }); }
+  // ČÍSLA NA MAPE (Majster ich zbiera do kalkulačky): v každej oblasti 2–4 svietiace kamene; hodnota s váhou 1/v,
+  // najvyššie číslo rastie so zónou: top = min(9, 3 + 2·zóna) → v ďalších zónach väčšie čísla
+  const nums = [], top = Math.min(9, 3 + 2 * zone);
+  for (const a of areas) {
+    if (a.kind === 'boss') continue;
+    for (let k = 0, cnt = 2 + Math.floor(rng() * 3); k < cnt; k++) {
+      let sum = 0; const w = []; for (let v = 1; v <= top; v++) { sum += 1 / v; w.push(sum); }
+      const x0 = rng() * sum, v = 1 + w.findIndex(c => x0 <= c), [x, z] = spot(a, 2.5, true); take(x, z, 1.2); nums.push({ id: nums.length, x, z, v });
+    }
+  }
   const keysNeeded = camps.filter(c => c.key).length + (hides.length ? 1 : 0);
   // brány v priechodoch do vodcu (kľúče) a do trezoru (číslo)
   for (const [a, kind] of [[boss, 'boss'], [vault, 'lock']]) if (a) {
@@ -190,5 +200,5 @@ export function genWorld(seed, zone = 1, opts = {}) {
   }
   const grass = poisson(W, H, 0.55, rng, (x, z) => inside(x, z) && !onPath(x, z) && noise(x * 0.16, z * 0.16, 9) > 0.47, 12000).map(([x, z]) => ({ x, z, r: rng() * Math.PI, s: 0.6 + rng() * 0.8 }));
 
-  return { seed, zone, W, H, areas, links, walls, gates, camps, finds, hides, building, start: [start.cx, start.cz], startArea: start.id, bossArea: boss.id, keysNeeded, flowers, grass, props, height, inside, onPath, areaAt };
+  return { seed, zone, W, H, areas, links, walls, gates, camps, finds, hides, nums, building, start: [start.cx, start.cz], startArea: start.id, bossArea: boss.id, keysNeeded, flowers, grass, props, height, inside, onPath, areaAt };
 }

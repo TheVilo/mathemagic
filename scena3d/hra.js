@@ -4,10 +4,11 @@
 import { THREE, scene, camera, U, sun, hemi, PAPER, MAT, GRASS, FLOWER, RAW, std, inst, placeModels, loadProps, spark, burst, updateParticles, ditherMat, blurMat, resize, setView, render, pix, icon, digitTexture } from './svet.js';
 import { hero, loadHero, heroPlay, updateHero, heroLocked, loadFighters, makeFighter, crystalLight, crystal, lamp, aim } from './postavy.js';
 import { initFight, fight, startFight, joinFight, fightPress, updateFight, drawTags, renderInput, endFight, aimPoint, fireAt, fireAtScreen, elementShape, animShape, curRow } from './suboj.js';
-import { newPack, migratePack, spellOk, spellWorks, rollSpell, strength, lootToken, addToken, slotPrice, MAX_SLOTS, MAX_ROWS, MAX_STAFF, rowPrice, staffPrice, allIds, workingRows } from './ruksak.js';
+import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, lootToken, addToken, slotPrice, MAX_SLOTS, MAX_ROWS, MAX_STAFF, rowPrice, staffPrice, allIds, workingRows } from './ruksak.js';
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
+import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul } from './balance.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
 import { ZIVLY, card, slot, dia, menu } from './ui.js';
@@ -17,18 +18,24 @@ points.layers.enable(4);   // iskry patria kúzlu
 const RUN_KEY = 'mm-run', META_KEY = 'mm-meta';
 function newRun(mode = 'zaklad') {
   const seed = 1 + Math.floor(Math.random() * 99999);
-  const pack = newPack(); if (mode === 'pokrocily') pack.rows = [[]];   // Majster začína úvodom: kalkulačku si poskladá sám
-  return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: mode === 'pokrocily' ? 0 : 99 };
+  const pack = newPack(); const done = typeof meta !== 'undefined' && meta.tutDone;
+  if (mode === 'pokrocily' && !done) pack.rows = [[]];   // Majster začína úvodom (len prvýkrát): kalkulačku si poskladá sám
+  if (typeof meta !== 'undefined') pack.unlock = Object.assign({}, meta.unlock);   // zátvorky / √ odomknuté natrvalo
+  return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: mode === 'pokrocily' && !done ? 0 : 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
 }
 // postup v otvorenom svete zóny: porazené bandy, kľúče, otvorené truhlice a brány, objavené oblasti
-function newWorldState() { return { keys: 0, camps: [], chests: [], bushes: [], gates: [], runes: [], seen: [] }; }
+function newWorldState() { return { keys: 0, camps: [], chests: [], bushes: [], gates: [], runes: [], seen: [], nums: [] }; }
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v || d; } catch (e) { return d; } };
+const meta = load(META_KEY, { seen: [] }); meta.unlock = meta.unlock || {}; meta.best = meta.best || { score: 0, zone: 1, hordes: 0, hit: 0 };
 let run = load(RUN_KEY, null); if (!run || !run.w || run.hearts <= 0) run = newRun(run && run.mode); // prehratý beh sa nepokračuje
-run.mode = run.mode || 'zaklad'; run.pack = migratePack(run.pack || newPack()); run.tut = run.tut ?? 99;
+// MAJSTER = roguelite: po zatvorení hry (nová relácia) sa začína od nuly; trvalé ostáva odomknuté (meta) a rekordy
+if (run.mode === 'pokrocily' && !sessionStorage.getItem('mm-alive') && (run.w.seen.length > 1 || run.zone > 1 || run.st)) run = newRun('pokrocily');
+sessionStorage.setItem('mm-alive', '1');
+run.mode = run.mode || 'zaklad'; run.pack = migratePack(run.pack || newPack()); run.tut = run.tut ?? 99; run.st = run.st || { dmg: 0, kills: 0, hordes: 0, hit: 0 };
+run.pack.unlock = Object.assign({}, meta.unlock, run.pack.unlock);
 const adv = () => run.mode === 'pokrocily';
-const meta = load(META_KEY, { seen: [] });
 const persist = () => { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bez ukladania */ } };
-const maxHearts = () => 3 + lvl(run, 'srdce');
+const maxHearts = () => 3 + lvl(run, 'srdce') + (run.maxH || 0);
 
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
@@ -58,11 +65,15 @@ const G = {
     if (run.hearts <= 0) gameOver();
   },
   onWin: opts => winFight(opts),
+  enemyHp: (kind, boss, elite, trait) => Math.round(enemyHpM(kind, Math.max(1, hordeN), run.zone, { boss, elite }) * (trait ? bossHpMul(trait) : 1)),
+  bossTrait: id => BOSSES[id],
+  onKill: e => dropGems(e.g.position, xpFor(e.maxHp || 4)),
 };
 initFight(G);
 
 // ---------- miesto (miestnosť alebo interiér): výška zeme, kam sa dá ísť, prekážky ----------
 let place = { height: () => 0, inside: () => true, blockers: [], ground: null };
+let numStones = [];
 let R = null, room = null, gates = [], bands = [], act = null, band = [], chests = [], runes = [], bushes = [], labels = [], goalDone = false, lock = null, inside = false;
 const roomRng = () => mulberry32(run.seed * 31 + run.zone * 997 + (run.w.camps.length * 7 + run.w.chests.length * 13 + run.w.bushes.length * 17) + 1);
 
@@ -70,7 +81,7 @@ function label(html, pos, cls = '') { const el = document.createElement('div'); 
 function clearRoom() {
   if (room) scene.remove(room);
   for (const l of labels) l.el.remove();
-  labels = []; band = []; bands = []; act = null; gates = []; chests = []; runes = []; bushes = []; lock = null;
+  labels = []; band = []; bands = []; act = null; gates = []; if (typeof gems !== "undefined") gems.length = 0; chests = []; runes = []; bushes = []; lock = null;
   endFight();
 }
 function buildRoom() {
@@ -116,6 +127,14 @@ function buildRoom() {
     if (f.kind === 'rune' && !W.runes.includes(f.id)) { const r = runeStone('10'); r.position.set(f.x, R.height(f.x, f.z), f.z); room.add(r); runes.push({ ...f, obj: r, done: false }); }
   }
   bushes = R.hides.map(h => ({ ...h, searched: W.bushes.includes(h.id), shake: 0 }));
+  // čísla na mape (Majster): kameň s číslom + svietiaci kruh (bez bodového svetla – svetlá sú drahé)
+  numStones = [];
+  if (adv()) for (const n of R.nums) if (!(W.nums || []).includes(n.id)) {
+    const g = new THREE.Group(), side = std(0xc8c4ba);
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.16), [side, side, side, side, new THREE.MeshStandardMaterial({ map: digitTexture(String(n.v)), roughness: 0.9 }), side]); st.position.y = 0.75; st.castShadow = true; g.add(st);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 6, 24).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd25a })); halo.position.y = 0.05; halo.layers.enable(4); g.add(halo);
+    g.position.set(n.x, R.height(n.x, n.z), n.z); room.add(g); numStones.push({ ...n, obj: g, st });
+  }
   if (R.building) label(icon('mug') + ' Obchod', new THREE.Vector3(R.building.door[0], 3.6, R.building.door[1] - 0.6), 'shop');
   // brány: do pevnosti vodcu na kľúče, do trezoru na číslo
   R.gates.forEach((g, i) => {
@@ -187,7 +206,7 @@ function renderTut() {
   const on = tutOn(); $('tut').classList.toggle('hidden', !on); $('bBook').classList.toggle('pulse', on && run.tut === 0);
   if (on) $('tut').innerHTML = `<span class="ptag">Úvod · ${Math.min(run.tut + 1, 6)}/6</span>${TUT[Math.min(run.tut, 5)]}`;
 }
-function tutStep(n) { if (!tutOn() || run.tut >= n) return; run.tut = n; persist(); renderTut(); if (n === 5) setTimeout(() => { run.tut = 99; persist(); renderTut(); }, 9000); }
+function tutStep(n) { if (!tutOn() || run.tut >= n) return; run.tut = n; if (n >= 5) meta.tutDone = true; persist(); renderTut(); if (n === 5) setTimeout(() => { run.tut = 99; persist(); renderTut(); }, 9000); }
 function tutTick() {
   if (!tutOn()) return;
   if (run.tut === 1 && spellWorks(run)) tutStep(2);
@@ -338,14 +357,16 @@ function openMap() {
   }
   const hx = sx(inside ? R.building.door[0] : hero.position.x), hy = sx(inside ? R.building.door[1] : hero.position.z);
   svg += `<g transform="translate(${hx},${hy})"><rect x="-6" y="-6" width="12" height="12" transform="rotate(45)" fill="#f2efe6" stroke="#0e0e10" stroke-width="2"/></g>`;
-  const el = overlay(`Zóna ${run.zone} · Mapa`, `<p class="sub">Kľúče <b>${run.w.keys}/${bossGate() ? bossGate().need : 0}</b> · objavené <b>${run.w.seen.length}/${R.areas.length}</b> oblastí</p>
+  // cesta zón (postup): Učeň ju prechádza pomaly, Majster vidí, koľko vodcov ešte ostáva
+  const zones = Array.from({ length: FINAL_ZONE }, (_, i) => { const z = i + 1, done = z < run.zone, cur = z === run.zone; return `<span class="zn${done ? ' done' : ''}${cur ? ' cur' : ''}">${done ? icon('star') : cur ? icon('hat') : z}</span>`; }).join('<i class="zl"></i>');
+  const el = overlay(`Zóna ${run.zone} · Mapa`, `<div class="zpath">${zones}</div><p class="sub">${adv() ? `Vodca zóny: <b>${BOSSES[bossOf(run.zone, run.seed)].name}</b> – ${BOSSES[bossOf(run.zone, run.seed)].hint}. ` : ''}Kľúče <b>${run.w.keys}/${bossGate() ? bossGate().need : 0}</b> · objavené <b>${run.w.seen.length}/${R.areas.length}</b> oblastí</p>
     <svg viewBox="-4 -4 ${w + 8} ${h + 8}" style="width:100%;max-width:${Math.round(w * 1.4)}px;max-height:58vh;display:block;margin:10px auto 0" shape-rendering="crispEdges">
     <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#0e0e10"/><path d="M0 6L6 0" stroke="#3a3936" stroke-width="1"/></pattern></defs>${svg}</svg>
     <div class="acts"><button class="btn on" id="close">Zavrieť</button></div>`, 'mapov');
   el.querySelector('#close').onclick = closeOverlay;
 }
 // ---------- ruksak (Pokročilý) ----------
-const OPC = { '+': '#c8923a', '-': '#4fa8ff', '×': '#ff5a22', '÷': '#7fe8d8' };
+const OPC = { '+': '#c8923a', '-': '#4fa8ff', '×': '#ff5a22', '÷': '#7fe8d8', '√': '#b07ad8', '²': '#ffd25a', '³': '#ffa040', '!': '#ff3a6a' };
 const tokHtml = (x, cls = '') => x.t === 'd' ? `<span class="tk die ${cls}" data-id="${x.id}">${pix('?')}</span>` : x.t === 'o' ? `<span class="tk op ${cls}" data-id="${x.id}" style="--c:${OPC[x.v]}">${pix(x.v)}</span>` : `<span class="tk num ${cls}" data-id="${x.id}">${pix(x.v)}</span>`;
 function giveLoot(at, tier = 0) {
   if (!adv()) return;
@@ -359,20 +380,23 @@ function giveLoot(at, tier = 0) {
 // RUKSAK = KALKULAČKA (ako Calculate It): klasická klávesnica, čo nemáš je zamknuté, čo máš viackrát má odznak s počtom.
 // Displej = kúzla (riadky). Ťuk na kláves = diel na koniec aktívneho riadku; ⌫ vráti posledný, C vyčistí riadok, = hotovo.
 let packRow = 0;
-const KEYS = [['C', 'fn'], ['⌫', 'fn'], ['√', 'lock'], ['÷', 'o'], ['7', 'n'], ['8', 'n'], ['9', 'n'], ['×', 'o'], ['4', 'n'], ['5', 'n'], ['6', 'n'], ['-', 'o'], ['1', 'n'], ['2', 'n'], ['3', 'n'], ['+', 'o'], ['□', 'd'], ['0', 'n'], ['( )', 'lock'], ['=', 'fn']];
+// rozloženie ako vedecká kalkulačka: funkcie v 4. stĺpci, znamienka vpravo
+const KEYS = [['C', 'fn'], ['⌫', 'fn'], ['( )', 'p'], ['√', 's'], ['÷', 'o'], ['7', 'n'], ['8', 'n'], ['9', 'n'], ['x²', 'x', -4, 'q'], ['×', 'o'], ['4', 'n'], ['5', 'n'], ['6', 'n'], ['x³', 'x', -5, 'c'], ['-', 'o'], ['1', 'n'], ['2', 'n'], ['3', 'n'], ['!', 'x', -6, 'f'], ['+', 'o'], ['□', 'd'], ['0', 'n'], ['=', 'fn']];
 function openPack() {
   tutStep(1); tutTick();
   const P = run.pack; packRow = Math.min(packRow, P.rows.length - 1);
   const usedIds = allIds(P), free = P.inv.filter(t => !usedIds.has(t.id));
   const match = (k, t) => (k[1] === 'n' && t.t === 'n' && String(t.v) === k[0]) || (k[1] === 'o' && t.t === 'o' && t.v === k[0]) || (k[1] === 'd' && t.t === 'd');
-  const row = P.rows[packRow], last = row.length ? P.inv.find(t => t.id === row[row.length - 1]) : null;
-  const wantNum = !last || last.t === 'o';   // po znamienku číslo, po čísle znamienko (ako na kalkulačke)
-  const name = o => ({ '+': 'zem', '-': 'voda', '×': 'oheň', '÷': 'vzduch' }[o]);
+  const row = P.rows[packRow], last = row.length ? tokOf(P, row[row.length - 1]) : null;
+  const wantNum = !last || last.t === 'o' || last.t === 's' || (last.t === 'p' && last.v === '(');   // ² ³ ! idú za číslom (wantNum = false)   // čaká sa číslo (ako na kalkulačke)
+  const open = row.filter(id => id === -1).length - row.filter(id => id === -2).length;
+  const U = P.unlock || {};
+  const name = o => ({ '+': 'zem', '-': 'voda', '×': 'oheň', '÷': 'vzduch', '√': 'prieraz', '²': 'mocnina', '³': 'mocnina', '!': 'faktoriál' }[o]);
   const lcdRow = r => {
     const ids = P.rows[r], ok = spellWorks(run, r), st = ok ? strength(run, mulberry32(7), r) : null, ex = ok ? rollSpell(run, mulberry32(3), r) : null;
-    const txt = ids.map(id => { const t = P.inv.find(x => x.id === id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
+    const txt = ids.map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
     const pad = '_'.repeat(Math.max(0, P.slots - ids.length));
-    const dice = ids.some(id => (P.inv.find(t => t.id === id) || {}).t === 'd');
+    const dice = ids.some(id => (tokOf(P, id) || {}).t === 'd');
     const res = ok ? (dice ? `${st.lo}…${st.hi}` : String(ex.answer)) : '?';
     const ops = ok ? [...new Set(ex.ops)].map(o => `<span style="color:${OPC[o]}">${name(o)}</span>`).join(' ') : '';
     return `<div class="lrow${r === packRow ? ' on' : ''}" data-r="${r}"><span class="ln">${r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
@@ -380,9 +404,16 @@ function openPack() {
   const keyHtml = (k, i) => {
     if (k[1] === 'fn') return `<button class="ck fn${k[0] === '=' ? ' eq' : ''}" data-k="${i}">${k[0]}</button>`;
     if (k[1] === 'lock') return `<button class="ck locked" disabled title="odomkne sa neskôr">${k[0]}<small>${icon('lock')}</small></button>`;
+    // špeciálne klávesy od bossov: √ (pred číslo) a ( ) – sám vie, či teraz otvára alebo zatvára
+    if (k[1] === 's' || k[1] === 'p' || k[1] === 'x') {
+      const own = k[1] === 's' ? U.s : k[1] === 'p' ? U.p : U[k[3]], ok = own && (k[1] === 's' ? wantNum : k[1] === 'x' ? !wantNum : wantNum || open > 0);
+      const lab = k[1] === 's' ? '√' : k[1] === 'x' ? k[0] : wantNum ? '(' : ')';
+      return `<button class="ck sp${own ? '' : ' locked'}" data-k="${i}" ${ok ? '' : 'disabled'} title="${own ? '' : 'odomkne vodca'}">${lab}${own ? '' : `<small>${icon('lock')}</small>`}</button>`;
+    }
     const n = free.filter(t => match(k, t)).length, owned = P.inv.some(t => match(k, t));
     const wrong = k[1] === 'o' ? wantNum : !wantNum;
-    const lab = k[1] === 'n' || k[1] === 'd' ? (k[0] === '□' ? pix('?') : pix(k[0])) : pix(k[0]);
+    const sN = k[1] === 'n' && P.stars ? P.stars[+k[0]] || 0 : 0;
+    const lab = (k[1] === 'n' || k[1] === 'd' ? (k[0] === '□' ? pix('?') : pix(k[0])) : pix(k[0])) + (sN ? `<em class="star">${'★'.repeat(sN)}</em>` : '');
     return `<button class="ck ${k[1]}${owned ? '' : ' locked'}" data-k="${i}" ${n && !wrong ? '' : 'disabled'} style="${k[1] === 'o' ? `--c:${OPC[k[0]]}` : ''}">${lab}${n > 1 ? `<b class="badge">${n}</b>` : ''}${owned ? '' : `<small>${icon('lock')}</small>`}</button>`;
   };
   // pravá strana Knihy: efekty (karty) – len 4 miesta, treba si vybrať
@@ -414,6 +445,9 @@ function openPack() {
     if (k[0] === 'C') { P.rows[packRow] = []; persist(); return openPack(); }
     if (k[0] === '⌫') { R0.pop(); persist(); return openPack(); }
     if (R0.length >= P.slots) { say('Displej je plný – väčšiu kalkulačku nájdeš alebo kúpiš.'); return; }
+    if (k[1] === 's') { R0.push(-3); persist(); return openPack(); }
+    if (k[1] === 'x') { R0.push(k[2]); persist(); return openPack(); }
+    if (k[1] === 'p') { R0.push(wantNum ? -1 : -2); persist(); return openPack(); }
     const t = free.find(t => match(k, t)); if (!t) return;
     R0.push(t.id); persist(); openPack();
   });
@@ -439,13 +473,27 @@ function openShop() {
 function gameOver() {
   G.over = true; endFight(); heroPlay('Death_A', 0.1, 99); bottomEl.classList.add('hidden');
   setTimeout(() => {
-    const el = overlay('Koniec behu', `<div style="display:flex;justify-content:center;margin-bottom:10px">${dia('skull', 'big')}</div>
-      <div style="font-size:24px;margin-bottom:12px">Zbojníci ťa dostali</div>
-      <div style="max-width:300px;margin:0 auto;text-align:left"><div class="stat"><span>Zóna</span><span>${run.zone} · kľúče ${run.w.keys}</span></div><div class="stat"><span>Správne</span><span>${G.stats.ok}</span></div><div class="stat"><span>Mince</span><span>${run.coins}</span></div></div>
-      <p class="sub" style="margin-top:12px">Kúzla v Zbierke ti ostávajú. Nový beh = nová mapa.</p>
-      <div class="acts"><button class="btn on" id="again">Znova</button><button class="btn ghost" id="toMenu">Menu</button></div>`, 'end');
-    el.querySelector('#again').onclick = () => { run = newRun(); persist(); location.reload(); };
-    el.querySelector('#toMenu').onclick = () => { run = newRun(); persist(); sessionStorage.setItem('mm-menu', '1'); location.reload(); };
+    if (!adv()) { // UČEŇ: nič sa nestratí – zóna sa len začne znova
+      const el = overlay('Skús to znova', `<div style="display:flex;justify-content:center;margin-bottom:10px">${dia('heart', 'big')}</div>
+        <div style="font-size:22px;margin-bottom:8px">Zbojníci ťa dostali</div><p class="sub">Karty, znamienka aj zóna ${run.zone} ti ostávajú. Začneš len túto zónu znova.</p>
+        <div class="acts"><button class="btn on" id="again">Znova</button><button class="btn ghost" id="toMenu">Menu</button></div>`, 'end');
+      const retry = () => { run.hearts = maxHearts(); run.w = newWorldState(); persist(); };
+      el.querySelector('#again').onclick = () => { retry(); sessionStorage.setItem('mm-skip', '1'); location.reload(); };
+      el.querySelector('#toMenu').onclick = () => { retry(); sessionStorage.setItem('mm-menu', '1'); location.reload(); };
+      return;
+    }
+    // MAJSTER: vyhodnotenie behu – skóre zo vzorca, rekordy
+    const st = run.st, score = Math.round(st.dmg + 50 * st.kills + 200 * st.hordes + 1000 * (run.zone - 1));
+    const B = meta.best, rec = score > B.score;
+    Object.assign(B, { score: Math.max(B.score, score), zone: Math.max(B.zone, run.zone), hordes: Math.max(B.hordes, st.hordes), hit: Math.max(B.hit, st.hit) }); persist();
+    const row = (n, v, b) => `<div class="stat"><span>${n}</span><span>${v}${b !== undefined ? ` <small style="color:var(--grey)">· rekord ${b}</small>` : ''}</span></div>`;
+    const el = overlay('Koniec behu', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia(rec ? 'crown' : 'skull', 'big' + (rec ? ' fill' : ''))}</div>
+      <div style="font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--grey)">${rec ? 'Nový rekord!' : 'Skóre'}</div><div class="bigop">${pix(score)}</div>
+      <div style="max-width:340px;margin:0 auto;text-align:left">${row('Zóna', run.zone, B.zone)}${row('Hordy', st.hordes, B.hordes)}${row('Porazení', st.kills)}${row('Najväčší zásah', st.hit, B.hit)}${row('Spolu damage', Math.round(st.dmg))}</div>
+      <p class="sub" style="margin-top:10px">Skóre = damage + 50 × porazení + 200 × hordy + 1000 × prejdené zóny. Odomknuté klávesy ti ostávajú.</p>
+      <div class="acts"><button class="btn on" id="again">Nový beh</button><button class="btn ghost" id="toMenu">Menu</button></div>`, 'end');
+    el.querySelector('#again').onclick = () => { run = newRun('pokrocily'); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); };
+    el.querySelector('#toMenu').onclick = () => { run = newRun('pokrocily'); persist(); sessionStorage.setItem('mm-menu', '1'); location.reload(); };
   }, 1600);
 }
 
@@ -462,19 +510,35 @@ function winFight(opts) {
   if (opts.boss) {
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)) || null;   // vodcovia dávajú znamienka v poradí − × ÷
     if (newOp) { run.ops.push(newOp); if (adv()) addToken(run.pack, { t: 'o', v: newOp }); }   // Pokročilý: znamienko rovno do ruksaku
+    // Majster: vodca odomkne špeciálny kláves natrvalo – zóna 1 zátvorky ( ), zóna 2 odmocninu √
+    const spO = adv() ? nextSpecial(run.pack.unlock) : null, spec = spO && spO.k, specNew = !!spec;
+    if (spec) { run.pack.unlock[spec] = true; meta.unlock[spec] = true; }
     run.hearts = maxHearts(); renderHearts(); addCoins(20);
     persist();
     setTimeout(() => {
-      const el = overlay('Vodca porazený', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia('crown', 'big fill')}</div>${newOp ? `<div style="font-size:22px">Získal si nový živel</div><div class="cards">${card(newOp)}</div><p class="sub">Odteraz kúzliš aj ${{ '-': 'odčítaním', '×': 'násobením', '÷': 'delením' }[newOp]}.</p>` : '<div style="font-size:22px">Zóna je hotová.</div>'}<div class="acts"><button class="btn on" id="next">Ďalšia zóna ▸</button></div>`, 'end');
-      el.querySelector('#next').onclick = () => { closeOverlay(); cardOffer('Odmena od vodcu', nextZone); };
+      const el = overlay('Vodca porazený', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia('crown', 'big fill')}</div>${newOp ? `<div style="font-size:22px">Získal si nový živel</div><div class="cards">${card(newOp)}</div><p class="sub">Odteraz kúzliš aj ${{ '-': 'odčítaním', '×': 'násobením', '÷': 'delením' }[newOp]}.</p>` : '<div style="font-size:22px">Zóna je hotová.</div>'}${specNew ? `<p class="sub" style="color:var(--line)">Nový kláves na kalkulačke: <b>${spO.key} ${spO.name} – ${spO.text}</b>. Ostane ti aj v ďalších behoch.</p>` : ''}<div class="acts"><button class="btn on" id="next">Ďalšia zóna ▸</button></div>`, 'end');
+      el.querySelector('#next').onclick = () => { closeOverlay(); if (adv() && run.zone === FINAL_ZONE) return victory(); cardOffer('Odmena od vodcu', nextZone); };
     }, 2200);
     return;
   }
   setTimeout(() => addCoins(n * 2 + (opts.elite ? 8 : 0), hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))), 700);
-  if (adv() && (opts.elite || Math.random() < 0.6)) setTimeout(() => giveLoot(hero.position.clone().add(new THREE.Vector3(0, 3.2, 0)), opts.elite ? 1 : 0), 1400);
+  // Majster: z boja nepadajú čísla (tie sú len na mape) – boj dáva skúsenosti a mince
   persist();
+  if (opts.horde) run.st.hordes += opts.horde;
+  if (opts.hb) { const sp = nextSpecial(run.pack.unlock); if (sp) { run.pack.unlock[sp.k] = true; meta.unlock[sp.k] = true; persist(); setTimeout(() => say(`Vodca hordy porazený! Nový kláves: ${sp.key} ${sp.name}`, 4000), 600); } else addCoins(25, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); }
   if (opts.horde && !b) { if (++hordeWins % 3 === 0) setTimeout(() => cardOffer('Tri hordy porazené', null), 1600); else setTimeout(() => say(`Horda porazená! Ďalšia o ${Math.round(hordeT)} s.`), 900); return; }
   setTimeout(() => cardOffer(opts.elite ? 'Kapitán porazený' : 'Banda porazená', null), 2200);
+}
+// VÝHRA BEHU (Majster): po 8. vodcovi – skóre, rekord, a môžeš pokračovať do nekonečna
+function victory() {
+  const st = run.st, score = Math.round(st.dmg + 50 * st.kills + 200 * st.hordes + 1000 * run.zone);
+  meta.best.score = Math.max(meta.best.score, score); meta.wins = (meta.wins || 0) + 1; persist();
+  const el = overlay('Vyhral si beh!', `<div style="display:flex;justify-content:center;margin-bottom:6px">${dia('crown', 'big fill')}</div>
+    <div style="font-size:20px">Veľká Nula je porazená. ${meta.wins === 1 ? 'Prvá výhra!' : `Výhra č. ${meta.wins}.`}</div><div class="bigop">${pix(score)}</div>
+    <p class="sub">Teraz začína NEKONEČNO: hordy rastú bez konca a ide sa len o skóre. Tu sa hra dá rozbiť – skladaj šialené vzorce.</p>
+    <div class="acts"><button class="btn on" id="inf">Do nekonečna ▸</button><button class="btn ghost" id="toMenu">Ukončiť beh</button></div>`, 'end');
+  el.querySelector('#inf').onclick = () => { closeOverlay(); run.endless = true; cardOffer('Odmena za výhru', nextZone); };
+  el.querySelector('#toMenu').onclick = () => { closeOverlay(); gameOver(); };
 }
 function nextZone() {
   run.zone++; run.w = newWorldState(); persist();
@@ -519,7 +583,7 @@ function press(k) {
 addEventListener('keydown', e => {
   // Kniha kúziel otvorená: kalkulačka ide aj z klávesnice (čísla, + - * /, Backspace, Delete = C, Enter = =)
   if (ovEl.classList.contains('show') && ovEl.classList.contains('pack')) {
-    const map = { '*': '×', 'x': '×', '/': '÷', 'Backspace': '⌫', 'Delete': 'C', 'Enter': '=', '?': '□' }, want = map[e.key] || e.key;
+    const map = { '*': '×', 'x': '×', '/': '÷', 'Backspace': '⌫', 'Delete': 'C', 'Enter': '=', '?': '□', '(': '( )', ')': '( )', 'r': '√', 'v': '√', '^': 'x²', 'q': 'x²', 'c': 'x³', '!': '!' }, want = map[e.key] || e.key;
     const i = KEYS.findIndex(k => k[0] === want); if (i >= 0) { const b = ovEl.querySelector(`.ck[data-k="${i}"]`); if (b && !b.disabled) b.click(); e.preventDefault(); return; }
   }
   keys[e.key.toLowerCase()] = true;
@@ -539,7 +603,7 @@ const joy = { x: 0, z: 0, id: null };
   const J = $('joy'), K = J.querySelector('i');
   const set = e => { const r = J.getBoundingClientRect(), R0 = r.width / 2; let dx = e.clientX - r.left - R0, dy = e.clientY - r.top - R0; const l = Math.hypot(dx, dy); if (l > R0) { dx *= R0 / l; dy *= R0 / l; }
     K.style.transform = `translate(${dx}px, ${dy}px)`; const m = Math.hypot(dx, dy) / R0; joy.x = m > 0.15 ? dx / R0 : 0; joy.z = m > 0.15 ? dy / R0 : 0; };
-  J.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); joy.id = e.pointerId; J.setPointerCapture(e.pointerId); set(e); });
+  J.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); joy.id = e.pointerId; try { J.setPointerCapture(e.pointerId); } catch (_) {} set(e); });
   J.addEventListener('pointermove', e => { if (e.pointerId === joy.id) set(e); });
   const end = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.z = 0; K.style.transform = ''; };
   J.addEventListener('pointerup', end); J.addEventListener('pointercancel', end);
@@ -590,10 +654,13 @@ function update(dt, t) {
   if ((fight.on && !adv()) || paused || lockOn || fadeT > 0 || G.over || (heroLocked() && !adv())) { dir.set(0, 0, 0); if (fight.on || G.over) target = null; }   // Majster sa hýbe aj v boji
   vel.lerp(dir.multiplyScalar(3.4), 1 - Math.exp(-dt * 8));
   const nx = hero.position.x + vel.x * dt, nz = hero.position.z + vel.z * dt;
-  const ok = (x, z) => place.inside(x, z) && (inside || !gateBlocks(x, z)) && place.blockers.every(b => (b.x - x) ** 2 + (b.z - z) ** 2 > b.r * b.r);
-  if (ok(nx, nz)) { hero.position.x = nx; hero.position.z = nz; }
-  else if (ok(nx, hero.position.z)) hero.position.x = nx;
-  else if (ok(hero.position.x, nz)) hero.position.z = nz;
+  // OBCHÁDZANIE: do skaly/stromu sa nevojde, ale po jeho okraji sa skĺzne (vytlačenie z kruhu po normále), takže sa dá prejsť okolo
+  const HR = 0.28, slide = (x, z) => { for (let it = 0; it < 3; it++) for (const b of place.blockers) { const dx = x - b.x, dz = z - b.z, rr = b.r + HR; if (Math.abs(dx) > rr || Math.abs(dz) > rr) continue; const d = Math.hypot(dx, dz); if (d < rr && d > 1e-4) { x = b.x + dx / d * rr; z = b.z + dz / d * rr; } } return [x, z]; };
+  const ok = (x, z) => place.inside(x, z) && (inside || !gateBlocks(x, z));
+  let [sx, sz] = slide(nx, nz);
+  if (ok(sx, sz)) { hero.position.x = sx; hero.position.z = sz; }
+  else if (ok(...slide(nx, hero.position.z))) [hero.position.x, hero.position.z] = slide(nx, hero.position.z);
+  else if (ok(...slide(hero.position.x, nz))) [hero.position.x, hero.position.z] = slide(hero.position.x, nz);
   else { vel.multiplyScalar(0.3); target = null; }
   hero.position.y = place.height(hero.position.x, hero.position.z);
   const speed = vel.length();
@@ -607,7 +674,9 @@ function update(dt, t) {
   U.hero.value.copy(hero.position);
 
   if (!paused && (fight.on || fight.enemies.length || adv())) updateFight(dt);
-  if (R && !scrOn) updateHordes(dt);   // Majster: kúzla letia aj mimo súboja
+  if (R && !scrOn) updateHordes(dt);
+  if (adv() && lvlQueue > 0 && !paused && !scrOn && !G.over) openLevelUp();
+  if (adv() && R && !paused) updateGems(dt);   // Majster: kúzla letia aj mimo súboja
   if (!fight.on) for (const f of band) if (f.state !== 'dead' && !fight.enemies.includes(f)) f.mixer.update(dt);
   if (innkeeper && inside) innkeeper.mixer.update(dt);
   if (!inside && R) updateRoom(dt, t); else if (inside) updateInside();
@@ -634,7 +703,9 @@ function updateRoom(dt, t) {
     if (fight.on && adv()) continue;   // počas boja sa ďalšia banda pridá cez hordu, nie novým súbojom
     if (Math.hypot(c.x - hp.x, c.z - hp.z) < (c.boss ? 8.5 : c.dummy ? 3.6 : adv() ? 10 : 6.5)) {
       if (adv() && !workingRows(run).length) { if (G.now - (b.warn ?? -9) > 5) { b.warn = G.now; say('Najprv poskladaj kúzlo v Knihe kúziel!'); openPack(); } return; }
-      act = b; startFight(b.f, { boss: c.boss, elite: c.elite, dummy: c.dummy });
+      const trait = c.boss && adv() ? bossOf(run.zone, run.seed) : null;
+      act = b; startFight(b.f, { boss: c.boss, elite: c.elite, dummy: c.dummy, trait });
+      if (trait) { say(`${BOSSES[trait].name}: ${BOSSES[trait].hint}`, 5000); }
       bottomEl.classList.remove('hidden', 'lockmode'); target = null;
       say(c.boss ? (adv() ? 'Vodca zbojníkov! Klikaj a strieľaj.' : 'Vodca zbojníkov! Počítaj a kúzli.') : adv() ? 'Banda! Klikni na nepriateľa – vystrelíš kúzlo z Knihy.' : 'Banda! Napíš výsledok – kúzlo letí k tomu, komu patrí.', 3000);
       return;
@@ -654,7 +725,7 @@ function updateRoom(dt, t) {
     if (c.obj.userData.lid) c.anim = 0;
     burst(c.obj.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 80, 3, 0xffd25a);
     if (c.n === 'tut') { addToken(run.pack, { t: 'n', v: 2 }); persist(); floatText(pix('2'), c.obj.position.clone().add(new THREE.Vector3(0, 2, 0)), 'coin'); say('Nový kláves: 2!'); tutStep(4); continue; }
-    if (adv()) setTimeout(() => giveLoot(c.obj.position.clone().add(new THREE.Vector3(0, 2, 0)), c.n === 0 ? 0 : 1), 500);
+    if (adv() && c.n === 0) setTimeout(() => giveLoot(c.obj.position.clone().add(new THREE.Vector3(0, 2, 0)), 0), 500);   // truhlica na mape = číslo / znamienko
     if (c.n === 0) setTimeout(() => addCoins(4 + Math.floor(Math.random() * 4), c.obj.position.clone().add(new THREE.Vector3(0, 1.5, 0))), 400);
     else setTimeout(() => cardOffer('Truhlica!', null), 700);
   }
@@ -686,6 +757,15 @@ function updateRoom(dt, t) {
   }
   for (const b of bushes) if (b.keyObj) { b.kt += dt; b.keyObj.position.y = R.height(b.x, b.z) + 1.2 + Math.min(1.4, b.kt * 1.5); b.keyObj.rotation.y += dt * 3; if (b.kt > 1.8) { room.remove(b.keyObj); b.keyObj = null; } }
   // obchod
+  // čísla na mape: dotkni sa kameňa = nový kláves s tým číslom
+  for (const n of numStones) if (!n.got) {
+    n.st.rotation.y = Math.sin(t * 1.4 + n.id) * 0.4; n.st.position.y = 0.75 + Math.sin(t * 2 + n.id) * 0.06;
+    if (Math.hypot(n.x - hp.x, n.z - hp.z) < 1.1) {
+      n.got = true; run.w.nums = run.w.nums || []; run.w.nums.push(n.id); addToken(run.pack, { t: 'n', v: n.v }); persist();
+      burst(n.obj.position.clone().add(new THREE.Vector3(0, 1, 0)), 90, 3, 0xffd25a); floatText(pix(String(n.v)), n.obj.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 'coin');
+      say(`Nový kláves: ${n.v}!`); room.remove(n.obj);
+    }
+  }
   // obchod = samostatná obrazovka (nie 3D miestnosť): pri dverách sa otvorí, po odchode stojíš pred dverami
   if (R.building) { const dd = Math.hypot(R.building.door[0] - hp.x, R.building.door[1] - hp.z); if (dd < 1.3 && !shopNear) { shopNear = true; target = null; vel.set(0, 0, 0); openShop(); } if (dd > 2.4) shopNear = false; }
 }
@@ -696,17 +776,63 @@ const HW = d => ({ rogue: 1, hooded: Math.min(0.8, Math.max(0, d - 0.15) * 1.8),
 function updateHordes(dt) {
   if (!adv() || inside || G.over || tutOn() || paused || fadeT > 0) return;
   hordeT -= dt; if (hordeT > 0) return;
-  hordeN++; hordeT = Math.max(16, 38 - hordeN * 2);
-  const n = Math.min(12, 2 + Math.floor(hordeN * 0.8) + run.zone - 1), d = run.zone - 1 + hordeN / 8, w = HW(d), sum = Object.values(w).reduce((a, b) => a + b, 0);
+  hordeN++; hordeT = hordeInterval(hordeN);
+  const n = hordeSize(hordeN, run.zone), w = kindWeights(hordeN, run.zone), sum = Object.values(w).reduce((a, b) => a + b, 0), boss = isBossWave(hordeN);
   const roll = () => { let r = Math.random() * sum; for (const [k, v] of Object.entries(w)) if ((r -= v) <= 0) return k; return 'rogue'; };
   // miesto 13–16 m od čarodejníka, kde sa dá stáť (nie v pevnosti vodcu)
   let at = null;
   for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 13 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
   if (!at) return;
   const fs = [];
-  for (let i = 0; i < n; i++) { const f = makeFighter(roll(), 1, room), x = at[0] + (Math.random() - 0.5) * 3, z = at[1] + (Math.random() - 0.5) * 3; f.g.position.set(x, R.height(x, z), z); f.play(f.d.walk); fs.push(f); band.push(f); }
-  joinFight(fs, { horde: 1 }); bottomEl.classList.remove('hidden', 'lockmode');
-  say(`Horda ${hordeN} prichádza! (${n})`, 2600);
+  for (let i = 0; i < n; i++) {
+    const hb = boss && i === 0, f = makeFighter(hb ? 'barbarian' : roll(), hb ? 1.6 : 1, room), x = at[0] + (Math.random() - 0.5) * 3, z = at[1] + (Math.random() - 0.5) * 3;
+    f.hb = hb; f.g.position.set(x, R.height(x, z), z); f.play(f.d.walk); fs.push(f); band.push(f);
+  }
+  joinFight(fs, { horde: 1, hb: boss ? 1 : 0 }); bottomEl.classList.remove('hidden', 'lockmode');
+  say(boss ? `Horda ${hordeN} s VODCOM HORDY! (${n})` : `Horda ${hordeN} prichádza! (${n})`, 2800);
+}
+// ---------- SKÚSENOSTI A ÚROVNE (Majster): XP za zabitie = ⌈HP/3⌉, ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉ → výber 1 z 3 ----------
+let lvlQueue = 0;
+// KRYŠTÁLY SKÚSENOSTÍ (ako v hordových hrách): padnú z nepriateľa, magnet ich pritiahne, keď prejdeš blízko
+const gems = [], gemGeo = new THREE.OctahedronGeometry(0.13, 0), gemMat = new THREE.MeshBasicMaterial({ color: 0x8dff98 });
+function dropGems(p, xp) {
+  if (!adv()) return;
+  const n = Math.min(6, Math.max(1, Math.round(Math.log2(xp + 1))));   // väčší nepriateľ = viac kryštálov
+  for (let i = 0; i < n; i++) { const m = new THREE.Mesh(gemGeo, gemMat); m.layers.enable(4); const a = Math.random() * 6.28, r = 0.3 + Math.random() * 0.9; m.position.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r); m.position.y = R.height(m.position.x, m.position.z) + 0.35; room.add(m); gems.push({ m, xp: xp / n, t: 0 }); }
+}
+function updateGems(dt) {
+  const mag = 2.2 + (run.magnet || 0) * 1.3, hp = hero.position;
+  for (let i = gems.length - 1; i >= 0; i--) {
+    const g = gems[i]; g.t += dt; g.m.rotation.y += dt * 3;
+    const d = Math.hypot(g.m.position.x - hp.x, g.m.position.z - hp.z);
+    if (d < mag || g.pull) { g.pull = true; const k = Math.min(1, dt * (6 + g.t * 4)); g.m.position.x += (hp.x - g.m.position.x) * k; g.m.position.z += (hp.z - g.m.position.z) * k; g.m.position.y += (hp.y + 1 - g.m.position.y) * k; }
+    if (d < 0.5) { room.remove(g.m); gems.splice(i, 1); addXp(g.xp); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
+  }
+}
+function addXp(n, e) {
+  if (!adv()) return;
+  run.xp = (run.xp || 0) + n; run.lvl = run.lvl || 1; run.xp = Math.round(run.xp * 10) / 10;
+  while (run.xp >= xpNeed(run.lvl)) { run.xp -= xpNeed(run.lvl); run.lvl++; lvlQueue++; }
+  renderXp();
+}
+function renderXp() {
+  const el = $('xp'); if (!el) return; el.style.display = adv() ? '' : 'none'; if (!adv()) return;
+  const L = run.lvl || 1; el.innerHTML = `<span>úr. ${L}</span><i><b style="width:${Math.round((run.xp || 0) / xpNeed(L) * 100)}%"></b></i>`;
+}
+function openLevelUp() {
+  lvlQueue--; const offers = levelOffers(run.lvl, run);
+  const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">Vyber si jedno vylepšenie. Silnejší vzorec = väčšia šupa.</p>
+    <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel" data-i="${i}"><b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
+  el.querySelectorAll('.lvo').forEach(b => b.onclick = () => {
+    const o = offers[+b.dataset.i], g = o.give;
+    if (g.t === 'staff') run.pack.staff++;
+    else if (g.t === 'star') { run.pack.stars = run.pack.stars || {}; run.pack.stars[g.v] = (run.pack.stars[g.v] || 0) + 1; }
+    else if (g.t === 'magnet') run.magnet = (run.magnet || 0) + 1;
+    else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts++; renderHearts(); }
+    else if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; }
+    else for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g);
+    persist(); closeOverlay(); say(`${o.title}!`);
+  });
 }
 function updateInside() {
   if (paused || fadeT > 0) return;
@@ -873,7 +999,7 @@ await Promise.all([loadProps(), loadFighters(), loadHero()]);
 buildInterior();
 buildRoom();
 resize(viewZoom); resizeKresba(); addEventListener('resize', () => { resize(viewZoom); resizeKresba(); });
-renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots();
+renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots(); renderXp();
 bottomEl.classList.add('hidden');
 $('loading').remove();
 loaded = true; if (introStage === 0) renderIntro();
@@ -889,5 +1015,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
+  kresbaMat, gameOver, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
 };

@@ -3,7 +3,7 @@
 import { THREE, scene, camera, spark, burst, pix } from './svet.js';
 import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './postavy.js';
 import { makeProblem, lvl } from './karty.js';
-import { rollSpell, spellWorks, enemyHp, workingRows, cooldown, used } from './ruksak.js';
+import { rollSpell, spellWorks, enemyHp, workingRows, cooldown, used, tokOf } from './ruksak.js';
 import { kresbaMat } from './kresba.js';
 
 let G = null;
@@ -94,9 +94,9 @@ export function fireAt(e, groundPoint = null) {
   lastAim = { p: targetPos(t), t: G.now };
   fight.cdMax = cooldown(G.run.pack, row); fight.cd = fight.cdMax; nextRow();
   // karty: Násobič ×1,5 / ×2; Kritický zásah: šanca 8 % (+10 / +22 % s kartou) na ×2 a väčšie znamienka
-  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')]);
+  let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * (1 + 0.25 * (G.run.pack.staff || 0)));   // palica: +25 % za úroveň
   const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
-  cast(t, { v, op: r.ops[0] || null, ops: r.ops, text: r.text, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
+  cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
   renderInput(); return true;
 }
@@ -111,14 +111,19 @@ export function fireAtScreen(x, y, camera, groundPoint) {
 export function joinFight(fs, opts = {}) {
   if (!fight.on) return startFight(fs, opts);
   for (const f of fs) addEnemy(f, false, false);
-  fight.opts.horde = (fight.opts.horde || 0) + (opts.horde || 0);
+  fight.opts.horde = (fight.opts.horde || 0) + (opts.horde || 0); fight.opts.hb = (fight.opts.hb || 0) + (opts.hb || 0);
 }
 function addEnemy(f, isBoss, isElite) {
   const e = Object.assign(f, { state: f.sitting ? 'stand' : 'walk', t: 0, hp: f.d.hp, shield: !!f.d.shield, flash: 0, shoot: 2.5 + Math.random() * 2, knock: 0, frozen: 0, burn: 0 });
   e.name = f.d.name;
   if (isBoss) { e.hp = 6; e.shield = false; e.name = 'Vodca zbojníkov'; e.speed = 0.32; fight.boss = e; }
   if (isElite) { e.hp = 3; e.name = 'Kapitán'; }
-  if (fight.adv) { e.hp = e.maxHp = f.dummy ? 6 : enemyHp(G.run, f.kind, isBoss, isElite); }
+  if (fight.adv) {
+    const tr = isBoss && fight.opts.trait;
+    e.hp = e.maxHp = f.dummy ? 6 : G.enemyHp ? G.enemyHp(f.kind, isBoss || f.hb, isElite, tr) : enemyHp(G.run, f.kind, isBoss, isElite);
+    if (f.hb) { e.name = 'Vodca hordy'; fight.hb = e; }
+    if (tr) { e.trait = tr; e.name = G.bossTrait(tr).name; if (tr === 'stit') e.shield = true; }
+  }   // Majster: život podľa vlny a zóny (balance.js)
   e.speed = e.speed || f.d.speed;
   if (e.state === 'stand') f.play('Sit_Floor_StandUp', 0.1); else f.play(f.d.walk);
   if (!fight.adv) e.p = fresh(e.shield ? 'missing' : isBoss ? 'normal' : f.d.prob, e);
@@ -198,7 +203,7 @@ function advPress() {
 }
 export function renderInput(wrong) {
   if (fight.adv && fight.on) {
-    const P = G.run.pack, txt = row => used(P.rows[row] || []).map(id => { const t = P.inv.find(x => x.id === id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
+    const P = G.run.pack, txt = row => used(P.rows[row] || []).map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
     const ok = rowsOk(), cur = curRow(), nx = ok.length > 1 ? ok[(ok.indexOf(cur) + 1) % ok.length] : null;
     G.inpEl.innerHTML = `${ok.length ? `<span class="ph">${cur + 1}</span>` + pix(txt(cur)) : '<span class="ph">poskladaj kúzlo v Knihe</span>'}<span class="cdbar"><b style="width:${Math.round((1 - fight.cd / fight.cdMax) * 100)}%"></b></span>${nx !== null ? `<span class="ph">ďalej ${nx + 1}: ${txt(nx)}</span>` : '<span class="ph">klik</span>'}`; return; }
   G.inpEl.innerHTML = wrong ? pix(wrong) : fight.input ? pix(fight.input) : '<span class="ph">výsledok</span>';
@@ -208,13 +213,16 @@ export function renderInput(wrong) {
 // ---------- KÚZLO = MATEMATICKÉ ZNAMIENKO (Mathemagic: matematika všade) ----------
 // + − × ÷ ako 3D znak vo farbe živlu, natočený ku kamere a točí sa; stopa za ním = živel (kamienky, kvapky, plamene, vír)
 const MB = c => new THREE.MeshBasicMaterial({ color: c });
-const OPCOL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8 };
+const OPCOL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
 function signMesh(op, color, k = 1) {
   const sign = new THREE.Group(), m = MB(new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.15));
   const bar = (w, h, x = 0, y = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w * k, h * k, 0.09 * k), m); o.position.set(x * k, y * k, 0); sign.add(o); };
   if (op === '+' || op === '×') { bar(0.46, 0.11); bar(0.11, 0.46); if (op === '×') sign.rotation.z = Math.PI / 4; }
   else if (op === '-') bar(0.48, 0.11);
   else if (op === '÷') { bar(0.46, 0.1); bar(0.11, 0.11, 0, 0.17); bar(0.11, 0.11, 0, -0.17); }
+  else if (op === '√') { const a = new THREE.Mesh(new THREE.BoxGeometry(0.1 * k, 0.22 * k, 0.09 * k), m); a.position.set(-0.17 * k, -0.08 * k, 0); a.rotation.z = 0.6; sign.add(a); const b = new THREE.Mesh(new THREE.BoxGeometry(0.1 * k, 0.5 * k, 0.09 * k), m); b.position.set(-0.03 * k, 0.02 * k, 0); b.rotation.z = -0.35; sign.add(b); bar(0.3, 0.09, 0.2, 0.25); }   // odmocnina
+  else if (op === '²' || op === '³') { const a = new THREE.Mesh(new THREE.BoxGeometry(0.1 * k, 0.34 * k, 0.09 * k), m); a.position.set(-0.1 * k, 0, 0); a.rotation.z = -0.55; sign.add(a); const b = a.clone(); b.position.x = 0.1 * k; b.rotation.z = 0.55; sign.add(b); if (op === '³') bar(0.32, 0.08, 0, -0.22); }   // mocnina = strieška ^
+  else if (op === '!') { bar(0.12, 0.34, 0, 0.08); bar(0.12, 0.12, 0, -0.22); }   // faktoriál
   else { bar(0.44, 0.1, 0, 0.09); bar(0.44, 0.1, 0, -0.09); }   // bez znamienka = „=“
   return sign;
 }
@@ -226,7 +234,7 @@ export function elementShape(op, color, ops = null) {
   g.userData = { op, sign, color, orbit };
   return g;
 }
-const STOPA = { '+': [0xc8923a, 0x8a6a3a], '-': [0x4fa8ff, 0xd8f0ff], '×': [0xff5a22, 0xffd25a], '÷': [0x7fe8d8, 0xffffff] };
+const STOPA = { '+': [0xc8923a, 0x8a6a3a], '-': [0x4fa8ff, 0xd8f0ff], '×': [0xff5a22, 0xffd25a], '÷': [0x7fe8d8, 0xffffff], '√': [0xb07ad8, 0xe0c8ff], '²': [0xffd25a, 0xffffff], '³': [0xffa040, 0xffd25a], '!': [0xff3a6a, 0xffffff] };
 export function animShape(g, t, dir) {
   const { op, sign } = g.userData;
   g.quaternion.copy(camera.quaternion);              // znak vždy čitateľný (ku kamere)
@@ -245,8 +253,8 @@ export function animShape(g, t, dir) {
 
 // ---------- kúzla (letia z kryštálu palice) ----------
 // ŠTYRI ŽIVLY: + zem (popraská, zastaví), − voda (zamrzne), × oheň (zapáli, šíri sa), ÷ vzduch (odsunie)
-const COL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8 };
-const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5 };
+const COL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
+const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5, '√': 6, '²': 9, '³': 9, '!': 6 };
 function cast(t, info) {
   t.locked = true; t.el.classList.add('locked');
   info.op = info.op || (t.p && t.p.op);
@@ -374,8 +382,15 @@ function advHit(e, info) {
     else if (e.stun > 0 && ops.includes('÷')) { v = Math.round(v * 1.5); e.knock = 6; G.floatText('Výbuch zeme! ×1,5', e); }
     if (fight.combo > 1) { v = Math.round(v * (1 + 0.15 * (fight.combo - 1))); G.floatText(`Kombo ×${fight.combo}`, hero.position.clone().add(new THREE.Vector3(0, 2.8, 0))); }
   }
-  if (e.shield) { e.shield = false; v = Math.floor(v / 2); G.floatText('Štít rozbitý!', e); }
+  if (e.shield) { e.shield = false; if ((info.ops || []).includes('√')) G.floatText('√ prerazila štít!', e); else { v = Math.floor(v / 2); G.floatText('Štít rozbitý!', e); } }   // odmocnina ide cez štít
+  if (e.trait && !info.extra) {   // vodca zóny: matematická vlastnosť
+    const [nv, msg] = G.bossTrait(e.trait).hit(info.raw ?? v, v); if (msg) G.floatText(msg, e); v = nv;
+    if (v < 0) { e.hp = Math.min(e.maxHp, e.hp - v); renderTag(e); return; }
+    if (e.trait === 'delic' && v > 0 && fight.summoned < 4 && v > e.maxHp * 0.08) { fight.summoned++; setTimeout(() => fight.on && summon(2), 300); }
+  }
   const before = e.hp; e.hp -= v;
+  const st = G.run.st; if (st) { st.dmg += Math.min(v, Math.max(0, before)); st.hit = Math.max(st.hit, v); if (e.hp <= 0 && before > 0) st.kills++; }
+  if (e.hp <= 0 && before > 0 && G.onKill) G.onKill(e);   // skúsenosti
   if (e === fight.boss) { const f = e.hp / e.maxHp; if ((f < 0.67 && fight.summoned < 1) || (f < 0.34 && fight.summoned < 2)) { fight.summoned++; setTimeout(() => fight.on && summon(2), 600); } }
   if (e.hp <= 0) {
     if (e.hp === 0 && before > 0 && !info.extra) { G.floatText('Presne!', e); G.addCoins(1, e); }
@@ -459,6 +474,7 @@ export function updateFight(dt) {
   const edt = dt * fight.slow, slowCard = 1 - [0, 0.2, 0.35][lvl(G.run, 'cas')];
   for (const e of fight.enemies) {
     const pos = e.g.position; e.t += edt;
+    if (e.trait === 'stit' && e.state !== 'dead' && !e.shield && (e.shT = (e.shT || 0) + edt) > 4) { e.shield = true; e.shT = 0; renderTag(e); G.floatText('Štít späť!', e); }
     if (e.dummy && e.state !== 'dead') { if (e.state === 'stand' || (e.state === 'hit' && e.t > 0.6)) { e.state = 'idle'; e.play('Idle'); } e.flash = Math.max(0, e.flash - dt * 4); for (const m of e.mats) if (m.emissive) m.emissive.setScalar(e.flash * 0.9); e.mixer.update(edt); continue; }   // strašiak stojí a nebráni sa
     toHero.subVectors(hero.position, pos).setY(0);
     const dist = toHero.length(); toHero.normalize();
