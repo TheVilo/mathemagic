@@ -436,6 +436,8 @@ function advHit(e, info) {
     if (v < 0) { e.hp = Math.min(e.maxHp, e.hp - v); renderTag(e); return; }
     if (e.trait === 'delic' && v > 0 && fight.summoned < 4 && v > e.maxHp * 0.08) { fight.summoned++; setTimeout(() => fight.on && summon(2), 300); }
   }
+  // PRAVIDLO ZÓNY (prostredie): výsledok, ktorý ho spĺňa, zraní ×2 (napr. v horách párne)
+  if (G.zoneRule && G.zoneRule.f(Math.round(info.raw ?? 0))) { v *= 2; if (!info.extra) comboHit = true; }
   const before = e.hp; e.hp -= v;
   const st = G.run.st; if (st) { st.dmg += Math.min(v, Math.max(0, before)); st.hit = Math.max(st.hit, v); if (e.hp <= 0 && before > 0) st.kills++; }
   if (e.hp === 0 && before > 0 && !info.extra) e.exact = true;

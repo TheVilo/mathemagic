@@ -92,16 +92,46 @@ function clearRoom() {
   labels = []; band = []; bands = []; act = null; gates = []; if (typeof gems !== "undefined") gems.length = 0; chests = []; runes = []; bushes = []; lock = null;
   endFight();
 }
+function nextZoneWorld() {
+  run.zone++; persist(); spawnQ.length = 0;
+  if (merchant) { merchant.lab.el.remove(); merchant = null; }
+  buildRoom(); renderGoal();
+  const b = biomeOf(run.zone); efekt('objav', 0.8, 0.9);
+  say(`Zóna ${run.zone}: ${b.name}${b.rule ? ` · pravidlo: ${b.rule.t}` : ''}`, 5000);
+}
+// ---------- PROSTREDIA ZÓN (Majster, možnosť 2): pevné poradie Les → Hory → Dungeon → Sopka, potom znova a ťažšie ----------
+// každé má vlastný svet (podklad, modely) a jedno matematické pravidlo zóny (výsledok, ktorý ho splní, zraní ×2)
+const isPrimeZ = n => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
+const BIOMES = [
+  { id: 'les', name: 'Les zbojníkov', rule: null, ground: [0xd8d4ca, 0xe4e0d7], light: [5, 12] },
+  { id: 'hory', name: 'Zasnežené hory', rule: { t: 'párne výsledky ×2', f: n => n > 0 && n % 2 === 0 }, ground: [0xeef1f4, 0xf7f8fa], light: [5, 12] },
+  { id: 'dungeon', name: 'Dungeon', rule: { t: 'násobky 3 ×2', f: n => n > 0 && n % 3 === 0 }, ground: [0x8c857b, 0x9b948a], light: [4, 9] },
+  { id: 'sopka', name: 'Sopka', rule: { t: 'prvočísla ×2', f: isPrimeZ }, ground: [0x6e4c40, 0x7d5747], light: [5, 12] },
+];
+const biomeOf = z => BIOMES[(z - 1) % BIOMES.length];
+function themeWorld(R, b) {
+  if (b.id === 'les') return;
+  const rnd = mulberry32(R.seed * 31 + R.zone), pk = a => a[Math.floor(rnd() * a.length)];
+  const MAP = {
+    hory: m => m.startsWith('tree_') ? pk(['tree_pineDefaultA', 'tree_pineRoundB', 'tree_cone']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['rock_smallA', 'rock_smallB', 'rock_smallFlatA']) : m,
+    dungeon: m => m.startsWith('tree_') ? pk(['barrel_large', 'crates_stacked', 'shelves', 'keg']) : m.startsWith('rock_tall') || m.startsWith('rock_large') ? pk(['wall', 'wall_corner', 'wall']) : m.startsWith('plant_bush') ? pk(['box_small', 'barrel_large']) : m.startsWith('stump') || m.startsWith('log') ? pk(['barrel_large', 'table_medium', 'stool']) : m.startsWith('mushroom') ? 'candle_lit' : m.startsWith('building_') ? 'wall' : m,
+    sopka: m => m.startsWith('tree_') ? pk(['stump_oldTall', 'rock_tallA', 'rock_tallB']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['rock_smallA', 'rock_smallC', 'rock_smallFlatA']) : m.startsWith('log') ? 'rock_largeC' : m,
+  }[b.id];
+  for (const p of R.props) p.m = MAP(p.m);
+  R.flowers = [];
+  R.grass = b.id === 'hory' ? R.grass.filter((_, i) => i % 4 === 0) : [];
+}
 function buildRoom() {
   clearRoom(); inside = false;
   denNoc();
   R = genWorld(run.seed, run.zone, { rune: run.range < 10 && !adv(), open: adv() });   // Majster: otvorený svet ako v hordových hrách
+  const BIO = adv() ? biomeOf(run.zone) : BIOMES[0]; if (adv()) themeWorld(R, BIO); G.zoneRule = adv() ? BIO.rule : null; kresbaMat.uniforms.uNightR.value.set(...BIO.light);
   const W = run.w;
   room = new THREE.Group(); scene.add(room); G.room = room;
   // zem celého sveta
   const geo = new THREE.PlaneGeometry(R.W + 16, R.H + 16, (R.W + 16) * 2, (R.H + 16) * 2);
   geo.rotateX(-Math.PI / 2); geo.translate(R.W / 2, 0, R.H / 2);
-  const pa = geo.attributes.position, col = new Float32Array(pa.count * 3), c1 = new THREE.Color(0xd8d4ca), c2 = new THREE.Color(0xe4e0d7), cc = new THREE.Color();
+  const pa = geo.attributes.position, col = new Float32Array(pa.count * 3), c1 = new THREE.Color(BIO.ground[0]), c2 = new THREE.Color(BIO.ground[1]), cc = new THREE.Color();
   for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i); pa.setY(i, R.height(x, z)); cc.copy(c1).lerp(c2, R.onPath(x, z) ? 1 : 0); col.set([cc.r, cc.g, cc.b], i * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
   const ground = new THREE.Mesh(geo, MAT.ground); ground.receiveShadow = true; room.add(ground); ground.layers.enable(2);
@@ -223,7 +253,7 @@ function tutTick() {
 function renderGates() { for (const g of gates) if (g.kind === 'boss') g.label.el.innerHTML = icon('key') + `${Math.min(run.w.keys, g.need)}/${g.need}`; }
 const bossGate = () => gates.find(g => g.kind === 'boss');
 function renderGoal() {
-  if (adv()) { const left = HPZ - ((hordeN - 1 + HPZ) % HPZ) - 1; goalEl.innerHTML = `<span class="st">zóna ${run.zone}</span><b>Horda ${hordeN} · ${hordeN % HPZ === 0 && fight.on ? 'VODCA ZÓNY!' : `vodca zóny o ${left || HPZ} ${left === 1 ? 'hordu' : 'hôrd'}`}</b>`; return; }
+  if (adv()) { const left = HPZ - ((hordeN - 1 + HPZ) % HPZ) - 1, bz = biomeOf(run.zone); goalEl.innerHTML = `<span class="st">${bz.name}${bz.rule ? ` · ${bz.rule.t}` : ''}</span><b>Horda ${hordeN} · ${hordeN % HPZ === 0 && fight.on ? 'VODCA ZÓNY!' : `vodca zóny o ${left || HPZ} ${left === 1 ? 'hordu' : 'hôrd'}`}</b>`; return; }
   const bg = bossGate(), k = run.w.keys, need = bg ? bg.need : 0;
   const txt = bg && bg.open ? 'Poraz vodcu zbojníkov' : k >= need ? 'Máš všetky kľúče · choď k bráne vodcu' : 'Poraz bandy a nájdi kľúče';
   goalEl.innerHTML = `<span class="st">${icon('key')} ${k}/${need}</span><b>${txt}</b>`;
@@ -560,7 +590,7 @@ function winFight(opts) {
     say(`Vodca zóny porazený! ${newOp ? `Znamienko ${newOp.replace('-', '−')}` : ''}${sp ? ` · nová funkcia ${sp.key}` : ''}`, 4500);
     spawnMerchant(20);
     if (run.zone >= FINAL_ZONE && !run.endless) setTimeout(victory, 2500);
-    else setTimeout(() => { run.zone++; persist(); renderGoal(); say(`Zóna ${run.zone} – nepriatelia sú silnejší.`, 3500); }, 3000);
+    else setTimeout(() => nextZoneWorld(), 3500);
     return;
   }
   if (opts.horde && !b) { if (++hordeWins % 3 === 0) setTimeout(() => cardOffer('Tri hordy porazené', null), 1600); else setTimeout(() => say(`Horda porazená! Ďalšia o ${Math.round(hordeT)} s.`), 900); return; }
@@ -1151,7 +1181,7 @@ async function startGame() {
   if (!meta.intro) return showStory();
   $('menuScr').classList.add('hide'); $('introScr').classList.add('hide'); scrOn = false; paused = false; document.body.classList.remove('scron'); if (iOrb) { scene.remove(iOrb.m); iOrb = null; } snapCam = true; startSay();
 }
-const ZONE_NAMES = ['Les zbojníkov', 'Zasnežené hory', 'Púšť', 'Sopka'];
+const ZONE_NAMES = ['Les zbojníkov', 'Zasnežené hory', 'Dungeon', 'Sopka'];
 function showMenu() {
   scrOn = true; paused = true; document.body.classList.add('scron'); $('menuScr').classList.remove('hide');
   const going = run.w.seen.length > 1 || run.w.camps.length || run.zone > 1 || run.cards.length;
@@ -1246,5 +1276,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
+  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
 };
