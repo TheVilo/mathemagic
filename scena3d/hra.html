@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Mathemagic</title>
 <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e0e10">
 <style>
   /* 1-bit UI (predloha ui.html): farebné sú len karty kúziel, všetko ostatné čierna, biela, papier */
   :root { --ink:#0e0e10; --line:#f2efe6; --paper:#ece8dd; --pp:#ece8dd; --grey:#8a877f; --dim:#3a3936; --red:#d43a3a; --green:#60be68; --blue:#5aa6e0; }
@@ -86,6 +92,14 @@
   #msg { position:fixed; left:50%; top:62px; transform:translateX(-50%); background:var(--ink); color:var(--line); border:1px solid var(--line); outline:2px solid var(--ink); font-size:14px; padding:6px 14px; opacity:0; transition:opacity .25s; pointer-events:none; text-align:center; width:max-content; max-width:min(380px, calc(100vw - 32px)); }
   #msg.show { opacity:1; }
   body.ovon #tut { display:none; }
+  /* mobilný joystick (Majster): ľavý palec = pohyb, ťuk vpravo = výstrel */
+  #joy { position:fixed; left:calc(22px + env(safe-area-inset-left)); bottom:calc(22px + env(safe-area-inset-bottom)); width:128px; height:128px; border:2px solid var(--line); outline:2px solid var(--ink); border-radius:50%; background:rgba(14,14,16,.35); display:none; touch-action:none; z-index:6; }
+  #joy i { position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; background:var(--line); border:2px solid var(--ink); border-radius:50%; }
+  body.majster.touch #joy { display:block; } body.scron #joy, body.ovon #joy { display:none !important; }
+  @media (max-height:500px) { #joy { width:104px; height:104px; } #joy i { width:42px; height:42px; margin:-21px 0 0 -21px; } }
+  .setrow input[type=range] { width:180px; accent-color:var(--line); }
+  .ov.small .box:has(.setrow) { max-width:520px; } .ov:has(.setrow) { background:rgba(14,14,16,.35); }
+  .setrow { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:10px 0; border-bottom:1px dashed var(--dim); text-align:left; } .setrow:last-of-type { border:0; } .setrow span small { display:block; color:var(--grey); font-size:12px; margin-top:2px; }
   #tut { position:fixed; left:50%; top:96px; transform:translateX(-50%); padding:20px 18px 12px; font-size:15px; line-height:1.4; text-align:center; width:min(440px, calc(100vw - 32px)); z-index:5; } #tut.hidden { display:none; }
   .hb.pulse { animation:hbp .8s steps(2) infinite; } @keyframes hbp { 50% { background:var(--line); color:var(--ink); } }
   @media (max-height:500px) { #tut { top:56px; font-size:12px; padding:16px 12px 8px; } }
@@ -271,6 +285,7 @@
 <div id="topr"><div id="coins" class="panel thin"></div><button class="hb" id="bMap"></button><button class="hb" id="bPack"></button><button class="hb" id="bBook"></button><button class="hb" id="bPause"></button></div>
 <div id="streak" class="hidden"></div>
 <div id="tut" class="panel hidden"></div>
+<div id="joy"><i></i></div>
 <div id="msg"></div>
 <div id="bottom" class="hidden"><div id="inp"></div><div id="pad"></div></div>
 <div id="ov" class="ov"></div>

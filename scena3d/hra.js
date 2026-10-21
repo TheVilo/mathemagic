@@ -532,12 +532,24 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
 let mouseNdc = null, mouseWorld = null, aimFrame = 0;
+// ---------- MOBIL (Majster): joystick ľavým palcom, ťuk vpravo = výstrel tým smerom ----------
+const isTouch = matchMedia('(pointer: coarse)').matches; if (isTouch) document.body.classList.add('touch');
+const joy = { x: 0, z: 0, id: null };
+{
+  const J = $('joy'), K = J.querySelector('i');
+  const set = e => { const r = J.getBoundingClientRect(), R0 = r.width / 2; let dx = e.clientX - r.left - R0, dy = e.clientY - r.top - R0; const l = Math.hypot(dx, dy); if (l > R0) { dx *= R0 / l; dy *= R0 / l; }
+    K.style.transform = `translate(${dx}px, ${dy}px)`; const m = Math.hypot(dx, dy) / R0; joy.x = m > 0.15 ? dx / R0 : 0; joy.z = m > 0.15 ? dy / R0 : 0; };
+  J.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); joy.id = e.pointerId; J.setPointerCapture(e.pointerId); set(e); });
+  J.addEventListener('pointermove', e => { if (e.pointerId === joy.id) set(e); });
+  const end = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.z = 0; K.style.transform = ''; };
+  J.addEventListener('pointerup', end); J.addEventListener('pointercancel', end);
+}
 $('c').addEventListener('pointermove', e => { mouseNdc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
 let target = null, tapMark = null;
 // mobil: pri prvom ťuknutí celá obrazovka a zámok na šírku (Android); iPhone ukáže výzvu „Otoč mobil“
 addEventListener('pointerdown', () => { if (matchMedia('(pointer: coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {}); }, { once: true });
 $('c').addEventListener('pointerdown', e => {
-  if (!paused && adv() && !scrOn) { mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera); const gh = ray.intersectObject(place.ground)[0]; fireAtScreen(e.clientX, e.clientY, camera, gh ? gh.point.clone().add(new THREE.Vector3(0, 0.3, 0)) : null); return; }   // Majster: klik = výstrel
+  if (!paused && adv() && !scrOn) { mouseNdc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera); const gh = ray.intersectObject(place.ground)[0]; fireAtScreen(e.clientX, e.clientY, camera, gh ? gh.point.clone().add(new THREE.Vector3(0, 0.3, 0)) : null); return; }   // Majster: klik = výstrel
   if (paused || fight.on || lockOn || !place.ground) return;
   mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(mouse, camera);
@@ -550,11 +562,11 @@ $('bBook').onclick = () => { if (paused) return; if (adv()) openPack(); else if 
 $('bMap').onclick = () => { if (!paused && !fight.on) openMap(); };
 $('bPause').onclick = () => { if (!paused) openPause(); };
 function openPause() {
-  const el = overlay('Pauza', `<div class="menu">${menu([['go', 'play', 'Pokračovať'], ['book', 'book', 'Kniha kúziel', fight.on && !adv()], ['map', 'map', 'Mapa', fight.on], ['menu', 'door', 'Do menu']])}</div><button id="close" hidden></button>`, 'small');
+  const el = overlay('Pauza', `<div class="menu">${menu([['go', 'play', 'Pokračovať'], ['book', 'book', 'Kniha kúziel', fight.on && !adv()], ['map', 'map', 'Mapa', fight.on], ['set', 'gear', 'Nastavenia'], ['menu', 'door', 'Do menu']])}</div><button id="close" hidden></button>`, 'small');
   el.querySelector('#close').onclick = closeOverlay;
   el.querySelectorAll('.row').forEach(r => r.onclick = () => {
     const k = r.dataset.k; closeOverlay();
-    if (k === 'book') (adv() ? openPack() : openBook()); else if (k === 'pack') openPack(); else if (k === 'map') openMap(); else if (k === 'menu') showMenu();
+    if (k === 'book') (adv() ? openPack() : openBook()); else if (k === 'pack') openPack(); else if (k === 'set') openSettings(); else if (k === 'map') openMap(); else if (k === 'menu') showMenu();
   });
 }
 // kruh v mieste ťuknutia
@@ -571,6 +583,7 @@ function update(dt, t) {
   G.now = t; U.time.value = t;
   // pohyb
   const dir = new THREE.Vector3((keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), 0, (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0));
+  if (joy.x || joy.z) { dir.x += joy.x; dir.z += joy.z; }   // mobilný joystick
   if (dir.lengthSq()) target = null;
   else if (target) { dir.subVectors(target, hero.position).setY(0); if (dir.length() < 0.15) { target = null; dir.set(0, 0, 0); } }
   if (dir.lengthSq()) dir.normalize();
@@ -794,14 +807,42 @@ const ZONE_NAMES = ['Les zbojníkov', 'Zasnežené hory', 'Púšť', 'Sopka'];
 function showMenu() {
   scrOn = true; paused = true; document.body.classList.add('scron'); $('menuScr').classList.remove('hide');
   const going = run.w.seen.length > 1 || run.w.camps.length || run.zone > 1 || run.cards.length;
-  $('mainMenu').innerHTML = menu([['go', 'play', going ? 'Pokračovať' : 'Hrať'], ['new', 'star', 'Nový beh', !going], ['book', 'book', 'Kniha kúziel']]);
+  $('mainMenu').innerHTML = menu([['go', 'play', going ? 'Pokračovať' : 'Hrať'], ['new', 'star', 'Nový beh', !going], ['book', 'book', 'Kniha kúziel'], ['set', 'gear', 'Nastavenia']]);
   $('zoneBox').innerHTML = `<div class="r"><span>Zóna ${run.zone}</span><span style="color:var(--grey)">${ZONE_NAMES[(run.zone - 1) % 4]}</span></div><div class="bar"><b style="width:${Math.round(run.w.seen.length / 9 * 100)}%"></b></div><div class="r g"><span>Kariet ${meta.seen.length}/${Object.keys(CARDS).length}</span><span>${['+', ...run.ops.filter(o => o !== '+')].join(' ').replace('-', '−')} do ${run.range}</span></div>`;
   $('mainMenu').querySelectorAll('.row').forEach(r => r.onclick = () => {
     const k = r.dataset.k;
-    if (k === 'book') return openBook();
+    if (k === 'book') return adv() ? openPack() : openBook();
+    if (k === 'set') return openSettings();
     if (k === 'new' || !going) return chooseMode(mode => { run = newRun(mode); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); });
     $('menuScr').classList.add('hide'); scrOn = false; paused = false; document.body.classList.remove('scron'); if (iOrb) { scene.remove(iOrb.m); iOrb = null; } snapCam = true; startSay();
   });
+}
+// ---------- NASTAVENIA: celá obrazovka, stiahnuť do mobilu (PWA) ----------
+let installEvt = null;
+// obraz: kontrast, jas, farebnosť (filter na plátne hry, uložené v prehliadači)
+const VIEW_KEY = 'mm-view', view = Object.assign({ c: 100, b: 100, s: 100 }, load(VIEW_KEY, {}));
+const applyView = () => { $('c').style.filter = `contrast(${view.c}%) brightness(${view.b}%) saturate(${view.s}%)`; };
+applyView();
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+const installed = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function openSettings(back) {
+  const fs = !!document.fullscreenElement, canFs = !!document.documentElement.requestFullscreen;
+  const inst = installed() ? '<span class="btn" style="opacity:.5">Nainštalované ✓</span>' : installEvt ? '<button class="btn on" id="inst">Stiahnuť</button>' : isIOS ? '<span class="btn ghost" style="cursor:default">návod nižšie</span>' : '<span class="btn ghost" style="cursor:default">v menu prehliadača</span>';
+  const el = overlay('Nastavenia', `
+    <div class="setrow"><span>Celá obrazovka<small>${canFs ? 'hra bez lišty prehliadača' : 'na iPhone len po pridaní na plochu'}</small></span>${canFs ? `<button class="btn ${fs ? 'on' : ''}" id="fs">${fs ? 'Zap' : 'Vyp'}</button>` : '<span class="btn ghost" style="cursor:default">—</span>'}</div>
+    <div class="setrow"><span>Stiahnuť do mobilu<small>appka na ploche, spustí sa cez celú obrazovku na šírku</small></span>${inst}</div>
+    ${isIOS && !installed() ? `<p class="sub" style="text-align:left">iPhone / iPad: ťukni dole na <b>Zdieľať</b> (štvorček so šípkou) → <b>Pridať na plochu</b> → <b>Pridať</b>.</p>` : ''}
+    ${!isIOS && !installEvt && !installed() ? `<p class="sub" style="text-align:left">Android: v Chrome ťukni na <b>⋮</b> → <b>Inštalovať aplikáciu</b> (alebo Pridať na plochu).</p>` : ''}
+    <h3>Obraz</h3>
+    ${[['c', 'Kontrast', 50, 200], ['b', 'Jas', 50, 160], ['s', 'Farebnosť', 0, 250]].map(([k, n, a, b]) => `<div class="setrow"><span>${n}<small id="v-${k}">${view[k]} %</small></span><input type="range" class="sl-${k}" min="${a}" max="${b}" step="5" value="${view[k]}" data-k="${k}"></div>`).join('')}
+    <div class="acts"><button class="btn ghost" id="vreset">Pôvodné</button><button class="btn on" id="close">Hotovo</button></div>`, 'small');
+  el.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { view[r.dataset.k] = +r.value; el.querySelector('#v-' + r.dataset.k).textContent = r.value + ' %'; applyView(); try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} });
+  el.querySelector('#vreset').onclick = () => { Object.assign(view, { c: 100, b: 100, s: 100 }); applyView(); try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) {} openSettings(back); };
+  const f = el.querySelector('#fs'); if (f) f.onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else { await document.documentElement.requestFullscreen(); screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } } catch (e) {} setTimeout(() => openSettings(back), 150); };
+  const i = el.querySelector('#inst'); if (i) i.onclick = async () => { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; openSettings(back); };
+  el.querySelector('#close').onclick = () => { closeOverlay(); back && back(); };
 }
 // výber režimu pri novom behu
 // Učeň (vľavo, deň) / Majster (vpravo, noc): poloha myši plynulo mení deň a noc, panely sa posúvajú proti sebe (paralax)

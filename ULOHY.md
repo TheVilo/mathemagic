@@ -7,13 +7,16 @@ Nič z toho ešte nie je nahrané na server (čaká na „nahraj“).
 1. **Zátvorky, zlomok (/), odmocnina (√)** do ruksaku (nové tlačidlá kalkulačky).
 2. **Brány na presné číslo** – „otvor ma kúzlom za presne 12“.
 3. **Vylepšiť ikonky.**
-4. **Nahrať na server** (keď povieš „nahraj“).
+4. ~~Nahrať na server~~ – nahraté 21. 10. (partaci.com/hry/mathemagic/scena3d/).
 
 ## 🟡 Hotové, neoverené alebo čiastočne
 6. **Mobil** – nič z nového neskúšané na telefóne.
 8. **Salva znamienok a kritický zásah** – overené číslami (damage, krit ×2), vzhľad letu som v náhľade nezachytil.
 
 ## ✅ Hotové
+- **Mobil (Majster):** joystick ľavým palcom = pohyb, ťuk vpravo = výstrel tým smerom.
+- **Nastavenia** (menu aj pauza): celá obrazovka, stiahnuť do mobilu (PWA – Android tlačidlo, iPhone návod Zdieľať → Pridať na plochu), posuvníky kontrast / jas / farebnosť (uložené v prehliadači).
+- **Appka na plochu:** manifest, ikonka (4 znamienka v 1-bit ráme), service worker (najprv sieť, bez siete z pamäte), spustí sa cez celú obrazovku na šírku.
 - **Obchod = samostatná obrazovka** (Lukáš: interiér bez fakieľ, zvlášť screen): pri dverách sa otvorí, po odchode stojíš pred dverami.
 - **Majster ako roguelite:** hordy prichádzajú zo 13–16 m a idú po tebe; veľkosť 2 + ⌊0,8·vlna⌋ + (zóna−1) (max 12), interval max(16, 38 − 2·vlna) s, druhy sa pritvrdzujú; každá 3. porazená horda = karta. V boji sa dá hýbať (WASD), bandy ťa zacítia z 10 m.
 - **Kniha kúziel (Majster) namiesto ruksaku:** vľavo zápis kúziel (riadky) a 4 miesta na efekty, vpravo kalkulačka; ide aj z klávesnice (čísla, + - * /, Backspace, Enter).
