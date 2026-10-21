@@ -925,6 +925,7 @@ function updateInside() {
   if (Math.abs(IX - hp.x) < 1.3 && hp.z > 4.0) exitInterior();
 }
 let snapCam = true;
+const ZOOM_OUT = 1.25;   // Majster: kamera o 25 % ďalej – hordu vidno skôr (postavy ostávajú v pomere k svetu)
 function draw(dt) {
   // kamera: pri skúmaní ide za čarodejníkom (drží sa v miestnosti), v súboji ukáže celé bojisko
   let look, view;
@@ -935,6 +936,7 @@ function draw(dt) {
     const hw = viewZoom * innerWidth / innerHeight;
     look = new THREE.Vector3(Math.min(Math.max(hero.position.x, hw - 2), R.W - hw + 2), hero.position.y + 0.9, Math.min(Math.max(hero.position.z, 3), R.H - 3)); view = 5.2;
   }
+  if (adv() && !inside) view *= ZOOM_OUT;
   if (scrOn && !inside && R) { const hw = viewZoom * innerWidth / innerHeight; look = hero.position.clone().add(new THREE.Vector3(modeOn ? (dnT - 0.5) * 1.6 : hw * 0.42, 0.9, 0.6)); view = 4.4; }
   const kc = snapCam ? 1 : 1 - Math.exp(-dt * 2.6); snapCam = false;
   camLook.lerp(look, kc); if (!Number.isFinite(camLook.x + camLook.y + camLook.z)) camLook.copy(look);
