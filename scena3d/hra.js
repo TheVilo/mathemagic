@@ -8,7 +8,7 @@ import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, 
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
-import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY } from './balance.js';
+import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
@@ -432,7 +432,7 @@ function openPack() {
     </div>
     <div class="page rp">
       <div class="calc2">
-        <div class="brand"><b>${staffStats(P).name.toUpperCase()}${P.staff ? ` ${P.staff}★` : ''}</b><span>⚡${staffStats(P).emax} · +${+staffStats(P).regen.toFixed(1)}/s</span></div>
+        <div class="brand"><b>${staffStats(P).name.toUpperCase()}${P.staff ? ` ${P.staff}★` : ''}</b><span>⚡${staffStats(P).emax} · +${+staffStats(P).regen.toFixed(1)}/s · displej ${staffStats(P).disp}</span><i class="bat" title="energia"><b style="width:${Math.round(Math.min(1, (run.energy ?? staffStats(P).emax) / staffStats(P).emax) * 100)}%"></b></i></div>
         <div class="lcd2">${lcdRow(packRow).replace('class="lrow', 'class="lrow big')}</div>
         <div class="ckeys">${KEYS.map(keyHtml).join('')}</div>
       </div>
@@ -464,7 +464,8 @@ function openShop() {
   const el = overlay('Obchod', `<div class="shophead">${dia('crown', 'big')}<div><b>Obchodník</b><p class="sub">„Za mince ti predám kúzla a klávesy. Počítať musíš sám.“</p></div><span class="chip">${icon('coin')} <b>${run.coins}</b></span></div>
     <div class="cards">${ids.map(id => card(id, { l: lvl(run, id) + 1, cls: 'pick', data: `data-id="${id}"`, count: lvl(run, id) ? 2 : 0, foot: `<span class="price">${icon('coin')} ${price(id)}</span>` })).join('')}</div>
     <div class="acts"><button class="btn" id="heal" ${heal && run.coins >= 6 ? '' : 'disabled'}>${icon('heart')} Srdiečko · ${icon('coin')} 6</button>${adv() && run.pack.slots < MAX_SLOTS ? `<button class="btn" id="slot" ${run.coins >= slotPrice(run.pack) ? '' : 'disabled'}>+2 políčka · ${icon('coin')} ${slotPrice(run.pack)}</button>` : ''}${adv() && run.pack.rows.length < MAX_ROWS ? `<button class="btn" id="row" ${run.coins >= rowPrice(run.pack) ? '' : 'disabled'}>Ďalšie kúzlo · ${icon('coin')} ${rowPrice(run.pack)}</button>` : ''}${adv() && run.pack.staff < MAX_STAFF ? `<button class="btn" id="staff" ${run.coins >= staffPrice(run.pack) ? '' : 'disabled'}>Lepšia palica · ${icon('coin')} ${staffPrice(run.pack)}</button>` : ''}</div>
-    ${adv() ? `<h3>Palice</h3><div class="row staffs">${Object.entries(STAFFS).map(([k, s]) => `<button class="btn ${run.pack.kind === k ? 'on' : ''}" data-staff="${k}" ${run.pack.kind === k || run.coins < s.price ? 'disabled' : ''}><b>${s.name}</b>&nbsp;${s.text} · ⚡${s.emax} +${s.regen}/s · displej ${s.disp}${run.pack.kind === k ? ' · máš' : ` · ${icon('coin')} ${s.price}`}</button>`).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
+    ${adv() ? `<h3>Palice · model kalkulačky</h3><div class="palgrid">${Object.entries(STAFFS).map(([k, m]) => { const r = STAFF_RAR[k], mine = run.pack.kind === k;
+      return `<button class="palc r-${r}${mine ? ' mine' : ''}" data-staff="${k}" style="--rc:${RARITY[r].col}" ${mine || run.coins < m.price ? 'disabled' : ''}><em class="rar">${RARITY[r].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.jpg" alt="" onerror="this.remove()"></div><b>${m.name}</b><span class="pst"><i>displej</i>${m.disp}<i>⚡ max</i>${m.emax}<i>⚡ za s</i>+${m.regen}${m.shots > 1 ? '<i>ciele</i>2' : ''}</span><span class="pp">${mine ? 'máš' : `${icon('coin')} ${m.price}`}</span></button>`; }).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
   el.querySelectorAll('.card').forEach(c => {
     const id = c.dataset.id; if (run.coins < price(id)) c.classList.add('poor');
     c.addEventListener('click', () => { if (run.coins < price(id)) { say('Nemáš dosť mincí.'); return; } run.coins -= price(id); renderCoins(); closeOverlay(); addCard(id); });
@@ -472,7 +473,8 @@ function openShop() {
   el.querySelector('#heal').onclick = () => { run.coins -= 6; run.hearts++; renderHearts(); renderCoins(); persist(); closeOverlay(); say('Srdiečko doplnené.'); };
   const sl = el.querySelector('#slot'); if (sl) sl.onclick = () => { run.coins -= slotPrice(run.pack); run.pack.slots += 2; renderCoins(); persist(); closeOverlay(); say(`Ruksak má ${run.pack.slots} políčok – dlhšie kúzla!`); };
   const rw = el.querySelector('#row'); if (rw) rw.onclick = () => { run.coins -= rowPrice(run.pack); run.pack.rows.push([]); renderCoins(); persist(); closeOverlay(); say(`Máš ${run.pack.rows.length} kúzla – striedajú sa v poradí.`); };
-  el.querySelectorAll('[data-staff]').forEach(b => b.onclick = () => { const s = STAFFS[b.dataset.staff]; run.coins -= s.price; run.pack.kind = b.dataset.staff; renderCoins(); persist(); closeOverlay(); say(`${s.name}!`); });
+  el.querySelectorAll('[data-staff]').forEach(b => b.onclick = () => { const s = STAFFS[b.dataset.staff]; run.coins -= s.price; run.pack.kind = b.dataset.staff; run.energy = staffStats(run.pack).emax; renderCoins(); persist(); closeOverlay(); say(`Palica ${s.name}: displej ${s.disp}, energia ${s.emax}.`); });
+  addX(() => el.querySelector('#close').click());
   const sf = el.querySelector('#staff'); if (sf) sf.onclick = () => { run.coins -= staffPrice(run.pack); run.pack.staff++; renderCoins(); persist(); closeOverlay(); say(`Palica úrovne ${run.pack.staff}: +25 % damage, viac energie.`); };
   el.querySelector('#close').onclick = closeOverlay;
 }
@@ -851,13 +853,14 @@ function openLevelUp() {
   const pack = levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
   // obrázok: karta → zdroj/karty/<id>.jpg, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
   const KEYLAB = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' };
-  const art = o => { const g = o.give; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
+  const art = o => { const g = o.give; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.jpg" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
     const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.jpg" alt="" onerror="this.remove()"></div>`; };
   const el = overlay(`Úroveň ${run.lvl - lvlQueue}`, `<p class="sub">Vyber si kartu alebo kláves do kalkulačky.</p>
     <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel r-${o.rar}" data-i="${i}" style="--rc:${RARITY[o.rar].col}"><em class="rar">${RARITY[o.rar].name}</em>${art(o)}<b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
   el.querySelectorAll('.lvo').forEach(b => b.onclick = () => {
     const o = offers[+b.dataset.i], g = o.give;
     if (g.t === 'staff') run.pack.staff++;
+    else if (g.t === 'pal') { run.pack.kind = g.k; run.energy = staffStats(run.pack).emax; }
     else if (g.t === 'star') { run.pack.stars = run.pack.stars || {}; run.pack.stars[g.v] = (run.pack.stars[g.v] || 0) + 1; }
     else if (g.t === 'magnet') run.magnet = (run.magnet || 0) + 1;
     else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts++; renderHearts(); }

@@ -100,7 +100,10 @@ export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
   if (P.rows.length < 3) pool.push({ id: 'row', w: 0.6 * gate(L, 5), title: 'Ďalšie kúzlo', text: 'nový riadok – kúzla sa striedajú', give: { t: 'row' } });
   pool.push({ id: 'magnet', w: 0.5, title: 'Magnet', text: 'kryštály priťahuješ z väčšej diaľky', give: { t: 'magnet' } });
   pool.push({ id: 'heart', w: 0.6, title: '+1 srdce', text: 'viac životov do konca behu', give: { t: 'heart' } });
-  for (const p of pool) { const r = CARD_RAR[p.give.id || p.give.t] || 'v'; p.w *= RAR_W[r] * gate(L, RAR_L[r]); }
+  // nová palica (model kalkulačky) – len lepšia než tá, čo máš (podľa ceny), vzácnosť podľa modelu
+  const cur = STAFF_MODELS[P.kind] || STAFF_MODELS.zakladna;
+  for (const [k, m] of Object.entries(STAFF_MODELS)) if (k !== P.kind && m.price > cur.price) pool.push({ id: 'pal-' + k, w: 0.3, title: `Palica ${m.name}`, text: `${m.text} · ⚡${m.emax} +${m.regen}/s · displej ${m.disp}`, give: { t: 'pal', k } });
+  for (const p of pool) { const r = p.give.t === 'pal' ? STAFF_RAR[p.give.k] : CARD_RAR[p.give.id || p.give.t] || 'v'; p.w *= RAR_W[r] * gate(L, RAR_L[r]); }
   const live = pool.filter(p => p.w > 0), out = []; while (out.length < n && live.length) out.push(pickW(live, rng));
   return out;
 }
@@ -109,6 +112,7 @@ export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
 export const RARITY = { b: { name: 'Bežná', col: '#b8b8b8' }, v: { name: 'Vzácna', col: '#5aa6ff' }, e: { name: 'Epická', col: '#b07ad8' }, l: { name: 'Legendárna', col: '#f0c040' } };
 const RAR_W = { b: 1, v: 0.6, e: 0.3, l: 0.12 }, RAR_L = { b: 1, v: 2, e: 5, l: 9 };
 const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'e', c: 'l', f: 'l' };
+export const STAFF_RAR = { zakladna: 'b', rychla: 'v', tazka: 'v', dvojita: 'e', vedecka: 'e', graficka: 'l' };
 export const CARD_RAR = { magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
 export function rarityOf(o) {
   const g = o.give || {};
@@ -117,6 +121,7 @@ export function rarityOf(o) {
   if (g.t === 'spec') return KEY_RAR[g.k] || 'e';
   if (g.t === 'slot') return 'v';
   if (g.t === 'card') return CARD_RAR[g.id] || 'v';
+  if (g.t === 'pal') return STAFF_RAR[g.k] || 'v';
   return CARD_RAR[g.t] || 'b';
 }
 // VÝBER PO ÚROVNI: 3 miesta, každé je náhodne kláves (P_CALC) alebo karta → miešajú sa, vyberáš medzi nimi
