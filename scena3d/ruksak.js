@@ -23,12 +23,12 @@ export const dieMax = run => (run.range <= 5 ? 4 : 9);
 // faktor = číslo | □ | ( výraz ) | √ faktor). Vráti hodnotu, text a zoznam znamienok (živly) alebo null, keď vzorec nie je hotový.
 function evalSpell(toks, die, stars = null, cap = 12) {
   let i = 0; const ops = [];
-  // za číslom / zátvorkou môžu ísť funkcie: ² ³ ! (aj viac za sebou)
+  // za číslom / zátvorkou môže ísť JEDNA funkcia: ² ³ ! (reťaz 9²² by hru rozbila hneď)
   // faktoriál do 7! počas 8 zón, v nekonečne do 12! = 479 001 600 – vtedy sa hra dá „rozbiť“
   const fact = n => { n = Math.max(0, Math.min(cap, Math.round(n))); let r = 1; for (let k = 2; k <= n; k++) r *= k; return r; };
   const factor = () => {
     let f = primary(); if (!f) return null;
-    while (toks[i] && toks[i].t === 'x') { const o = toks[i++].v; ops.push(o); f = o === '²' ? { v: f.v * f.v, s: f.s + '²' } : o === '³' ? { v: f.v ** 3, s: f.s + '³' } : { v: fact(f.v), s: f.s + '!' }; }
+    if (toks[i] && toks[i].t === 'x') { const o = toks[i++].v; ops.push(o); f = o === '²' ? { v: f.v * f.v, s: f.s + '²' } : o === '³' ? { v: f.v ** 3, s: f.s + '³' } : { v: fact(f.v), s: f.s + '!' }; if (toks[i] && toks[i].t === 'x') return null; }   // len jedna funkcia za sebou (9²² nie)
     return f;
   };
   const primary = () => {

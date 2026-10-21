@@ -321,6 +321,9 @@
   .lcd2 { background:#0a0a0c; border:2px solid var(--dim); padding:6px 8px; margin-bottom:12px; background-image:radial-gradient(rgba(242,239,230,.06) 1px, transparent 1px); background-size:4px 4px; }
   .lrow { display:grid; grid-template-columns:14px 1fr auto; gap:0 8px; align-items:center; padding:4px 4px; cursor:pointer; text-align:left; } .lrow.on { outline:1px dashed var(--line); }
   .lrow .ln { color:var(--grey); font-size:12px; } .lrow .lf .pix { height:20px; fill:var(--line); } .lrow .lf i { font-style:normal; color:var(--dim); letter-spacing:4px; margin-left:4px; }
+  .lrow { min-width:0; } .lrow .lf { min-width:0; overflow:hidden; white-space:nowrap; } .lrow .lr { white-space:nowrap; } .lrow .lr.l .pix { height:12px !important; } .lrow .lr.xl .pix { height:9px !important; } .lrow .lo { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .calc2 .brand span { white-space:normal; font-size:10px; } .lrow.big .lf .pix { max-width:100%; }
+  .ck .xl { display:inline-flex; align-items:flex-start; gap:1px; font-size:18px; line-height:1; } .ck .xl .pix { height:9px; fill:currentColor; }
   .lrow .lr { font-size:16px; color:var(--line); } .lrow .lr .pix { height:16px; fill:var(--line); } .lrow .lo { grid-column:2 / 4; font-size:11px; color:var(--grey); }
   .ckeys { display:grid; grid-template-columns:repeat(5, 1fr); gap:7px; } .ckeys .ck.fn.eq { grid-column:span 3; } .calc2 { width:370px; }
   .ck { position:relative; height:50px; font:inherit; font-size:20px; color:var(--line); background:var(--ink); border:2px solid var(--line); outline:2px solid var(--ink); cursor:pointer; display:grid; place-items:center; padding:0; }

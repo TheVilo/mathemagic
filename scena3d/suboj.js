@@ -448,6 +448,8 @@ let shotN = 0;
 function majsterFx(e, info, v) {
   if (info.extra) return;
   const ot = lvl(G.run, 'otras'); if (ot && e.state !== 'dead') e.stun = Math.max(e.stun || 0, ot > 1 ? 1.5 : 0.8);
+  // ODMOCNINA = KOREŇ: zakorení nepriateľa na mieste (2,5 s) – √ zmenší číslo, ale zastaví toho, kto je najbližšie
+  if ((info.ops || []).includes('√') && e.state !== 'dead') { e.stun = Math.max(e.stun || 0, 2.5); G.floatText('√ zakorenený!', e); }
   const pl = lvl(G.run, 'plocha');
   if (pl) for (const o of fight.enemies) if (o !== e && o.state !== 'dead' && o.g.position.distanceTo(e.g.position) < 2.4) advHit(o, { v: Math.max(1, Math.round(v * (pl > 1 ? 0.7 : 0.4))), extra: true });
   const bl = lvl(G.run, 'blesk'); shotN++;

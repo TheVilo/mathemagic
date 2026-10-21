@@ -4,7 +4,7 @@
 // Sčítanie rastie pomaly, násobenie rýchlo, mocnina a faktoriál najrýchlejšie → matematika = sila.
 //
 //   w = poradie hordy v behu (1, 2, 3 …), z = zóna (1, 2, 3 …)
-//   obtiažnosť  D(w, z) = 1,22^(w−1) · 2,4^(z−1)
+//   obtiažnosť  D(w, z) = 1,22^(w−1) · 3,3^(z−1)
 //   život       HP = druh · 4 · D            (zbojník 1, strelec 1, rytier 1,6, barbar 2,2, kapitán ×1,8, vodca ×9)
 //   veľkosť     n = min(14, 2 + ⌊0,7 · w⌋ + (z − 1))
 //   interval    t = max(9, 24 − 1,3 · w) s, prvá horda po 8 s; nepriatelia ×2,2 rýchlejší, banda ťa zacíti zo 14 m
@@ -13,7 +13,7 @@
 //   úroveň      výber 1 z 3 (nový kláves, lepšie číslo, viac políčok, palica, špeciálna funkcia)
 
 export const KIND_HP = { rogue: 1, hooded: 1, knight: 1.6, barbarian: 2.2, innkeeper: 1 };
-export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(3, Math.max(0, z - 1));
+export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(3.3, Math.max(0, z - 1));
 export const enemyHpM = (kind, w, z, { boss = false, elite = false } = {}) => Math.max(2, Math.round((KIND_HP[kind] || 1) * 4 * difficulty(w, z) * (boss === 2 ? 9 : boss ? 6 : elite ? 1.8 : 1)));
 export const hordeSize = (w, z) => Math.min(14, 2 + Math.floor(0.7 * w) + (z - 1));
 export const hordeInterval = w => Math.max(9, 24 - 1.3 * w);   // hordy chodia často – nečaká sa
@@ -40,6 +40,9 @@ export const SPECIALS = [
 ];
 // vodcovia zón a vodcovia hôrd dávajú špeciálne funkcie v tomto poradí
 export const nextSpecial = unlock => SPECIALS.find(s => !unlock[s.k]) || null;
+// FUNKCIE = KUSY: unlock[k] je počet kusov (staré uloženie true = 1); každý kus sa dá vo vzorcoch použiť raz
+export const specOwned = (U, k) => U && U[k] === true ? 1 : (U && +U[k]) || 0;
+export const specAdd = (U, k) => { U[k] = specOwned(U, k) + 1; };
 // 8 VODCOV ZÓN (Majster) – každý má matematickú vlastnosť; 1. a 8. sú pevné, 2.–7. sa zamiešajú podľa semienka behu.
 // raw = výsledok vzorca (pred násobičmi), v = damage. Vráti nový damage (záporný = lieči) a hlášku.
 const isPrime = n => { if (n < 2 || n % 1) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
@@ -75,8 +78,8 @@ export const ITEMS = [   // veci do kalkulačky okrem čísel
   { id: '×', t: 'o', v: '×', Lmin: 4, w: 0.55, title: 'Znamienko ×', text: 'násobenie · oheň' },
   { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: 'delenie · vzduch odhodí' },
   { id: 'p', t: 'spec', k: 'p', Lmin: 6, w: 0.35, title: 'Zátvorky ( )', text: '(2+3)×4 = 20 – počíta sa najprv v zátvorke' },
-  { id: 's', t: 'spec', k: 's', Lmin: 8, w: 0.3, title: 'Odmocnina √', text: '√16 = 4 · prerazí štít' },
-  { id: 'q', t: 'spec', k: 'q', Lmin: 10, w: 0.3, title: 'Mocnina x²', text: '6² = 36' },
+  { id: 's', t: 'spec', k: 's', Lmin: 8, w: 0.3, title: 'Odmocnina √', text: '√ zakorení nepriateľa na mieste a prerazí štít' },
+  { id: 'q', t: 'spec', k: 'q', Lmin: 10, w: 0.25, title: 'Mocnina x²', text: '6² = 36 · jeden kus' },
   { id: 'c', t: 'spec', k: 'c', Lmin: 14, w: 0.22, title: 'Mocnina x³', text: '4³ = 64' },
   { id: 'f', t: 'spec', k: 'f', Lmin: 18, w: 0.16, title: 'Faktoriál !', text: '5! = 120 (až do 12!)' },
   { id: 'slot', t: 'slot', Lmin: 2, w: 0.7, title: '+2 políčka', text: 'dlhší vzorec na displeji' },
@@ -88,7 +91,7 @@ export function calcOffers(L, run, rng = Math.random, n = 3) {
   // malé čísla (1–4) prídu po dvoch kusoch (dlhší vzorec, rýchlejšie ★), veľké po jednom a drahšie na energiu
   for (let v = 1; v <= 9; v++) { const w = numWeight(v, L) * 1.6, two = v <= 4; if (w > 0.02) pool.push({ id: 'n' + v, w, n: two ? 2 : 1, title: two ? `2× číslo ${v}` : `Číslo ${v}`, text: `⚡${numCost(v)} za kláves${two ? ' · dva kusy' : ''}${(P.stars && P.stars[v]) ? ` · máš ${v}${'★'.repeat(P.stars[v])}` : ''}`, give: { t: 'n', v } }); }
   for (const it of ITEMS) {
-    if (it.t === 'spec' && U[it.k]) continue;
+    if (it.t === 'spec' && specOwned(U, it.k) >= (it.k === 'p' ? 2 : 2)) continue;   // najviac 2 kusy jednej funkcie
     if (it.t === 'slot' && P.slots >= 13) continue;
     const w = it.w * gate(L, it.Lmin); if (w > 0) pool.push({ id: it.id, w, title: it.title, text: it.text, give: it.t === 'o' ? { t: 'o', v: it.v } : it.t === 'spec' ? { t: 'spec', k: it.k } : { t: 'slot' } });
   }
@@ -112,7 +115,7 @@ export function cardOffers(L, run, cards, rng = Math.random, n = 3) {
 // Bežná · Vzácna · Epická · Legendárna – rám a váha. Kartám sa váha násobí RAR_W a otvára sa až od úrovne RAR_L (gate).
 export const RARITY = { b: { name: 'Bežná', col: '#b8b8b8' }, v: { name: 'Vzácna', col: '#5aa6ff' }, e: { name: 'Epická', col: '#b07ad8' }, l: { name: 'Legendárna', col: '#f0c040' } };
 const RAR_W = { b: 1, v: 0.6, e: 0.3, l: 0.12 }, RAR_L = { b: 1, v: 2, e: 5, l: 9 };
-const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'e', c: 'l', f: 'l' };
+const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'l', c: 'l', f: 'l' };   // funkcie sú vzácne KUSY (x² legendárne)
 export const STAFF_RAR = { zakladna: 'b', rychla: 'v', tazka: 'v', dvojita: 'e', vedecka: 'e', graficka: 'l' };
 export const CARD_RAR = { magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
 export function rarityOf(o) {

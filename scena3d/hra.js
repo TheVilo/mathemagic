@@ -8,7 +8,7 @@ import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, 
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
-import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR } from './balance.js';
+import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
 import { points } from './svet.js';
@@ -403,6 +403,7 @@ function openPack() {
   const wantNum = !last || last.t === 'o' || last.t === 's' || (last.t === 'p' && last.v === '(');   // ² ³ ! idú za číslom (wantNum = false)   // čaká sa číslo (ako na kalkulačke)
   const open = row.filter(id => id === -1).length - row.filter(id => id === -2).length;
   const U = P.unlock || {};
+  const SID = { s: -3, q: -4, c: -5, f: -6, p: -1 }, spLeft = c => specOwned(U, c) - P.rows.flat().filter(id => id === SID[c]).length;   // koľko kusov funkcie ešte ostáva
   const name = o => ({ '+': 'zem', '-': 'voda', '×': 'oheň', '÷': 'vzduch', '√': 'prieraz', '²': 'mocnina', '³': 'mocnina', '!': 'faktoriál' }[o]);
   const lcdRow = r => {
     const ids = P.rows[r], ok = spellWorks(run, r), st = ok ? strength(run, mulberry32(7), r) : null, ex = ok ? rollSpell(run, mulberry32(3), r) : null;
@@ -411,16 +412,16 @@ function openPack() {
     const dice = ids.some(id => (tokOf(P, id) || {}).t === 'd');
     const res = ok ? (dice ? `${st.lo}…${st.hi}` : String(ex.answer)) : '?';
     const ops = ok ? [...new Set(ex.ops)].map(o => `<span style="color:${OPC[o]}">${name(o)}</span>`).join(' ') : '';
-    return `<div class="lrow${r === packRow ? ' on' : ''}${P.kind2 && r === P.bRow ? ' hb' : ''}" data-r="${r}"><span class="ln">${P.kind2 ? (r === P.bRow ? 'B' : 'A') : r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} · ⚡${rowCost(P, r)} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
+    return `<div class="lrow${r === packRow ? ' on' : ''}${P.kind2 && r === P.bRow ? ' hb' : ''}" data-r="${r}"><span class="ln">${P.kind2 ? (r === P.bRow ? 'B' : 'A') : r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr${res.length > 9 ? ' xl' : res.length > 6 ? ' l' : ''}">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} · ⚡${rowCost(P, r)} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
   };
   const keyHtml = (k, i) => {
     if (k[1] === 'fn') return `<button class="ck fn${k[0] === '=' ? ' eq' : ''}" data-k="${i}">${k[0]}</button>`;
     if (k[1] === 'lock') return `<button class="ck locked" disabled title="odomkne sa neskôr">${k[0]}<small>${icon('lock')}</small></button>`;
     // špeciálne klávesy od bossov: √ (pred číslo) a ( ) – sám vie, či teraz otvára alebo zatvára
     if (k[1] === 's' || k[1] === 'p' || k[1] === 'x') {
-      const own = k[1] === 's' ? U.s : k[1] === 'p' ? U.p : U[k[3]], ok = own && (k[1] === 's' ? wantNum : k[1] === 'x' ? !wantNum : wantNum || open > 0);
-      const lab = k[1] === 's' ? '√' : k[1] === 'x' ? k[0] : wantNum ? '(' : ')';
-      return `<button class="ck sp${own ? '' : ' locked'}" data-k="${i}" ${ok ? '' : 'disabled'} title="${own ? '' : 'odomkne vodca'}">${lab}${own ? '' : `<small>${icon('lock')}</small>`}</button>`;
+      const code = k[1] === 's' ? 's' : k[1] === 'p' ? 'p' : k[3], own = specOwned(U, code) > 0, left = spLeft(code), ok = own && (k[1] === 's' ? wantNum && left > 0 : k[1] === 'x' ? !wantNum && !(last && last.t === 'x') && left > 0 : (wantNum && left > 0) || (!wantNum && open > 0));
+      const lab = k[1] === 'x' && k[0][0] === 'x' ? `<span class="xl">x${pix(k[0].slice(1))}</span>` : pix(k[1] === 's' ? '√' : k[1] === 'x' ? k[0] : wantNum ? '(' : ')');
+      return `<button class="ck sp${own ? '' : ' locked'}" data-k="${i}" ${ok ? '' : 'disabled'} title="${own ? `kusov: ${left}` : 'odomkne vodca'}">${lab}${own ? `<b class="badge">${Math.max(0, left)}</b>` : `<small>${icon('lock')}</small>`}</button>`;
     }
     const n = free.filter(t => match(k, t)).length, owned = P.inv.some(t => match(k, t));
     const wrong = k[1] === 'o' ? wantNum : !wantNum;
@@ -537,7 +538,7 @@ function winFight(opts) {
     if (newOp) { run.ops.push(newOp); if (adv()) addToken(run.pack, { t: 'o', v: newOp }); }   // Pokročilý: znamienko rovno do ruksaku
     // Majster: vodca odomkne špeciálny kláves natrvalo – zóna 1 zátvorky ( ), zóna 2 odmocninu √
     const spO = adv() ? nextSpecial(run.pack.unlock) : null, spec = spO && spO.k, specNew = !!spec;
-    if (spec) { run.pack.unlock[spec] = true; meta.unlock[spec] = true; }
+    if (spec) { specAdd(run.pack.unlock, spec); meta.unlock[spec] = true; }
     run.hearts = maxHearts(); renderHearts(); addCoins(20);
     persist();
     setTimeout(() => {
@@ -553,7 +554,7 @@ function winFight(opts) {
   if (opts.hb) { addCoins(25, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); setTimeout(() => say('Vodca hordy porazený! +25 mincí · prišiel obchodník', 3000), 600); spawnMerchant(25); }   // funkcie dáva len vodca zóny (sim-energia.mjs)
   if (opts.zb) { // vodca zóny porazený: znamienko + špeciálna funkcia, obchodník, ďalšia zóna (po 8. výhra)
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)); if (newOp) { run.ops.push(newOp); addToken(run.pack, { t: 'o', v: newOp }); }
-    const sp = nextSpecial(run.pack.unlock); if (sp) { run.pack.unlock[sp.k] = true; meta.unlock[sp.k] = true; }
+    const sp = nextSpecial(run.pack.unlock); if (sp) { specAdd(run.pack.unlock, sp.k); meta.unlock[sp.k] = true; }
     if (run.zone >= 2 && !run.pack.kind2) giveSecondStaff();
     run.hearts = maxHearts(); renderHearts(); addCoins(20 + run.zone * 10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist();
     say(`Vodca zóny porazený! ${newOp ? `Znamienko ${newOp.replace('-', '−')}` : ''}${sp ? ` · nová funkcia ${sp.key}` : ''}`, 4500);
@@ -919,7 +920,7 @@ function openLevelUp() {
     else if (g.t === 'star') { run.pack.stars = run.pack.stars || {}; run.pack.stars[g.v] = (run.pack.stars[g.v] || 0) + 1; }
     else if (g.t === 'magnet') run.magnet = (run.magnet || 0) + 1;
     else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts++; renderHearts(); }
-    else if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; }
+    else if (g.t === 'spec') { specAdd(run.pack.unlock, g.k); meta.unlock[g.k] = true; }
     else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
     else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
     persist(); closeOverlay(); say(['n', 'o', 'spec'].includes(g.t) ? `${o.title}! Je v Knihe – ťukni naň (pri plnom displeji prepíše posledný znak).` : `${o.title}!`, 4000);
@@ -979,7 +980,7 @@ function openMerchant(view = 'shop') {
     const it = S.items[+b.dataset.buy]; if (run.coins < it.price || it.sold) return;
     run.coins -= it.price; it.sold = true; if (it.locked) run.shopLock = null; renderCoins(); efekt('minca', 0.6, 1.1);
     if (it.kind === 'card') { persist(); closeOverlay(); return addCard(it.id, () => openMerchant()); }
-    if (it.kind === 'key') { const g = it.give; if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; } else { for (let q = 0; q < it.n; q++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); } }
+    if (it.kind === 'key') { const g = it.give; if (g.t === 'spec') { specAdd(run.pack.unlock, g.k); meta.unlock[g.k] = true; } else { for (let q = 0; q < it.n; q++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); } }
     if (it.kind === 'pal') { run.pack.kind = it.k; run.energy = staffStats(run.pack).emax; }
     if (it.kind === 'svc') { if (it.s === 'hand2') { closeOverlay(); giveSecondStaff(); return; } else if (it.s === 'heal') { run.hearts++; renderHearts(); } else if (it.s === 'slot') run.pack.slots += 2; else if (it.s === 'row') run.pack.rows.push([]); else run.pack.staff++; }
     persist(); say(`${it.title}!`); openMerchant();

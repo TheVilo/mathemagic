@@ -28,7 +28,7 @@ const TEMPLATES = [
   ['(a+b)×(c+d)', 11, { '+': 2, '×': 1 }, ['p'], ([a, b, c, d]) => (a + d) * (b + c)],
   ['a²', 2, {}, ['q'], ([a]) => a * a],
   ['a²×b', 4, { '×': 1 }, ['q'], ([a, b]) => a * a * b],
-  ['a²×b²', 5, { '×': 1 }, ['q'], ([a, b]) => a * a * b * b],
+  ['a²×b²', 5, { '×': 1 }, ['q', 'q'], ([a, b]) => a * a * b * b],
   ['(a+b)²', 6, { '+': 1 }, ['p', 'q'], ([a, b]) => (a + b) ** 2],
   ['a³', 2, {}, ['c'], ([a]) => a ** 3],
   ['a³×b', 4, { '×': 1 }, ['c'], ([a, b]) => a ** 3 * b],
@@ -52,7 +52,7 @@ function best(stats) {
   for (const t of TEMPLATES) {
     const [name, len, ops, fx, f] = t, k = tplNums(t);
     if (len > Math.min(P.slots, stats.disp) || k > nums.length) continue;
-    if (Object.entries(ops).some(([o, c]) => (P.ops[o] || 0) < c) || fx.some(x => !P.unlock[x])) continue;
+    if (Object.entries(ops).some(([o, c]) => (P.ops[o] || 0) < c) || fx.some(x => fx.filter(y => y === x).length > (P.unlock[x] === true ? 1 : +P.unlock[x] || 0))) continue;   // funkcie sú kusy
     const used = P.nums.slice().sort((x, y) => num(y) - num(x)).slice(0, k), cost = tplCost(t) - k * C.n + used.reduce((a, v) => a + numCost(v), 0); if (cost > stats.emax) continue;
     const v = f(nums.slice(0, k)) * stats.dmg, rate = Math.min(1 / (SHOT_MIN * stats.cd), stats.regen / cost), dps = v * rate * stats.shots;
     if (!top || dps > top.dps) top = { name, v: Math.round(v), cost, rate, dps };
@@ -63,7 +63,7 @@ const dpsNow = () => best(staffStats(P)).dps;
 function apply(g) {
   if (g.t === 'n') { P.nums.push(g.v); const same = P.nums.filter(x => x === g.v); if (same.length >= 3 && (P.stars[g.v] || 0) < MAX_STARS) { for (let i = 0; i < 3; i++) P.nums.splice(P.nums.indexOf(g.v), 1); P.stars[g.v] = (P.stars[g.v] || 0) + 1; P.nums.push(g.v); } }
   else if (g.t === 'o') P.ops[g.v]++;
-  else if (g.t === 'spec') P.unlock[g.k] = 1;
+  else if (g.t === 'spec') P.unlock[g.k] = (+P.unlock[g.k] || 0) + 1;
   else if (g.t === 'slot') P.slots += 2;
   else if (g.t === 'staff') P.staff++;
 }
