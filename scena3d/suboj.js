@@ -287,9 +287,7 @@ function updateSpells(dt) {
       const k = s.t / 0.22;
       crystal.scale.set(1 + k, (1 + k) * 1.6, 1 + k); crystalLight.color.set(s.color); crystalLight.intensity = 3 + k * 14;
       for (let n = 0; n < 4; n++) { const a = Math.random() * 6.28, r = 0.9; spark(new THREE.Vector3(cw.x + Math.cos(a) * r, cw.y + (Math.random() - 0.5) * 0.8, cw.z + Math.sin(a) * r), -Math.cos(a) * 3.5, 0, -Math.sin(a) * 3.5, 0.25, s.color); }
-      // štart kúsok pred čarodejníkom smerom k cieľu – nie cez klobúk
-      const dir = targetPos(s.target).sub(hero.position).setY(0).normalize();
-      s.from.copy(hero.position).addScaledVector(dir, 0.75); s.from.y = cw.y - 0.15;
+      s.from.copy(cw);   // z kryštálu palice (ruka drží palicu pevne pred sebou)
     } else if (s.t < 0.56) { // let
       const k = (s.t - 0.22) / 0.34, e = k * k * (3 - 2 * k), to = targetPos(s.target);
       const pw = s.info.power ?? 1; s.orb.visible = true; if (s.light) { s.light.intensity = 4 + 12 * pw; s.light.distance = 2.5 + 3 * pw; }

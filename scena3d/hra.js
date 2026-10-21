@@ -906,8 +906,7 @@ function introCast(dt) {
     crystalLight.color.set(col); crystal.material.color.set(col);
     const m = elementShape(op, col); scene.add(m);
     const to = aimP && aimP.distanceTo(hero.position) > 1.5 ? aimP : hero.position.clone().add(new THREE.Vector3(4.5 + Math.random() * 2, 1.1, -1.2 + Math.random() * 2.4));
-    const fr = hero.position.clone().addScaledVector(to.clone().sub(hero.position).setY(0).normalize(), 0.75); fr.y = cw.y - 0.15;   // nie cez klobúk
-    iOrb = { m, t: 0, from: fr, to, col, op };
+    iOrb = { m, t: 0, from: cw.clone(), to, col, op };   // z kryštálu palice
   } else if (Math.random() < 0.5) { const a = Math.random() * 6.28; spark(cw.clone().add(new THREE.Vector3(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5)), -Math.cos(a), 0.4, -Math.sin(a), 0.4, col); }
 }
 

@@ -103,7 +103,8 @@ export const kresbaMat = new THREE.ShaderMaterial({
         }
         if (!isChar6) k *= mix(1.0, uOne > 0.5 ? 1.0 : 0.25, far6 * far6);                     // HMLA: čo je ďalej, bledne do papiera
         // ČO SAMO SVIETI (častice, kúzlo, kryštál) nie je tieň: pod ním je pozadie, znamienko kúzla sa nakreslí nižšie
-        { vec3 sm = texture2D(tSpellM, uv6).rgb; if (max(sm.r, max(sm.g, sm.b)) > 0.08) k = mix(0.0, 0.15, uDark); }   // čo svieti: v noci svetlé, cez deň papier
+        { vec3 sm = texture2D(tSpellM, uv6).rgb; bool vis = texture2D(tSpellD, uv6).r <= texture2D(tDepth, uv6).r + 0.0015;   // len keď ho nič nezakrýva (napr. kryštál pod klobúkom)
+          if (vis && max(sm.r, max(sm.g, sm.b)) > 0.08) k = mix(0.0, 0.15, uDark); }   // čo svieti: v noci svetlé, cez deň papier
         // TMAVÝ REŽIM (interiér): znaky = svetlo na čiernom, postava ostáva čitateľná
         k = mix(k, clamp(1.0 - k, 0.0, 1.0), uDark);                         // deň → noc plynulo (uDark 0–1, výber režimu)
         float hsh = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);

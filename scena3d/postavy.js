@@ -55,17 +55,21 @@ export const aim = { p: null, f: 0 };
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _I = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 function aimArm(dt) {
   const ua = hero.getObjectByName('upperarmr'), la = hero.getObjectByName('lowerarmr'); if (!ua || !la) return;
-  const want = aim.p ? Math.min(1, Math.max(0, (Math.hypot(aim.p.x - hero.position.x, aim.p.z - hero.position.z) - 1.2) / 5)) : 0;
-  aim.f += (want - aim.f) * Math.min(1, dt * 8);
-  if (aim.f < 0.01 || !aim.p) return;
+  // ruka s palicou je VŽDY riadená kódom (animácie ňou nehýbu): drží palicu pred sebou, k myši sa vystrie viac
+  const fwd = new THREE.Vector3(Math.sin(hero.rotation.y), 0, Math.cos(hero.rotation.y));
+  const target = aim.p || hero.position.clone().addScaledVector(fwd, 4);
+  const ext = Math.min(1, Math.max(0, (Math.hypot(target.x - hero.position.x, target.z - hero.position.z) - 1.2) / 5));   // myš blízko = palica nižšie, ďaleko = ruka vystretá
+  aim.f += (ext - aim.f) * Math.min(1, dt * 8);
+  const aimP = target;
   hero.updateMatrixWorld(true);
   ua.getWorldPosition(_a); la.getWorldPosition(_b);
   const d0 = _b.clone().sub(_a).normalize();
-  const dT = new THREE.Vector3(aim.p.x - _a.x, 0, aim.p.z - _a.z).normalize(); dT.y = -0.3; dT.normalize();   // vodorovne k myši, mierne nadol
-  _q.setFromUnitVectors(d0, dT); _q2.copy(_I).slerp(_q, aim.f * 0.9);
+  const dT = new THREE.Vector3(aimP.x - _a.x, 0, aimP.z - _a.z).normalize(); dT.y = -0.7 + 0.45 * aim.f; dT.normalize();   // vodorovne k myši, mierne nadol
+  _q.setFromUnitVectors(d0, dT); _q2.copy(_q);   // ruka úplne podľa kódu
   const wq = ua.getWorldQuaternion(new THREE.Quaternion()), pq = ua.parent.getWorldQuaternion(new THREE.Quaternion());
   ua.quaternion.copy(pq.invert().multiply(_q2.multiply(wq)));
-  la.quaternion.slerp(_I, aim.f * 0.8);   // lakeť sa vyrovná
+  la.quaternion.slerp(_I, 0.85);   // lakeť takmer rovný – palica sa nekýve s animáciou
+  const wr = hero.getObjectByName('wristr'); if (wr) wr.quaternion.slerp(_I, 0.7);
 }
 // lock = ako dlho sa animácia nesmie prerušiť chôdzou/státím
 export function heroPlay(name, fade = 0.15, lock = 0) {
