@@ -102,6 +102,22 @@
   @keyframes lvglow { from { box-shadow:inset 0 0 0 1px var(--rc), 0 0 10px -4px var(--rc); } to { box-shadow:inset 0 0 0 1px var(--rc), 0 0 28px 0 var(--rc); } }
   body.lvflash::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:29; background:radial-gradient(circle at 50% 55%, rgba(255,210,90,.55), rgba(255,210,90,0) 60%); animation:lvfl 0.9s ease-out forwards; }
   @keyframes lvfl { from { opacity:1; } to { opacity:0; } }
+  /* ENERGIA: batérie A (pravá) a B (ľavá) nad spodným panelom */
+  #energy { position:fixed; left:50%; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateX(-50%); display:flex; gap:14px; z-index:6; pointer-events:none; }
+  body.scron #energy, body.ovon #energy { display:none; }
+  #energy .eb { display:flex; align-items:center; gap:6px; } #energy .eh { font-size:12px; color:var(--line); width:12px; text-align:center; }
+  #energy i { position:relative; width:150px; height:12px; border:2px solid var(--line); outline:2px solid var(--ink); background:var(--ink); } #energy i b { position:absolute; inset:1px auto 1px 1px; max-width:calc(100% - 2px); background:#3f7a96; transition:width .1s linear; }
+  #energy .eb.ok i b { background:#7fd6ff; } #energy i u { position:absolute; top:-5px; bottom:-5px; width:2px; background:#ffd25a; text-decoration:none; }
+  #energy .en { font-size:11px; color:var(--line); min-width:44px; text-shadow:0 1px 0 var(--ink); } #energy .eb.low i { border-color:#e0533d; animation:shake .3s; }
+  /* SKÚSENOSTI: tenký pruh cez celú šírku hore + úroveň */
+  #xp { top:0 !important; left:0 !important; right:0; gap:0 !important; display:block !important; } #xp i { display:block; width:100% !important; height:6px !important; border:0 !important; outline:0 !important; background:rgba(14,14,16,.6) !important; } #xp i b { background:#8dff98 !important; inset:0 auto 0 0 !important; }
+  #xp span { position:absolute; left:14px; top:84px; font-size:11px; background:var(--ink); border:1px solid var(--line); padding:1px 8px; } body.scron #xp, body.ovon #xp, #xp.off { visibility:hidden; }
+  /* mobil: dash a ľavá palica B */
+  .actb { display:none; position:fixed; z-index:6; width:58px; height:58px; border-radius:50%; border:2px solid var(--line); outline:2px solid var(--ink); background:rgba(14,14,16,.55); color:var(--line); font:inherit; font-size:22px; }
+  body.touch .actb { display:grid; place-items:center; } body.scron .actb, body.ovon .actb { display:none !important; }
+  #bDash { right:calc(22px + env(safe-area-inset-right)); bottom:calc(96px + env(safe-area-inset-bottom)); } #bB { right:calc(92px + env(safe-area-inset-right)); bottom:calc(150px + env(safe-area-inset-bottom)); font-size:20px; color:#7fd6ff; border-color:#7fd6ff; }
+  .actb.cd { opacity:.4; }
+  .lrow.hb { border-color:#7fd6ff !important; } .lrow .ln { cursor:pointer; } .lrow.hb .ln { color:#7fd6ff; }
   .palgrid { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; margin-top:8px; }
   .palc { font:inherit; color:var(--line); background:var(--ink); border:2px solid var(--rc); box-shadow:inset 0 0 0 1px var(--rc); padding:8px 6px; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
   .palc .rar { font-style:normal; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--rc); } .palc b { font-size:14px; font-weight:500; }

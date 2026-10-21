@@ -396,6 +396,7 @@ const KEYS = [['C', 'fn'], ['⌫', 'fn'], ['( )', 'p'], ['√', 's'], ['÷', 'o'
 function openPack() {
   tutStep(1); tutTick();
   const P = run.pack; packRow = Math.min(packRow, P.rows.length - 1);
+  const SP = P.kind2 && packRow === P.bRow ? { ...P, kind: P.kind2 } : P;   // kalkulačka = palica, ku ktorej patrí riadok (A alebo B)
   const usedIds = allIds(P), free = P.inv.filter(t => !usedIds.has(t.id));
   const match = (k, t) => (k[1] === 'n' && t.t === 'n' && String(t.v) === k[0]) || (k[1] === 'o' && t.t === 'o' && t.v === k[0]) || (k[1] === 'd' && t.t === 'd');
   const row = P.rows[packRow], last = row.length ? tokOf(P, row[row.length - 1]) : null;
@@ -406,11 +407,11 @@ function openPack() {
   const lcdRow = r => {
     const ids = P.rows[r], ok = spellWorks(run, r), st = ok ? strength(run, mulberry32(7), r) : null, ex = ok ? rollSpell(run, mulberry32(3), r) : null;
     const txt = ids.map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
-    const pad = '_'.repeat(Math.max(0, staffStats(P).disp - ids.length));
+    const pad = '_'.repeat(Math.max(0, staffStats(P.kind2 && r === P.bRow ? { ...P, kind: P.kind2 } : P).disp - ids.length));
     const dice = ids.some(id => (tokOf(P, id) || {}).t === 'd');
     const res = ok ? (dice ? `${st.lo}…${st.hi}` : String(ex.answer)) : '?';
     const ops = ok ? [...new Set(ex.ops)].map(o => `<span style="color:${OPC[o]}">${name(o)}</span>`).join(' ') : '';
-    return `<div class="lrow${r === packRow ? ' on' : ''}" data-r="${r}"><span class="ln">${r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} · ⚡${rowCost(P, r)} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
+    return `<div class="lrow${r === packRow ? ' on' : ''}${P.kind2 && r === P.bRow ? ' hb' : ''}" data-r="${r}"><span class="ln">${P.kind2 ? (r === P.bRow ? 'B' : 'A') : r + 1}</span><span class="lf">${txt ? pix(txt) : ''}<i>${pad}</i></span><span class="lr">=${res.includes('…') ? res : pix(res)}</span><span class="lo">${ok ? `sila ${st.lo}–${st.hi} · ⚡${rowCost(P, r)} ${ops}` : ids.length ? 'nehotové' : 'prázdne'}</span></div>`;
   };
   const keyHtml = (k, i) => {
     if (k[1] === 'fn') return `<button class="ck fn${k[0] === '=' ? ' eq' : ''}" data-k="${i}">${k[0]}</button>`;
@@ -432,14 +433,14 @@ function openPack() {
   // KNIHA KÚZIEL: vľavo zápis (kúzla ako riadky + efekty), vpravo kalkulačka (displej aktívneho kúzla + klávesnica)
   const html = `<span class="ptag">Kniha kúziel</span><div class="book2">
     <div class="page lp">
-      <h3>Kúzla${P.rows.length > 1 ? ' · v súboji idú 1 → 2 → 3' : ''}</h3>
+      <h3>Kúzla${P.kind2 ? ' · A pravá palica, B ľavá (ťukni na A/B a prepni)' : P.rows.length > 1 ? ' · v súboji idú 1 → 2 → 3' : ''}</h3>
       <div class="notes">${P.rows.map((_, r) => lcdRow(r)).join('')}</div>
       <h3>Efekty ${run.cards.length}/${SLOTS}</h3><div class="fxgrid">${fx}</div>
       <p class="sub">Efekty platia pre každé kúzlo. Miesta sú len ${SLOTS} – vyber si.</p>
     </div>
     <div class="page rp">
       <div class="calc2">
-        <div class="brand"><b>${staffStats(P).name.toUpperCase()}${P.staff ? ` ${P.staff}★` : ''}</b><span>⚡${staffStats(P).emax} · +${+staffStats(P).regen.toFixed(1)}/s · displej ${staffStats(P).disp}</span><i class="bat" title="energia"><b style="width:${Math.round(Math.min(1, (run.energy ?? staffStats(P).emax) / staffStats(P).emax) * 100)}%"></b></i></div>
+        <div class="brand"><b>${P.kind2 ? (SP === P ? 'A · ' : 'B · ') : ''}${staffStats(SP).name.toUpperCase()}${P.staff ? ` ${P.staff}★` : ''}</b><span>⚡${staffStats(SP).emax} · +${+staffStats(SP).regen.toFixed(1)}/s · displej ${staffStats(SP).disp}</span><i class="bat" title="energia"><b style="width:${Math.round(Math.min(1, ((SP === P ? run.energy : run.energy2) ?? staffStats(SP).emax) / staffStats(SP).emax) * 100)}%"></b></i></div>
         <div class="lcd2">${lcdRow(packRow).replace('class="lrow', 'class="lrow big')}</div>
         <div class="ckeys">${KEYS.map(keyHtml).join('')}</div>
       </div>
@@ -450,12 +451,13 @@ function openPack() {
   else { document.body.classList.add('ovon'); ovEl.className = 'ov show pack'; ovEl.innerHTML = `<div class="box panel">${html}</div>`; paused = true; }
   const el = ovEl; addX(() => { closeOverlay(); if (fight.on) renderInput(); });
   el.querySelectorAll('.lrow').forEach(r => r.onclick = () => { packRow = +r.dataset.r; openPack(); });
+  el.querySelectorAll('.lrow .ln').forEach(n => n.onclick = ev => { if (!P.kind2) return; ev.stopPropagation(); P.bRow = +n.closest('.lrow').dataset.r; persist(); openPack(); });
   el.querySelectorAll('.ck[data-k]').forEach(b => b.onclick = () => {
     const k = KEYS[+b.dataset.k], R0 = P.rows[packRow];
     if (k[0] === '=') { closeOverlay(); if (fight.on) renderInput(); return; }
     if (k[0] === 'C') { P.rows[packRow] = []; persist(); return openPack(); }
     if (k[0] === '⌫') { R0.pop(); persist(); return openPack(); }
-    if (R0.length >= staffStats(P).disp) { say('Displej je plný – väčšiu palicu kúpiš u obchodníka.'); return; }
+    if (R0.length >= staffStats(SP).disp) { say('Displej je plný – väčšiu palicu kúpiš u obchodníka.'); return; }
     if (k[1] === 's') { R0.push(-3); persist(); return openPack(); }
     if (k[1] === 'x') { R0.push(k[2]); persist(); return openPack(); }
     if (k[1] === 'p') { R0.push(wantNum ? -1 : -2); persist(); return openPack(); }
@@ -545,6 +547,7 @@ function winFight(opts) {
   if (opts.zb) { // vodca zóny porazený: znamienko + špeciálna funkcia, obchodník, ďalšia zóna (po 8. výhra)
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)); if (newOp) { run.ops.push(newOp); addToken(run.pack, { t: 'o', v: newOp }); }
     const sp = nextSpecial(run.pack.unlock); if (sp) { run.pack.unlock[sp.k] = true; meta.unlock[sp.k] = true; }
+    if (run.zone >= 2 && !run.pack.kind2) giveSecondStaff();
     run.hearts = maxHearts(); renderHearts(); addCoins(20 + run.zone * 10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist();
     say(`Vodca zóny porazený! ${newOp ? `Znamienko ${newOp.replace('-', '−')}` : ''}${sp ? ` · nová funkcia ${sp.key}` : ''}`, 4500);
     spawnMerchant(20);
@@ -615,6 +618,8 @@ addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   const k = /^[0-9]$/.test(e.key) ? e.key : e.key === 'Backspace' ? '←' : null;
   if (e.key === ' ' && fight.on && !paused) { e.preventDefault(); fireAt(null); }
+  if ((e.key === 'e' || e.key === 'E') && adv() && !paused) fireAt(null, null, 'b');
+  if (e.key === 'Shift' && adv() && !paused) dash();
   if (k && (fight.on || lockOn)) { press(k); const b = [...padEl.children].find(x => x.dataset.k === k); if (b) { b.classList.add('press'); setTimeout(() => b.classList.remove('press'), 110); } }
   if (e.key === 'Escape' && paused && !G.over && ovEl.querySelector('#close')) ovEl.querySelector('#close').click();
   else if (e.key === 'Escape' && !paused && !G.over) openPause();
@@ -634,12 +639,13 @@ const joy = { x: 0, z: 0, id: null };
   const end = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.z = 0; K.style.transform = ''; };
   J.addEventListener('pointerup', end); J.addEventListener('pointercancel', end);
 }
+$('c').addEventListener('contextmenu', e => e.preventDefault());
 $('c').addEventListener('pointermove', e => { mouseNdc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
 let target = null, tapMark = null;
 // mobil: pri prvom ťuknutí celá obrazovka a zámok na šírku (Android); iPhone ukáže výzvu „Otoč mobil“
 addEventListener('pointerdown', () => { if (matchMedia('(pointer: coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {}); }, { once: true });
 $('c').addEventListener('pointerdown', e => {
-  if (!paused && adv() && !scrOn) { mouseNdc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera); const gh = ray.intersectObject(place.ground)[0]; fireAtScreen(e.clientX, e.clientY, camera, gh ? gh.point.clone().add(new THREE.Vector3(0, 0.3, 0)) : null); return; }   // Majster: klik = výstrel
+  if (!paused && adv() && !scrOn) { mouseNdc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera); const gh = ray.intersectObject(place.ground)[0]; fireAtScreen(e.clientX, e.clientY, camera, gh ? gh.point.clone().add(new THREE.Vector3(0, 0.3, 0)) : null, e.button === 2 ? 'b' : 'a'); return; }   // Majster: ľavý klik = pravá palica A, pravý klik = ľavá palica B
   if (paused || fight.on || lockOn || !place.ground) return;
   mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(mouse, camera);
@@ -651,6 +657,10 @@ $('bPack').onclick = () => { if (!paused) openPack(); }; $('bMap').innerHTML = i
 $('bBook').onclick = () => { if (paused) return; if (adv()) openPack(); else if (!fight.on) openBook(); };
 $('bMap').onclick = () => { if (!paused && !fight.on) openMap(); };
 $('bPause').onclick = () => { if (!paused) openPause(); };
+// mobil (Majster): tlačidlo B = ľavá palica (strelí na najbližšieho), ⇥ = dash
+{ const mk = (id, html, fn) => { const b = document.createElement('button'); b.id = id; b.className = 'actb'; b.innerHTML = html; b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fn(); }); document.body.appendChild(b); return b; };
+  mk('bDash', '<span>⇥</span>', dash); mk('bB', '<span>B</span>', () => { if (!paused) fireAt(null, null, 'b'); }); }
+const renderHandBtn = () => { const b = $('bB'); if (b) b.style.display = adv() && run.pack.kind2 ? '' : 'none'; };
 function openPause() {
   const el = overlay('Pauza', `<div class="menu">${menu([['go', 'play', 'Pokračovať'], ['book', 'book', 'Kniha kúziel', fight.on && !adv()], ['map', 'map', 'Mapa', fight.on], ['set', 'gear', 'Nastavenia'], ['menu', 'door', 'Do menu']])}</div><button id="close" hidden></button>`, 'small');
   el.querySelector('#close').onclick = closeOverlay;
@@ -669,6 +679,17 @@ function fade(cb) { fadeT = 0.0001; fadeCb = cb; }
 // ---------- slučka ----------
 const vel = new THREE.Vector3(), camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 let viewZoom = 5.2, glintT = 0;
+// DASH (Majster): Shift / tlačidlo ⇥ – 0,2 s rýchly skok 3,4 m v smere pohybu (alebo od najbližšieho nepriateľa), počas neho ťa nič nezraní; znova o 1,4 s
+const lastDir = new THREE.Vector3(0, 0, 1), dashV = new THREE.Vector3(); let dashT = 0, dashCd = 0;
+function dash() {
+  if (dashCd > 0 || paused || G.over) return;
+  let d = lastDir.clone(); if (!(keys.w || keys.a || keys.s || keys.d || keys.arrowup || keys.arrowdown || keys.arrowleft || keys.arrowright || joy.x || joy.z) && fight.on) {
+    const n = fight.enemies.filter(e => e.state !== 'dead').sort((a, b) => a.g.position.distanceTo(hero.position) - b.g.position.distanceTo(hero.position))[0];
+    if (n) d = hero.position.clone().sub(n.g.position).setY(0); }
+  d.setY(0).normalize(); dashV.copy(d).multiplyScalar(17); dashT = 0.2; dashCd = 1.4; target = null;
+  efekt('gula', 0.35, 1.6); renderDashBtn();
+}
+function renderDashBtn() { const b = $('bDash'); if (b) { b.classList.toggle('cd', dashCd > 0); b.style.setProperty('--cd', dashCd / 1.4); } }
 function update(dt, t) {
   G.now = t; U.time.value = t;
   // pohyb
@@ -678,7 +699,10 @@ function update(dt, t) {
   else if (target) { dir.subVectors(target, hero.position).setY(0); if (dir.length() < 0.15) { target = null; dir.set(0, 0, 0); } }
   if (dir.lengthSq()) dir.normalize();
   if ((fight.on && !adv()) || paused || lockOn || fadeT > 0 || G.over || (heroLocked() && !adv())) { dir.set(0, 0, 0); if (fight.on || G.over) target = null; }   // Majster sa hýbe aj v boji
+  if (dir.lengthSq()) lastDir.copy(dir);
   vel.lerp(dir.multiplyScalar(3.4), 1 - Math.exp(-dt * 8));
+  dashCd = Math.max(0, dashCd - dt);
+  if (dashT > 0) { dashT -= dt; vel.copy(dashV); G.dashing = dashT > 0; if (Math.random() < 0.8) spark(hero.position.clone().add(new THREE.Vector3(0, 0.6, 0)), -dashV.x * 0.1, 0.4, -dashV.z * 0.1, 0.35, 0x7fd6ff); }
   const nx = hero.position.x + vel.x * dt, nz = hero.position.z + vel.z * dt;
   // OBCHÁDZANIE: do skaly/stromu sa nevojde, ale po jeho okraji sa skĺzne (vytlačenie z kruhu po normále), takže sa dá prejsť okolo
   const HR = 0.28, slide = (x, z) => { for (let it = 0; it < 3; it++) for (const b of place.blockers) { const dx = x - b.x, dz = z - b.z, rr = b.r + HR; if (Math.abs(dx) > rr || Math.abs(dz) > rr) continue; const d = Math.hypot(dx, dz); if (d < rr && d > 1e-4) { x = b.x + dx / d * rr; z = b.z + dz / d * rr; } } return [x, z]; };
@@ -689,7 +713,7 @@ function update(dt, t) {
   else if (ok(...slide(hero.position.x, nz))) [hero.position.x, hero.position.z] = slide(hero.position.x, nz);
   else { vel.multiplyScalar(0.3); target = null; }
   hero.position.y = place.height(hero.position.x, hero.position.z);
-  const speed = vel.length();
+  const speed = vel.length(); if (adv()) renderDashBtn();
   // Majster: kúzelník sa otáča za myšou a mieri palicou (ruka sa vystrie podľa vzdialenosti myši)
   if (adv() && !scrOn && mouseNdc && !paused && (++aimFrame % 2 === 0)) { ray.setFromCamera(mouseNdc, camera); const h = place.ground && ray.intersectObject(place.ground)[0]; mouseWorld = h ? h.point : mouseWorld; }
   hero.userData.aimMouse = adv() && !scrOn && !inside ? mouseWorld : null; aim.p = hero.userData.aimMouse;
@@ -860,8 +884,8 @@ function addXp(n, e) {
   renderXp();
 }
 function renderXp() {
-  const el = $('xp'); if (!el) return; el.style.display = adv() ? '' : 'none'; if (!adv()) return;
-  const L = run.lvl || 1; el.innerHTML = `<span>úr. ${L}</span><i><b style="width:${Math.round((run.xp || 0) / xpNeed(L) * 100)}%"></b></i>`;
+  const el = $('xp'); if (!el) return; el.classList.toggle('off', !adv()); if (!adv()) return;
+  const L = run.lvl || 1, x = Math.floor(run.xp || 0), need = xpNeed(L); el.innerHTML = `<i><b style="width:${Math.round(x / need * 100)}%"></b></i><span>úroveň ${L} · ${x}/${need}</span>`;
 }
 function openLevelUp() {
   lvlQueue--; efekt('objav', 0.8, 1.15);
@@ -896,6 +920,11 @@ function openLevelUp() {
     if (['n', 'o', 'spec'].includes(g.t) && !meta.knihaTip) { meta.knihaTip = 1; persist(); openPack(); say('Nový kláves je v Knihe – ťukni naň a pridaj ho do vzorca. = zavrie.', 5000); }
   });
 }
+// DRUHÁ PALICA (ľavá ruka B): vlastný riadok v Knihe, vlastná energia; komba medzi palicami v suboj.js
+function giveSecondStaff() {
+  const P = run.pack; P.kind2 = 'zakladna'; if (P.rows.length < MAX_ROWS) P.rows.push([]); P.bRow = P.rows.length - 1; run.energy2 = staffStats({ ...P, kind: 'zakladna' }).emax; renderHandBtn(); persist();
+  setTimeout(() => { say('Druhá palica! Ľavá ruka B: pravý klik / E / tlačidlo B. Poskladaj jej vzorec v Knihe.', 6000); openPack(); }, 1200);
+}
 // ---------- OBCHODNÍK MAJSTRA (inšpirácia Balatro / Slay the Spire / Brotato) ----------
 // 3 miesta (karta, kláves, palica) + 1 služba · ceny ako príklady (2 × 5) · zamiešať (2, 3, 4…) · gumovanie klávesu (5, 8, 11…)
 // · zámok = vec ostane na ďalšiu návštevu · úrok pri odchode: 1 minca za každých 10 (najviac 5)
@@ -916,6 +945,7 @@ function shopItems(rng) {
   if (better.length) { const [pk, m] = better[Math.floor(rng() * Math.min(2, better.length))]; items.push({ kind: 'pal', k: pk, title: `Palica ${m.name}`, text: `displej ${m.disp} · ⚡${m.emax} · +${m.regen}/s`, rar: STAFF_RAR[pk], price: m.price, art: `<img src="../zdroj/karty/palica-${pk}.jpg" alt="">` }); }
   const svc = [['heal', 'Srdiečko', 'doplní 1 srdce', 6, icon('heart')], ['slot', '+2 políčka', 'dlhší vzorec', slotPrice(run.pack), pix('+2')], ['row', 'Ďalšie kúzlo', 'nový riadok v Knihe', rowPrice(run.pack), icon('book')], ['lv', 'Lepšia palica', '+25 % damage, +15 % energie', staffPrice(run.pack), icon('star')]]
     .filter(([s]) => s === 'heal' ? run.hearts < maxHearts() : s === 'slot' ? run.pack.slots < MAX_SLOTS : s === 'row' ? run.pack.rows.length < MAX_ROWS : run.pack.staff < MAX_STAFF);
+  if (run.zone >= 2 && !run.pack.kind2) svc.push(['hand2', 'Druhá palica', 'ľavá ruka B · komba', 30, pix('B')]);
   if (svc.length) { const [sk, t, x, p, a] = svc[Math.floor(rng() * svc.length)]; items.push({ kind: 'svc', s: sk, title: t, text: x, rar: 'b', price: p, art: a }); }
   for (const it of items) { it.price = it.price || RAR_PRICE[it.rar] + (it.kind === 'card' && lvl(run, it.id) ? 4 : 0); it.expr = priceExpr(it.price, rng); }
   if (run.shopLock) { const li = items.findIndex(i => i.kind === run.shopLock.kind); const lk = { ...run.shopLock, locked: true }; if (li >= 0) items[li] = lk; else items.unshift(lk); }
@@ -944,7 +974,7 @@ function openMerchant(view = 'shop') {
     if (it.kind === 'card') { persist(); closeOverlay(); return addCard(it.id, () => openMerchant()); }
     if (it.kind === 'key') { const g = it.give; if (g.t === 'spec') { run.pack.unlock[g.k] = true; meta.unlock[g.k] = true; } else { for (let q = 0; q < it.n; q++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); } }
     if (it.kind === 'pal') { run.pack.kind = it.k; run.energy = staffStats(run.pack).emax; }
-    if (it.kind === 'svc') { if (it.s === 'heal') { run.hearts++; renderHearts(); } else if (it.s === 'slot') run.pack.slots += 2; else if (it.s === 'row') run.pack.rows.push([]); else run.pack.staff++; }
+    if (it.kind === 'svc') { if (it.s === 'hand2') { closeOverlay(); giveSecondStaff(); return; } else if (it.s === 'heal') { run.hearts++; renderHearts(); } else if (it.s === 'slot') run.pack.slots += 2; else if (it.s === 'row') run.pack.rows.push([]); else run.pack.staff++; }
     persist(); say(`${it.title}!`); openMerchant();
   });
   el.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => { const it = S.items[+b.dataset.lock]; const on = !it.locked; S.items.forEach(x => x.locked = false); it.locked = on; run.shopLock = on ? (({ sold, locked, ...x }) => x)(it) : null; persist(); openMerchant(); });
@@ -1192,7 +1222,7 @@ await Promise.all([loadProps(), loadFighters(), loadHero()]);
 buildInterior();
 buildRoom();
 resize(viewZoom); resizeKresba(); addEventListener('resize', () => { resize(viewZoom); resizeKresba(); });
-renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots(); renderXp();
+renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots(); renderXp(); renderHandBtn();
 bottomEl.classList.add('hidden');
 $('loading') && $('loading').remove();
 loaded = true; markLoaded();
