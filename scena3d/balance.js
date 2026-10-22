@@ -73,10 +73,10 @@ export const bossHpMul = id => id === 'nula' ? 3 : id === 'zrkadlo' ? 1.3 : 1;  
 export const P_CALC = 0.6;
 export const gate = (L, Lmin) => L < Lmin ? 0 : 1 - Math.exp(-(L - Lmin + 1) / 3);
 export const ITEMS = [   // veci do kalkulačky okrem čísel
-  { id: '+', t: 'o', v: '+', Lmin: 1, w: 1.0, title: 'Znamienko +', text: 'sčítanie · zem omráči' },
-  { id: '-', t: 'o', v: '-', Lmin: 2, w: 0.5, title: 'Znamienko −', text: 'doladíš presný zásah · záporné číslo ťa lieči · zamrazí' },
-  { id: '×', t: 'o', v: '×', Lmin: 4, w: 0.55, title: 'Znamienko ×', text: 'násobenie · oheň' },
-  { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: '12÷3 = 3 strely po 4 · odhodí' },
+  { id: '+', t: 'o', v: '+', Lmin: 1, w: 1.0, title: 'Znamienko +', text: 'zem: omráči, každé ďalšie + dlhšie' },
+  { id: '-', t: 'o', v: '-', Lmin: 2, w: 0.5, title: 'Znamienko −', text: 'oheň: odčítané číslo dohorí (9−3 = 6 + 3 horí) · záporné lieči' },
+  { id: '×', t: 'o', v: '×', Lmin: 4, w: 0.55, title: 'Znamienko ×', text: 'vzduch: odhodí, väčší činiteľ = ďalej' },
+  { id: '÷', t: 'o', v: '÷', Lmin: 6, w: 0.35, title: 'Znamienko ÷', text: 'voda: 12÷3 = 3 kvapky po 4 · spomalí' },
   { id: 'p', t: 'spec', k: 'p', Lmin: 6, w: 0.35, title: 'Zátvorky ( )', text: '(2+3)×4 = 20 – počíta sa najprv v zátvorke' },
   { id: 's', t: 'spec', k: 's', Lmin: 8, w: 0.3, title: 'Odmocnina √', text: '√ zakorení nepriateľa na mieste a prerazí štít' },
   { id: 'q', t: 'spec', k: 'q', Lmin: 10, w: 0.25, title: 'Mocnina x²', text: '6² = 36 · jeden kus' },
@@ -117,7 +117,7 @@ export const RARITY = { b: { name: 'Bežná', col: '#b8b8b8' }, v: { name: 'Vzá
 const RAR_W = { b: 1, v: 0.6, e: 0.3, l: 0.12 }, RAR_L = { b: 1, v: 2, e: 5, l: 9 };
 const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'l', c: 'l', f: 'l' };   // funkcie sú vzácne KUSY (x² legendárne)
 export const STAFF_RAR = { zakladna: 'b', rychla: 'v', tazka: 'v', dvojita: 'e', vedecka: 'e', graficka: 'l' };
-export const CARD_RAR = { magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
+export const CARD_RAR = { horenie: 'v', plamen: 'e', magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
 export function rarityOf(o) {
   const g = o.give || {};
   if (g.t === 'n') return g.v >= 8 ? 'e' : g.v >= 6 ? 'v' : 'b';

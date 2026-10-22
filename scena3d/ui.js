@@ -3,11 +3,11 @@ import { pix, icon } from './svet.js';
 import { CARDS } from './karty.js';
 
 // 4 živly = základné kúzla podľa znamienka
-export const ZIVLY = {
-  '+': { id: 'zem', name: 'Zem', color: '#b8823e', text: 'Zem popraská a nepriateľ sa na chvíľu zastaví.' },
-  '-': { id: 'voda', name: 'Voda', color: '#3a8fe0', text: 'Ľadová vlna nepriateľa zamrazí na mieste.' },
-  '×': { id: 'ohen-zivel', name: 'Oheň', color: '#ec6428', text: 'Plameň horí a preskočí na suseda.' },
-  '÷': { id: 'vzduch', name: 'Vzduch', color: '#3ec6bc', text: 'Víchor odfúkne nepriateľa ďaleko dozadu.' },
+export const ZIVLY = {   // živel podľa matematiky: + pridáva (zem), − uberá postupne (oheň), × znásobí silu (vzduch), ÷ delí na kvapky (voda)
+  '+': { id: 'zem', name: 'Zem', color: '#b8823e', text: 'Zem popraská a nepriateľ sa zastaví – každé ďalšie + dlhšie.' },
+  '-': { id: 'ohen-zivel', name: 'Oheň', color: '#ec6428', text: 'Odčítané číslo dohorí: 9 − 3 = 6 hneď a 3 horí postupne.' },
+  '×': { id: 'vzduch', name: 'Vzduch', color: '#3ec6bc', text: 'Víchor odhodí nepriateľa – väčší činiteľ, ďalej.' },
+  '÷': { id: 'voda', name: 'Voda', color: '#3a8fe0', text: 'Strela sa rozpadne na kvapky (12 ÷ 3 = 3 po 4) a spomalí.' },
 };
 const mix = (hex, t, to) => { const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16); const ch = s => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t); return `rgb(${ch(16)},${ch(8)},${ch(0)})`; };
 const tones = c => `--c:${c};--c2:${mix(c, .55, '#ffffff')};--c3:${mix(c, .62, '#0e0e10')}`;

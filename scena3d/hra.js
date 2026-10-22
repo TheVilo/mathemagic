@@ -407,7 +407,7 @@ function openMap() {
   el.querySelector('#close').onclick = closeOverlay;
 }
 // ---------- ruksak (Pokročilý) ----------
-const OPC = { '+': '#c8923a', '-': '#4fa8ff', '×': '#ff5a22', '÷': '#7fe8d8', '√': '#b07ad8', '²': '#ffd25a', '³': '#ffa040', '!': '#ff3a6a' };
+const OPC = { '+': '#c8923a', '-': '#ff5a22', '×': '#7fe8d8', '÷': '#4fa8ff', '√': '#b07ad8', '²': '#ffd25a', '³': '#ffa040', '!': '#ff3a6a' };
 const tokHtml = (x, cls = '') => x.t === 'd' ? `<span class="tk die ${cls}" data-id="${x.id}">${pix('?')}</span>` : x.t === 'o' ? `<span class="tk op ${cls}" data-id="${x.id}" style="--c:${OPC[x.v]}">${pix(x.v)}</span>` : `<span class="tk num ${cls}" data-id="${x.id}">${pix(x.v)}</span>`;
 function giveLoot(at, tier = 0) {
   if (!adv()) return;
@@ -434,7 +434,7 @@ function openPack() {
   const open = row.filter(id => id === -1).length - row.filter(id => id === -2).length;
   const U = P.unlock || {};
   const SID = { s: -3, q: -4, c: -5, f: -6, p: -1 }, spLeft = c => specOwned(U, c) - P.rows.flat().filter(id => id === SID[c]).length;   // koľko kusov funkcie ešte ostáva
-  const name = o => ({ '+': 'zem', '-': 'voda', '×': 'oheň', '÷': 'vzduch', '√': 'prieraz', '²': 'mocnina', '³': 'mocnina', '!': 'faktoriál' }[o]);
+  const name = o => ({ '+': 'zem', '-': 'oheň', '×': 'vzduch', '÷': 'voda', '√': 'prieraz', '²': 'mocnina', '³': 'mocnina', '!': 'faktoriál' }[o]);
   const lcdRow = r => {
     const ids = P.rows[r], ok = spellWorks(run, r), st = ok ? strength(run, mulberry32(7), r) : null, ex = ok ? rollSpell(run, mulberry32(3), r) : null;
     const txt = ids.map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');

@@ -11,6 +11,8 @@ export const CARDS = {
   srdce: { name: 'Srdce', color: '#d43a3a', icon: 'heart', text: l => `+${l} ${l > 1 ? 'srdiečka' : 'srdiečko'} navyše.` },
   cas: { name: 'Pomalý čas', color: '#60be68', icon: 'clock', text: l => `Nepriatelia sú o ${l > 1 ? 35 : 20} % pomalší.` },
   // Majster: karty na damage (násobenie, kritický zásah)
+  horenie: { mode: 'pokrocily', name: 'Dlhé horenie', color: '#ff7a2a', icon: 'fire', text: l => `Oheň (−) horí o ${l > 1 ? 4 : 2} s dlhšie.` },
+  plamen: { mode: 'pokrocily', name: 'Plameň', color: '#ff4a1a', icon: 'fire', text: l => `Horenie páli ×${l > 1 ? 2 : 1.5} a preskočí na ${l > 1 ? 2 : 1} ${l > 1 ? 'susedov' : 'suseda'}.` },
   krat: { mode: 'pokrocily', name: 'Násobič', color: '#ff5a22', icon: 'swords', text: l => `Každé kúzlo dá damage ×${l > 1 ? 2 : 1.5}.` },
   plocha: { mode: 'pokrocily', name: 'Plošný zásah', color: '#ec6428', icon: 'fire', text: l => `Kúzlo zraní aj nepriateľov okolo za ${l > 1 ? 70 : 40} %.` },
   otras: { mode: 'pokrocily', name: 'Otras zeme', color: '#b8823e', icon: 'rock', text: l => `Každý zásah omráči na ${l > 1 ? '1,5' : '0,8'} s.` },

@@ -123,7 +123,8 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
     near.forEach((o, i) => cast(o, { v, raw: r.answer, op: '÷', ops: r.ops, text: r.text, extra: true, hand, delay: 0.08 * (i + 1), power: Math.min(1.6, Math.max(0.15, v / 12)) }));
     if (near.length) G.floatText(`÷ ${r.div} strely`, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0)));
   }
-  cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, cost, hand, crit, power: Math.min(1.6, Math.max(0.15, v / 12)) });
+  const fireK = r.answer > 0 ? v / r.answer : SK.dmg;   // horenie sa násobí rovnako ako zásah (palica, karty, kritický)
+  cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, cost, hand, crit, burn: Math.round((r.sub || 0) * fireK), mul: r.mul || 0, plus: r.ops.filter(o => o === '+').length, power: Math.min(1.6, Math.max(0.15, v / 12)) });
   // Dvojitá palica: druhé kúzlo na ďalšieho najbližšieho
   if (SK.shots > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
@@ -290,7 +291,7 @@ export function animShape(g, t, dir) {
 
 // ---------- kúzla (letia z kryštálu palice) ----------
 // ŠTYRI ŽIVLY: + zem (popraská, zastaví), − voda (zamrzne), × oheň (zapáli, šíri sa), ÷ vzduch (odsunie)
-const COL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
+const COL = { '+': 0xc8923a, '-': 0xff5a22, '×': 0x7fe8d8, '÷': 0x4fa8ff, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
 const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5, '√': 6, '²': 9, '³': 9, '!': 6 };
 function cast(t, info) {
   t.locked = true; t.el.classList.add('locked');
@@ -356,27 +357,35 @@ function updateSpells(dt) {
 }
 // efekt živla pri zásahu
 const flash = kresbaMat.uniforms.uFlash.value;
+// ŽIVLY PODĽA MATEMATIKY: + zem (omráči, každé + dlhšie) · − oheň (odčítané číslo dohorí) · × vzduch (odhodí podľa činiteľa) · ÷ voda (kvapky, spomalí)
+const near = (e, r = 3, n = 1) => fight.enemies.filter(o => o !== e && o.state !== 'dead' && o.g.position.distanceTo(e.g.position) < r).sort((a, b) => a.g.position.distanceTo(e.g.position) - b.g.position.distanceTo(e.g.position)).slice(0, n);
+export function ignite(e, amount, spread = true) {   // HORENIE: amount sa rozloží na trvanie, tiká každých 0,5 s; karty Dlhé horenie a Plameň
+  if (!amount || e.state === 'dead') return;
+  const pl = lvl(G.run, 'plamen'), dur = 3 + [0, 2, 4][lvl(G.run, 'horenie')];
+  amount = Math.round(amount * [1, 1.5, 2][pl]);
+  e.fire = { left: (e.fire ? e.fire.left : 0) + amount, t: Math.max(e.fire ? e.fire.t : 0, dur), acc: 0, tick: 0 }; e.burn = Math.max(e.burn || 0, dur);
+  if (spread) for (const o of near(e, 3, pl > 1 ? 2 : 1)) ignite(o, Math.ceil(amount * 0.5), false);   // preskočí na suseda (s Plameňom na dvoch)
+}
 function zivel(e, info) {
   const op = info.op, p = targetPos(e), g = e.g.position.clone(); g.y += 0.1;
   if (!op) burst(p, 120, 4, 0xf2efe6);   // kúzlo bez znamienka = čistá mágia
-  if (op === '+') { // ZEM: popraská, nepriateľ sa zastaví
-    e.stun = 1.4; G.shake(0.55); flash.set(0.85, 0.7, 0.45, 0.2);
-    for (let n = 0; n < 90; n++) { const a = Math.random() * 6.28, r = Math.random() * 1.8; spark(g.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)), Math.cos(a) * 0.6, 1 + Math.random() * 2.5, Math.sin(a) * 0.6, 0.8, Math.random() < 0.6 ? 0xc8923a : 0x8a6a3a); }
+  if (op === '+') { // ZEM: popraská, nepriateľ sa zastaví – každé ďalšie + o 0,5 s dlhšie
+    e.stun = 1.2 + 0.5 * Math.max(0, (info.plus || 1) - 1); G.shake(0.55); flash.set(0.85, 0.7, 0.45, 0.2);
+    for (let n = 0; n < 90; n++) { const a = Math.random() * 6.28, r = Math.random() * 1.8; spark(g.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)), Math.cos(a) * 0.6, 1 + Math.random() * 2, Math.sin(a) * 0.6, 0.7, Math.random() < 0.5 ? 0xc8923a : 0x8a6a3a); }
     G.floatText('Zem!', e);
-  } else if (op === '-') { // VODA: zamrzne
-    e.frozen = Math.max(e.frozen || 0, 2.5); G.shake(0.3); flash.set(0.7, 0.85, 1, 0.25);
-    burst(p, 120, 3, 0x4fa8ff, 1.2); burst(p, 60, 1.5, 0xd8f0ff, 1.4);
-    G.floatText('Zamrzol!', e);
-  } else if (op === '×') { // OHEŇ: zapáli a preskočí na najbližšieho
-    e.burn = Math.max(e.burn || 0, 5); G.shake(0.8); flash.set(1, 0.55, 0.3, 0.35);
-    burst(p, 260, 6, 0xff5a22); burst(p, 100, 3.5, 0xffd25a, 1.2);
-    const nb = fight.enemies.filter(o => o !== e && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(e.g.position) - b.g.position.distanceTo(e.g.position))[0];
-    if (nb && nb.g.position.distanceTo(e.g.position) < 3) nb.burn = Math.max(nb.burn || 0, 3);
-    G.floatText('Horí!', e);
-  } else if (op === '÷') { // VZDUCH: odsunie
-    e.knock = Math.max(e.knock || 0, 4.5); G.shake(0.4); flash.set(0.85, 1, 0.95, 0.2);
+  } else if (op === '-') { // OHEŇ: odčítané číslo dohorí postupne a preskočí na suseda
+    G.shake(0.6); flash.set(1, 0.55, 0.3, 0.3);
+    burst(p, 220, 5, 0xff5a22); burst(p, 90, 3, 0xffd25a, 1.2);
+    if (fight.adv) { if (info.burn) { ignite(e, info.burn); G.floatText(`Horí ${pix('+' + info.burn)}`, e); } }
+    else { e.burn = Math.max(e.burn || 0, 4); G.floatText('Horí!', e); }
+  } else if (op === '×') { // VZDUCH: odhodí – čím väčší činiteľ, tým ďalej
+    e.knock = Math.max(e.knock || 0, Math.min(9, 2 + 1.2 * Math.max(1, info.mul || 1))); G.shake(0.4); flash.set(0.85, 1, 0.95, 0.2);
     for (let n = 0; n < 120; n++) { const a = Math.random() * 6.28, r = 0.3 + Math.random() * 1.2; spark(p.clone().add(new THREE.Vector3(Math.cos(a) * r, Math.random() * 1.2 - 0.4, Math.sin(a) * r)), -Math.sin(a) * 4, 0.5, Math.cos(a) * 4, 0.6, Math.random() < 0.5 ? 0x7fe8d8 : 0xffffff); }
     G.floatText('Odfúknutý!', e);
+  } else if (op === '÷') { // VODA: kvapky (rozdelenie robí fireAt) a spomalí
+    e.wet = Math.max(e.wet || 0, 3); G.shake(0.3); flash.set(0.7, 0.85, 1, 0.25);
+    burst(p, 120, 3, 0x4fa8ff, 1.2); burst(p, 60, 1.5, 0xd8f0ff, 1.4);
+    if (!fight.adv) { e.frozen = Math.max(e.frozen || 0, 2.5); G.floatText('Zamrzol!', e); } else G.floatText('Mokrý', e);
   }
   if (info.quiet || fight.adv) return;   // Majster: číslo zásahu ukáže advHit (skutočný damage + vzorec)
   // číslo zásahu vo farbe živla
@@ -418,8 +427,8 @@ function advHit(e, info) {
   if (!info.extra) {
     fight.combo = G.now - fight.lastHit < 2.5 ? fight.combo + 1 : 1; fight.lastHit = G.now;
     const ops = info.ops || [];
-    if (e.frozen > 0 && ops.includes('×')) { v *= 2; e.frozen = 0; G.floatText('Para! ×2', e); burst(targetPos(e), 160, 4, 0xffffff, 1.2); }
-    else if (e.stun > 0 && ops.includes('÷')) { v = Math.round(v * 1.5); e.knock = 6; G.floatText('Výbuch zeme! ×1,5', e); }
+    if ((e.wet > 0 || e.frozen > 0) && ops.includes('-')) { v *= 2; e.wet = 0; e.frozen = 0; G.floatText('Para! ×2', e); burst(targetPos(e), 160, 4, 0xffffff, 1.2); }   // voda + oheň
+    else if (e.stun > 0 && ops.includes('×')) { v = Math.round(v * 1.5); e.knock = 6; G.floatText('Výbuch zeme! ×1,5', e); }   // zem + vzduch
     // KOMBO DVOCH PALÍC: zásah z druhej ruky do 1 s na toho istého nepriateľa – rovnaký výsledok = Dvojica ×2, násobok = ×1,5
     const lh = e.lastHand; comboHit = false;
     if (lh && info.hand && lh.h !== info.hand && G.now - lh.t < 1) {
@@ -451,6 +460,7 @@ function advHit(e, info) {
     if (fight.target === e) fight.target = null;
     afterHit(info); checkEnd(); return;
   }
+  if (info.dot) { renderTag(e); return; }   // horenie: len číslo, nepriateľ sa nezastaví
   renderTag(e); e.state = 'hit'; e.t = 0; e.play('Hit_A', 0.05, true); e.knock = info.fast ? 2 : 1; e.charging = false;
   majsterFx(e, info, v);
   afterHit(info);
@@ -547,9 +557,14 @@ export function updateFight(dt) {
     const dist = toHero.length(); toHero.normalize();
     if (e.state !== 'dead') e.g.rotation.y = Math.atan2(toHero.x, toHero.z);
     if (e.knock > 0) { const k = Math.min(e.knock, edt * 6); pos.addScaledVector(toHero, -k); e.knock -= k; }
-    e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt); e.stun = Math.max(0, (e.stun || 0) - edt);
+    e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt); e.stun = Math.max(0, (e.stun || 0) - edt); e.wet = Math.max(0, (e.wet || 0) - edt);
+    if (e.fire && e.state !== 'dead') {   // HORENIE: zvyšok sa rovnomerne rozpáli do času, tik každých 0,5 s
+      const F = e.fire, k = Math.min(1, edt / Math.max(0.01, F.t)); F.acc += F.left * k; F.left -= F.left * k; F.t -= edt; F.tick += edt;
+      if (F.tick >= 0.5 || F.t <= 0) { F.tick = 0; const d = Math.round(F.acc + (F.t <= 0 ? F.left : 0)); F.acc -= d; if (d > 0) advHit(e, { v: d, raw: 0, extra: true, op: '-', dot: true }); }
+      if (F.t <= 0) e.fire = null;
+    }
     if (e.stun > 0 && e.state !== 'dead') { e.mixer.update(edt * 0.15); if (Math.random() < 0.3) spark(e.g.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.1, (Math.random() - 0.5) * 1.2)), 0, 0.8, 0, 0.5, 0xc8923a); continue; }   // zem: stojí v prasklinách
-    const sp = e.speed * slowCard * (fight.adv ? 2.2 : 1) * (e.burn > 0 ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1);   // Majster: bežia po hráčovi
+    const sp = e.speed * slowCard * (fight.adv ? 2.2 : 1) * (e.burn > 0 && lvl(G.run, 'ohen') ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1) * (e.wet > 0 ? 0.5 : 1);   // mokrý = polovičná rýchlosť   // Majster: bežia po hráčovi
     if (e.burn > 0 && Math.random() < 0.4) spark(pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * e.h * 0.8, (Math.random() - 0.5) * 0.6)), 0, 1.4, 0, 0.5, 0xff8a3a);
     if (e.frozen > 0 && e.state !== 'dead') { e.mixer.update(0); for (const m of e.mats) if (m.emissive) m.emissive.setRGB(0.15, 0.35, 0.6); if (Math.random() < 0.2) spark(targetPos(e), (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.6, 0x9fd8ff); continue; }
     if (e.state === 'stand') { if (e.t > (fight.adv ? 0.4 : 1.0)) { e.state = 'walk'; e.play(fight.adv ? 'Running_A' : e.d.walk); } }
