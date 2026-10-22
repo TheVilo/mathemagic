@@ -117,7 +117,7 @@ export const RARITY = { b: { name: 'Bežná', col: '#b8b8b8' }, v: { name: 'Vzá
 const RAR_W = { b: 1, v: 0.6, e: 0.3, l: 0.12 }, RAR_L = { b: 1, v: 2, e: 5, l: 9 };
 const KEY_RAR = { '+': 'b', '-': 'b', '×': 'v', '÷': 'v', p: 'v', slot: 'v', s: 'e', q: 'l', c: 'l', f: 'l' };   // funkcie sú vzácne KUSY (x² legendárne)
 export const STAFF_RAR = { zakladna: 'b', rychla: 'v', tazka: 'v', dvojita: 'e', vedecka: 'e', graficka: 'l' };
-export const CARD_RAR = { horenie: 'v', plamen: 'e', magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
+export const CARD_RAR = { horenie: 'v', plamen: 'e', kamen: 'v', zemetras: 'e', vir: 'v', naraz: 'e', lad: 'v', dazd: 'e', magnet: 'b', heart: 'b', srdce: 'b', retaz: 'v', ohen: 'v', stit: 'v', cas: 'v', ozvena: 'v', staff: 'v', otras: 'e', plocha: 'e', blesk: 'e', row: 'e', krat: 'l', krit: 'l' };
 export function rarityOf(o) {
   const g = o.give || {};
   if (g.t === 'n') return g.v >= 8 ? 'e' : g.v >= 6 ? 'v' : 'b';

@@ -119,7 +119,7 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
   const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
   // ÷ ROZDELENIE: 12 ÷ 3 = 3 strely po 4 na troch najbližších (spolu ako delenec) – delí sa len bezo zvyšku, najviac 6 striel
   if (r.div >= 2 && !t.fake) {
-    const n = Math.min(6, r.div), near = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position)).slice(0, n - 1);
+    const n = Math.min(8, Math.min(6, r.div) + [0, 1, 2][lvl(G.run, 'dazd')]), near = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position)).slice(0, n - 1);
     near.forEach((o, i) => cast(o, { v, raw: r.answer, op: '÷', ops: r.ops, text: r.text, extra: true, hand, delay: 0.08 * (i + 1), power: Math.min(1.6, Math.max(0.15, v / 12)) }));
     if (near.length) G.floatText(`÷ ${r.div} strely`, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0)));
   }
@@ -371,6 +371,10 @@ function zivel(e, info) {
   if (!op) burst(p, 120, 4, 0xf2efe6);   // kúzlo bez znamienka = čistá mágia
   if (op === '+') { // ZEM: popraská, nepriateľ sa zastaví – každé ďalšie + o 0,5 s dlhšie
     e.stun = 1.2 + 0.5 * Math.max(0, (info.plus || 1) - 1); G.shake(0.55); flash.set(0.85, 0.7, 0.45, 0.2);
+    if (fight.adv && !info.extra) {
+      const zt = lvl(G.run, 'zemetras'); if (zt) for (const o of near(e, zt > 1 ? 3 : 2, 99)) o.stun = Math.max(o.stun || 0, e.stun * 0.7);   // Zemetrasenie
+      const km = lvl(G.run, 'kamen'); if (km && G.now > (fight.kamenT || 0) && (fight.shield || 0) < km) { fight.shield = (fight.shield || 0) + 1; fight.kamenT = G.now + (km > 1 ? 4 : 6); G.floatText('Kamenný štít', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); }   // Kamenný štít
+    }
     for (let n = 0; n < 90; n++) { const a = Math.random() * 6.28, r = Math.random() * 1.8; spark(g.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)), Math.cos(a) * 0.6, 1 + Math.random() * 2, Math.sin(a) * 0.6, 0.7, Math.random() < 0.5 ? 0xc8923a : 0x8a6a3a); }
     G.floatText('Zem!', e);
   } else if (op === '-') { // OHEŇ: odčítané číslo dohorí postupne a preskočí na suseda
@@ -380,10 +384,16 @@ function zivel(e, info) {
     else { e.burn = Math.max(e.burn || 0, 4); G.floatText('Horí!', e); }
   } else if (op === '×') { // VZDUCH: odhodí – čím väčší činiteľ, tým ďalej
     e.knock = Math.max(e.knock || 0, Math.min(9, 2 + 1.2 * Math.max(1, info.mul || 1))); G.shake(0.4); flash.set(0.85, 1, 0.95, 0.2);
+    if (fight.adv && !info.extra) {
+      const vr = lvl(G.run, 'vir'); if (vr) for (const o of near(e, vr > 1 ? 3 : 2, 99)) o.knock = Math.max(o.knock || 0, 3);   // Víchor
+      const nr = lvl(G.run, 'naraz'), nb = nr && near(e, 2.5, 1)[0]; if (nb && info.v) setTimeout(() => nb.state !== 'dead' && advHit(nb, { v: Math.round(info.v * (nr > 1 ? 0.5 : 0.3)), raw: 0, extra: true, op: '×' }), 200);   // Náraz
+    }
     for (let n = 0; n < 120; n++) { const a = Math.random() * 6.28, r = 0.3 + Math.random() * 1.2; spark(p.clone().add(new THREE.Vector3(Math.cos(a) * r, Math.random() * 1.2 - 0.4, Math.sin(a) * r)), -Math.sin(a) * 4, 0.5, Math.cos(a) * 4, 0.6, Math.random() < 0.5 ? 0x7fe8d8 : 0xffffff); }
     G.floatText('Odfúknutý!', e);
   } else if (op === '÷') { // VODA: kvapky (rozdelenie robí fireAt) a spomalí
+    const wasWet = (e.wet || 0) > 0, ld = lvl(G.run, 'lad');
     e.wet = Math.max(e.wet || 0, 3); G.shake(0.3); flash.set(0.7, 0.85, 1, 0.25);
+    if (fight.adv && ld && wasWet) { e.frozen = Math.max(e.frozen || 0, ld > 1 ? 2.5 : 1.5); G.floatText('Ľad!', e); }   // Ľad: voda na mokrého = zamrzne
     burst(p, 120, 3, 0x4fa8ff, 1.2); burst(p, 60, 1.5, 0xd8f0ff, 1.4);
     if (!fight.adv) { e.frozen = Math.max(e.frozen || 0, 2.5); G.floatText('Zamrzol!', e); } else G.floatText('Mokrý', e);
   }
