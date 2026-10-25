@@ -528,8 +528,14 @@ function openShop() {
   el.querySelector('#close').onclick = closeOverlay;
 }
 function gameOver() {
-  G.over = true; endFight(); heroPlay('Death_A', 0.1, 99); bottomEl.classList.add('hidden');
-  setTimeout(() => {
+  if (G.over && G.endShown) return;
+  G.over = true; G.overT = performance.now(); G.endShown = false; endFight(); heroPlay('Death_A', 0.1, 99); bottomEl.classList.add('hidden'); spawnQ.length = 0;
+  setTimeout(endScreen, 1600);
+}
+// obrazovka konca (strážca v slučke ju ukáže znova, ak ju prekrylo iné okno – inak hra „zamrzla“)
+function endScreen() {
+  G.endShown = true;
+  {
     if (!adv()) { // UČEŇ: nič sa nestratí – zóna sa len začne znova
       const el = overlay('Skús to znova', `<div style="display:flex;justify-content:center;margin-bottom:10px">${dia('heart', 'big')}</div>
         <div style="font-size:22px;margin-bottom:8px">Zbojníci ťa dostali</div><p class="sub">Karty, znamienka aj zóna ${run.zone} ti ostávajú. Začneš len túto zónu znova.</p>
@@ -551,7 +557,7 @@ function gameOver() {
       <div class="acts"><button class="btn on" id="again">Nový beh</button><button class="btn ghost" id="toMenu">Menu</button></div>`, 'end');
     el.querySelector('#again').onclick = () => { run = newRun('pokrocily'); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); };
     el.querySelector('#toMenu').onclick = () => { run = newRun('pokrocily'); persist(); sessionStorage.setItem('mm-menu', '1'); location.reload(); };
-  }, 1600);
+  }
 }
 
 // ---------- výhra v súboji ----------
@@ -765,7 +771,7 @@ function update(dt, t) {
   if (!paused && (fight.on || fight.enemies.length || adv())) updateFight(dt);
   if (R && !scrOn) { updateHordes(dt); if (adv() && !inside && !G.over && !paused) updateSpawns(dt); }
   if (adv() && lvlQueue > 0 && !paused && !scrOn && !G.over) openLevelUp();
-  if (adv() && R && !paused) { updateGems(dt); updateDrops(dt); updateMerchant(dt); }
+  if (adv() && R && !paused && !G.over) { updateGems(dt); updateDrops(dt); updateMerchant(dt); }
   hudba(scrOn ? 'uvod' : fight.on ? ((act && act.camp.boss) || fight.hb ? 'boss' : 'suboj') : 'svet');   // hudba podľa situácie (prelína sa)   // Majster: kúzla letia aj mimo súboja
   if (!fight.on) for (const f of band) if (f.state !== 'dead' && !fight.enemies.includes(f)) f.mixer.update(dt);
   if (innkeeper && inside) innkeeper.mixer.update(dt);
@@ -1272,7 +1278,11 @@ for (const id of ['introScr', 'menuScr']) { $(id).classList.add('live'); $(id).c
 const startSay = () => say(adv() ? 'Pohyb: WASD alebo šípky · klik = kúzlo z Knihy.' : run.w.camps.length === 0 && run.zone === 1 ? 'Ťukni na zem a choď. Svet je veľký – nájdi bandy zbojníkov a ich kľúče.' : 'Poraz bandy a nájdi kľúče od brány vodcu.', 4200);
 if (afterLoad === 'game') startGame(); else if (afterLoad === 'menu') showMenu();
 const clock = new THREE.Clock();
-function tick() { const dt = Math.min(0.05, clock.getDelta()); simT += dt; update(dt, simT); draw(dt); requestAnimationFrame(tick); }
+// SLUČKA: ďalší snímok sa naplánuje VŽDY (aj keď update spadne na chybe) – inak hra zamrzla; chyby sa zapíšu do localStorage 'mm-err' na ladenie
+function logErr(e) { console.error(e); try { const L = JSON.parse(localStorage.getItem('mm-err') || '[]'); L.push({ t: new Date().toISOString(), m: String(e && e.stack || e).slice(0, 400) }); localStorage.setItem('mm-err', JSON.stringify(L.slice(-20))); } catch (_) {} }
+addEventListener('error', ev => logErr(ev.error || ev.message)); addEventListener('unhandledrejection', ev => logErr(ev.reason));
+function tick() { requestAnimationFrame(tick); if (G.over && G.endShown && !ovEl.classList.contains('show') && performance.now() - G.overT > 2500) { try { endScreen(); } catch (e) { logErr(e); } }   // strážca: koniec behu musí byť vidno
+  const dt = Math.min(0.05, clock.getDelta()); simT += dt; try { update(dt, simT); } catch (e) { logErr(e); } try { draw(dt); } catch (e) { logErr(e); } }
 let simT = 0;
 requestAnimationFrame(tick);
 // testovací háčik: __h.step(s) posunie hru o s sekúnd (Browser pane beží pomaly)

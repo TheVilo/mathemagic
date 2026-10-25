@@ -186,6 +186,22 @@ export const kresbaMat = new THREE.ShaderMaterial({
           else if (T < 0.04 && mod(frag.x, 6.0) < 1.5 && mod(frag.y, 6.0) < 1.5) mono = bone * 0.16;   // tma: riedka mriežka bodiek
           outC = mix(mono, outC, spellPx);
         }
+        // 1-BIT DEŇ (Učeň): obrátene – kostený papier, čierny atrament ditheringom po pixeloch, čierne obrysy; farebné len kúzla
+        if (uNight < 0.5 && uOneBit > 0.5) {
+          vec3 paperC = vec3(0.93, 0.91, 0.86), inkD = vec3(0.06, 0.06, 0.07);
+          vec2 uvq = frag / uRes, tq = 3.0 / uRes;
+          float D = smoothstep(0.12, 0.8, k);                                  // tma = hustota atramentu
+          vec3 monoD = step(bayer(floor(frag / 2.0)), D) > 0.5 ? inkD : paperC;
+          float dq = texture2D(tDepth, uvq).r, mq = texture2D(tMask, uvq).r, eq = 0.0;
+          for (int q = 0; q < 4; q++) {
+            vec2 o = q == 0 ? vec2(tq.x, 0.0) : q == 1 ? vec2(-tq.x, 0.0) : q == 2 ? vec2(0.0, tq.y) : vec2(0.0, -tq.y);
+            if (texture2D(tDepth, uvq + o).r - dq > 0.0025) eq = 1.0;
+            if (mq > 0.5 && texture2D(tMask, uvq + o).r < 0.5) eq = 1.0;
+          }
+          if (mq > 0.5) monoD = mix(monoD, inkD, 0.75);                         // postavy tmavé
+          if (eq > 0.5 && dq < 0.9999) monoD = inkD;
+          outC = mix(monoD, outC, spellPx);
+        }
         gl_FragColor = vec4(outC, 1.0); return;
       }
     }`,
