@@ -320,6 +320,12 @@ function cast(t, info) {
 }
 // SVETLO KÚZIEL: každé letiace kúzlo osvetlí okolie (3,5 m), pri dopade krátko väčší záblesk (6 m)
 function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
+// KÚZLO = VEĽKÉ FAREBNÉ ZNAMIENKO: každá strela letí ako jasné + − × ÷ vo farbe živlu (ostré, mimo ditheringu), pri dopade sa rozprskne
+const SIGN = { '+': '+', '-': '-', '×': '×', '÷': '÷', '√': '√', '²': '²', '³': '³', '!': '!' };
+function spellSign(s) {
+  const el = document.createElement('div'); el.className = 'spsign'; el.style.color = '#' + s.color.toString(16).padStart(6, '0');
+  el.innerHTML = pix(SIGN[s.info.op] || '+'); el.style.display = 'none'; document.body.appendChild(el); return el;
+}
 function updateSpells(dt) {
   for (let i = spells.length - 1; i >= 0; i--) {
     const s = spells[i]; s.t += dt;
@@ -334,11 +340,12 @@ function updateSpells(dt) {
       const k = (s.t - 0.22) / 0.34, e = k * k * (3 - 2 * k), to = targetPos(s.target);
       const pw = s.info.power ?? 1; s.orb.visible = true; if (s.light) { s.light.intensity = 4 + 12 * pw; s.light.distance = 2.5 + 3 * pw; }
       const prev = s.orb.position.clone(); s.orb.position.lerpVectors(s.from, to, e); s.orb.position.y += Math.sin(e * Math.PI) * 1.2; if (s.light) s.light.position.copy(s.orb.position); animShape(s.orb, s.t, s.orb.position.clone().sub(prev));
+      if (fight.adv) { if (!s.sign) s.sign = spellSign(s); const v = s.orb.position.clone().project(camera); s.sign.style.display = ''; s.sign.style.left = (v.x + 1) / 2 * innerWidth + 'px'; s.sign.style.top = (1 - v.y) / 2 * innerHeight + 'px'; }
       s.orb.scale.setScalar((s.info.power !== undefined ? 0.9 + s.info.power * 0.35 : s.info.fast ? 1.25 : 1.0) * (s.info.crit ? 1.6 : 1) * (1 + Math.sin(s.t * 40) * 0.08));   // znamienká, pri kritickom väčšie
       crystal.scale.set(1, 1.6, 1);
       for (let n = 0; n < (s.info.fast ? 8 : 5); n++) spark(s.orb.position, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, 0.5, s.color);
     } else if (!s.hit) {
-      s.hit = true; s.flash = 1;
+      s.hit = true; s.flash = 1; if (s.sign) s.sign.classList.add('pop');
       const p = targetPos(s.target);
       if (s.info.visual) { burst(targetPos(s.target), 40, 2.5, s.color, 0.6); s.flash = 0.5; continue; }   // znak salvy: len záblesk, damage nesie posledný
       const pw = s.info.power ?? (s.info.fast ? 1.4 : 1);
@@ -352,7 +359,7 @@ function updateSpells(dt) {
     } else {
       s.flash -= dt * 3; const pw = s.info.power ?? 1;
       s.orb.scale.setScalar(Math.max(0.001, s.flash * (s.info.fast ? 1.6 : 0.6 + 0.8 * pw))); if (s.light) s.light.intensity = Math.max(0, s.flash) * (8 + 22 * pw);
-      if (s.flash <= 0) { scene.remove(s.orb); if (s.light) giveBack(s.light); spells.splice(i, 1); }
+      if (s.flash <= 0) { scene.remove(s.orb); if (s.light) giveBack(s.light); if (s.sign) s.sign.remove(); spells.splice(i, 1); }
     }
   }
 }

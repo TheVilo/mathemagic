@@ -181,8 +181,8 @@ export const kresbaMat = new THREE.ShaderMaterial({
           float distO = length(wpO.xz - uHero.xz), reach = 1.0 - smoothstep(uNightR.y, uNightR.y + 10.0, distO);   // obrysy dovidia ďalej ako svetlo, potom zmiznú
           // POSTAVY: vo svetle svetlá výplň s čiernymi čiarami (čitateľné ako v Glagstone), v tme len biely obrys
           bool chP = m0 > 0.5; float litC = 1.0 - smoothstep(uNightR.x, uNightR.y, distO);
-          if (chP) { float f = mix(0.16, 0.95, litC) * (0.8 + 0.2 * smoothstep(0.1, 0.5, luma(lin2srgb(texture2D(tAmb, uvp).rgb)))); mono = bone * f; }   // výplň: čistá kostená biela, tmavé časti len o kúsok sivšie
-          if (e > 0.5 && d0 < 0.9999) mono = (chP ? litC > 0.35 : Lm > 0.45) ? vec3(0.05) : mix(mono, bone * 0.85, reach);
+          if (chP) mono = bone * 0.07;   // POSTAVY TMAVÉ (Lukáš): čierna výplň, biely obrys a biele čiary medzi časťami (klobúk oddelený)
+          if (e > 0.5 && d0 < 0.9999) mono = chP ? bone * mix(0.6, 1.0, litC) : Lm > 0.45 ? vec3(0.05) : mix(mono, bone * 0.85, reach);
           else if (T < 0.04 && mod(frag.x, 6.0) < 1.5 && mod(frag.y, 6.0) < 1.5) mono = bone * 0.16;   // tma: riedka mriežka bodiek
           outC = mix(mono, outC, spellPx);
         }
