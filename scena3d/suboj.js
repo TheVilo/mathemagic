@@ -5,6 +5,7 @@ import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './post
 import { makeProblem, lvl } from './karty.js';
 import { rollSpell, spellWorks, enemyHp, workingRows, rowCost, used, tokOf } from './ruksak.js';
 import { staffStats, SHOT_MIN } from './balance.js';
+import { evalWand } from './wand.js';
 import { kresbaMat, setOrbs } from './kresba.js';
 import { efekt, akord } from './zvuk.js';
 
@@ -85,7 +86,7 @@ export function setTarget(e) { if (!fight.adv || !fight.enemies.includes(e) || e
 // Výsledok vzorca = damage aj sila efektu; dlhší vzorec sa dlhšie nabíja. Vedľa = kúzlo dopadne na zem.
 // kúzla (riadky ruksaku) sa striedajú v poradí 1 → 2 → 3 → 1, preskočia sa nehotové
 // DVE PALICE: ľavá (B) má vlastný riadok P.bRow, vlastnú energiu run.energy2 a vlastný čas medzi výstrelmi; pravá (A) strieda ostatné riadky
-const hasB = () => !!(G.run.pack.kind2 && G.run.pack.bRow != null && G.run.pack.rows[G.run.pack.bRow]);
+const hasB = () => !!(G.run.pack.kind2 && G.run.pack.bRow != null && (G.run.pack.wands || G.run.pack.rows)[G.run.pack.bRow]);
 const rowsOk = () => workingRows(G.run).filter(i => !(hasB() && i === G.run.pack.bRow));
 export const handStats = h => h === 'b' ? staffStats({ ...G.run.pack, kind: G.run.pack.kind2 }) : staffStats(G.run.pack);
 export const handEnergy = h => { const k = h === 'b' ? 'energy2' : 'energy', m = handStats(h).emax; return Math.min(m, G.run[k] ?? m); };
@@ -242,7 +243,7 @@ export function renderEnergy() {
 }
 export function renderInput(wrong) {
   if (fight.adv && fight.on) {
-    const P = G.run.pack, SK = staffStats(P), txt = row => used(P.rows[row] || []).map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
+    const P = G.run.pack, SK = staffStats(P), txt = row => P.wands ? ((P.wands[row] && evalWand(P.wands[row].slots)) || {}).text || '' : used(P.rows[row] || []).map(id => { const t = tokOf(P, id); return t ? (t.t === 'd' ? '?' : t.v) : ''; }).join('');
     const ok = rowsOk(), cur = curRow(), nx = ok.length > 1 ? ok[(ok.indexOf(cur) + 1) % ok.length] : null;
     G.inpEl.innerHTML = `${ok.length ? `<span class="ph">${cur + 1}</span>` + pix(txt(cur)) : '<span class="ph">poskladaj kúzlo v Knihe</span>'}<span class="ph">⚡${rowCost(P, cur)}</span>${hasB() ? `<span class="ph">· B: ${txt(P.bRow) || '—'}</span>` : ''}${nx !== null ? `<span class="ph">ďalej ${nx + 1}: ${txt(nx)}</span>` : '<span class="ph">klik</span>'}`; return; }
   G.inpEl.innerHTML = wrong ? pix(wrong) : fight.input ? pix(fight.input) : '<span class="ph">výsledok</span>';

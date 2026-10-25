@@ -1,3 +1,4 @@
+import { wandOffers, modRar } from './wand.js';
 // ROVNOVÁHA MAJSTRA – všetko na jednom mieste, len vzorce (žiadne ručné tabuľky). Bez grafiky – dá sa testovať v Node.
 //
 // Myšlienka (ako Balatro): nepriatelia silnejú EXPONENCIÁLNE, hráč stíha len tak, že skladá silnejšie vzorce.
@@ -128,11 +129,12 @@ export function rarityOf(o) {
   if (g.t === 'slot') return 'v';
   if (g.t === 'card') return CARD_RAR[g.id] || 'v';
   if (g.t === 'pal') return STAFF_RAR[g.k] || 'v';
+  if (g.t === 'wmod') return modRar(g.m);
   return CARD_RAR[g.t] || 'b';
 }
 // VÝBER PO ÚROVNI: 3 miesta, každé je náhodne kláves (P_CALC) alebo karta → miešajú sa, vyberáš medzi nimi
 export function levelOffers(L, run, rng = Math.random, cards = []) {
-  const calc = calcOffers(L, run, rng, 99), cpool = cardOffers(L, run, cards, rng, 99), out = [];
+  const calc = run.pack.wands ? wandOffers(L, run, rng, 6) : calcOffers(L, run, rng, 99), cpool = cardOffers(L, run, cards, rng, 99), out = [];
   for (let k = 0; k < 3; k++) {
     const src = (rng() < P_CALC && calc.length) || !cpool.length ? calc : cpool; if (!src.length) break;
     out.push(src.splice(0, 1)[0]);

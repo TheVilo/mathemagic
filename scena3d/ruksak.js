@@ -3,6 +3,8 @@
 // Všetko zo vzorcov – korisť, životy nepriateľov aj ceny. Bez grafiky – dá sa testovať v Node.
 
 import { FACT_CAP, FACT_CAP_ENDLESS, FINAL_ZONE, spellCost } from './balance.js';
+import { evalWand, wandCost } from './wand.js';
+// MAJSTER s palicami so slotmi (pack.wands): riadok r = palica r (0 = A, 1 = B); výpočet zľava doprava vo wand.js
 
 // začiatok: 1 + 1 z pevných čísel; lepšie čísla, rozšírenie ruksaku a kocky □ sa nachádzajú, nové znamienko dá vodca
 // rows = kúzla (riadky kalkulačky, max 3) – v súboji sa striedajú v poradí ako na palici v Magicrafte; staff = úroveň palice
@@ -55,12 +57,15 @@ function evalSpell(toks, die, stars = null, cap = 12) {
   return { value: e.v, text: e.s, ops, div: divOk ? div : 0, sub: Math.max(0, sub), mul };
 }
 export function spellOk(pack, r = 0) {
+  if (pack.wands) return !!(pack.wands[r] && evalWand(pack.wands[r].slots));
   const ids = used(pack.rows[r] || []); if (!ids.length || ids.includes(null)) return false;
   const t = ids.map(id => tok(pack, id)); if (t.some(x => !x)) return false;
   return !!evalSpell(t, () => 1);
 }
 // hod: kocky □ padnú náhodne (1 … max podľa rozsahu); damage = výsledok zaokrúhlený, nie menej ako 0 (≈ pri odmocnine a delení)
 function tryRoll(run, rng, r) {
+  if (run.pack.wands) { const res = evalWand(run.pack.wands[r].slots, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
+    return { text: res.text, answer: Math.max(0, Math.round(res.value)), value: res.value, div: res.div, sub: res.sub, mul: res.mul, exact: true, ops: res.ops }; }
   const pack = run.pack, t = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
   const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
   const answer = Math.max(0, Math.round(res.value));
@@ -69,7 +74,7 @@ function tryRoll(run, rng, r) {
 export function rollSpell(run, rng = Math.random, row = 0) { if (!spellOk(run.pack, row)) return null; return tryRoll(run, rng, row); }
 // vzorec je hotový a dá sa aj vypočítať (napr. 2 − 7 nikdy nevyjde)
 export const spellWorks = (run, row = 0) => spellOk(run.pack, row) && !!rollSpell(run, Math.random, row);
-export const workingRows = run => run.pack.rows.map((_, i) => i).filter(i => spellWorks(run, i));
+export const workingRows = run => (run.pack.wands || run.pack.rows).map((_, i) => i).filter(i => spellWorks(run, i));
 // sila vzorca: najmenej / priemer / najviac (200 hodov)
 export function strength(run, rng = Math.random, row = 0) {
   if (!spellWorks(run, row)) return null;
@@ -105,6 +110,6 @@ export const slotPrice = pack => 4 + pack.slots * 3;
 export const rowPrice = pack => 6 + pack.rows.length * 8;      // ďalšie kúzlo (riadok)
 export const staffPrice = pack => 8 + pack.staff * 7;          // lepšia palica: kratšie nabíjanie, väčšie svetlo
 // energia kúzla = súčet cien klávesov (balance.js KEY_COST)
-export const rowCost = (pack, r) => spellCost(used(pack.rows[r] || []).map(id => tok(pack, id)));
+export const rowCost = (pack, r) => pack.wands ? wandCost((pack.wands[r] || {}).slots) : spellCost(used(pack.rows[r] || []).map(id => tok(pack, id)));
 export const cooldown = (pack, row) => (0.35 + used(pack.rows[row] || []).filter(x => x != null).length * 0.12) * (1 - pack.staff * 0.15);
 export const MAX_SLOTS = 9;

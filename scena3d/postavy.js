@@ -46,7 +46,8 @@ function capeWind(mat, b) {
       float f = clamp((uCape.y - position.y) / (uCape.y - uCape.x), 0.0, 1.0);
       float sw = sin(uTime * 1.3) * 0.5 + sin(uTime * 2.7) * 0.15;              // rovnaký vietor ako stromy
       transformed.x += sw * f * f * 0.06 + sin(uTime * 3.7 + position.y * 5.0) * f * 0.02;
-      transformed.z -= f * f * (0.05 + uSpd * 0.14) + sin(uTime * (5.0 + uSpd * 1.2) + position.x * 6.0) * f * (0.025 + uSpd * 0.02);`);
+      transformed.z -= f * f * (0.05 + uSpd * 0.32) + sin(uTime * (5.0 + uSpd * 2.6) + position.x * 6.0) * f * (0.025 + uSpd * 0.07);   // pri behu výrazne veje dozadu
+      transformed.y += f * f * uSpd * 0.06;`);
   };
   mat.customProgramCacheKey = () => key + 'cape';
 }
