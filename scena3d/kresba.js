@@ -182,6 +182,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
           // POSTAVY: vo svetle svetlá výplň s čiernymi čiarami (čitateľné ako v Glagstone), v tme len biely obrys
           bool chP = m0 > 0.5; float litC = 1.0 - smoothstep(uNightR.x, uNightR.y, distO);
           if (chP) mono = bone * 0.07;   // POSTAVY TMAVÉ (Lukáš): čierna výplň, biely obrys a biele čiary medzi časťami (klobúk oddelený)
+          if (max(max(texture2D(tSpellM, uvp).r, texture2D(tSpellM, uvp).g), texture2D(tSpellM, uvp).b) > 0.06) e = 0.0;   // kúzlo a iskry: bez obrysov (robili čierne štvorčeky)
           if (e > 0.5 && d0 < 0.9999) mono = chP ? bone * mix(0.6, 1.0, litC) : Lm > 0.45 ? vec3(0.05) : mix(mono, bone * 0.85, reach);
           else if (T < 0.04 && mod(frag.x, 6.0) < 1.5 && mod(frag.y, 6.0) < 1.5) mono = bone * 0.16;   // tma: riedka mriežka bodiek
           outC = mix(mono, outC, spellPx);

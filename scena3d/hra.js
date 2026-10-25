@@ -34,6 +34,7 @@ sessionStorage.setItem('mm-alive', '1');
 run.mode = run.mode || 'zaklad'; run.pack = migratePack(run.pack || newPack()); run.tut = run.tut ?? 99; run.st = run.st || { dmg: 0, kills: 0, hordes: 0, hit: 0 };
 run.pack.unlock = run.pack.unlock || {};
 const adv = () => run.mode === 'pokrocily';
+{ const v = document.getElementById('veil'); if (v && run.mode !== 'pokrocily') v.classList.add('day'); }
 const persist = () => { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bez ukladania */ } };
 const maxHearts = () => 3 + lvl(run, 'srdce') + (run.maxH || 0);
 
@@ -70,6 +71,7 @@ const G = {
   // MATEMATICKÁ KORISŤ podľa výsledku kúzla, ktoré zabilo: presne do nuly = 2× kryštály (+ energia v suboj.js),
   // prvočíslo = zlatý kryštál (3× skúsenosti), násobok 5 = minca
   onKill: (e, info = {}) => {
+    if (adv()) rollPickup(e);
     const raw = Math.round(info.raw ?? 0), prime = raw > 1 && isPrimeN(raw), five = raw > 0 && raw % 5 === 0;
     dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1) * (prime ? 3 : 1), prime);
     if (info.extra) return;
@@ -916,12 +918,35 @@ function dropGems(p, xp, gold = false) {
   const n = Math.min(6, Math.max(1, Math.round(Math.log2(xp + 1))));   // väčší nepriateľ = viac kryštálov
   for (let i = 0; i < n; i++) { const m = new THREE.Mesh(gemGeo, gold ? goldMat : gemMat); if (gold) m.scale.setScalar(1.6); m.layers.enable(4); const a = Math.random() * 6.28, r = 0.3 + Math.random() * 0.9; m.position.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r); m.position.y = R.height(m.position.x, m.position.z) + 0.35; room.add(m); gems.push({ m, xp: xp / n, t: 0 }); }
 }
+// ZBERAČKY (ako Vampire Survivors / Brotato): z nepriateľov vzácne padne srdce (lieči 1) alebo magnet (pritiahne všetky kryštály)
+// šance: srdce 1,2 % (len keď nemáš plné), magnet 0,6 %; vodca hordy = magnet, vodca zóny = srdce aj magnet
+const heartMat = new THREE.MeshBasicMaterial({ color: 0xe8443a }), magMat = new THREE.MeshBasicMaterial({ color: 0x7fd6ff });
+const heartGeo = new THREE.SphereGeometry(0.2, 8, 6), magGeo = new THREE.TorusGeometry(0.18, 0.06, 6, 12, Math.PI);
+function dropPickup(p, kind) {
+  const m = new THREE.Mesh(kind === 'heart' ? heartGeo : magGeo, kind === 'heart' ? heartMat : magMat); m.layers.enable(4);
+  m.position.set(p.x + (Math.random() - 0.5), 0, p.z + (Math.random() - 0.5)); m.position.y = R.height(m.position.x, m.position.z) + 0.45; room.add(m);
+  gems.push({ m, xp: 0, t: 0, kind, near: 0.9 });
+}
+function pickUp(kind) {
+  if (kind === 'heart') { run.hearts = Math.min(maxHearts(), run.hearts + 1); renderHearts(); floatText('<span style="color:#e8443a">+1 srdce</span>', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); efekt('objav', 0.5, 1.4); }
+  else { for (const g of gems) if (!g.kind) g.pull = true; floatText('<span style="color:#7fd6ff">Magnet!</span>', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); efekt('objav', 0.6, 1.1); }
+  persist();
+}
+function rollPickup(e) {
+  const p = e.g.position;
+  if (e.zb) { dropPickup(p, 'heart'); dropPickup(p, 'magnet'); return; }
+  if (e.hb) { dropPickup(p, 'magnet'); return; }
+  const r = Math.random();
+  if (r < 0.012 && run.hearts < maxHearts()) dropPickup(p, 'heart');
+  else if (r > 0.994) dropPickup(p, 'magnet');
+}
 function updateGems(dt) {
   const mag = 2.2 + (run.magnet || 0) * 1.3, hp = hero.position;
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i]; g.t += dt; g.m.rotation.y += dt * 3;
     const d = Math.hypot(g.m.position.x - hp.x, g.m.position.z - hp.z);
-    if (d < mag || g.pull) { g.pull = true; const k = Math.min(1, dt * (6 + g.t * 4)); g.m.position.x += (hp.x - g.m.position.x) * k; g.m.position.z += (hp.z - g.m.position.z) * k; g.m.position.y += (hp.y + 1 - g.m.position.y) * k; }
+    if (!g.kind && (d < mag || g.pull)) { g.pull = true; const k = Math.min(1, dt * (6 + g.t * 4)); g.m.position.x += (hp.x - g.m.position.x) * k; g.m.position.z += (hp.z - g.m.position.z) * k; g.m.position.y += (hp.y + 1 - g.m.position.y) * k; }
+    if (g.kind && d < 0.9) { room.remove(g.m); gems.splice(i, 1); pickUp(g.kind); continue; }
     if (d < 0.5) { room.remove(g.m); gems.splice(i, 1); addXp(g.xp); efekt('minca', 0.2, 1.7 + Math.random() * 0.3); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
   }
 }
@@ -1274,6 +1299,7 @@ renderHearts(); renderCoins(); renderStreak(); renderInput(); renderSlots(); ren
 bottomEl.classList.add('hidden');
 $('loading') && $('loading').remove();
 loaded = true; markLoaded();
+{ const v = $('veil'); if (v) { v.classList.toggle('day', !adv()); setTimeout(() => { v.classList.add('off'); setTimeout(() => v.remove(), 600); }, 250); } }   // clona zmizne až keď je svet nakreslený
 for (const id of ['introScr', 'menuScr']) { $(id).classList.add('live'); $(id).classList.toggle('night', adv()); }   // za introm a menu beží živá scéna
 const startSay = () => say(adv() ? 'Pohyb: WASD alebo šípky · klik = kúzlo z Knihy.' : run.w.camps.length === 0 && run.zone === 1 ? 'Ťukni na zem a choď. Svet je veľký – nájdi bandy zbojníkov a ich kľúče.' : 'Poraz bandy a nájdi kľúče od brány vodcu.', 4200);
 if (afterLoad === 'game') startGame(); else if (afterLoad === 'menu') showMenu();
@@ -1290,5 +1316,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
+  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), dropPickup: k => dropPickup(hero.position, k), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
 };
