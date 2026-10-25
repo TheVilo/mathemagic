@@ -20,11 +20,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -129,6 +129,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
         fg = mix(fg, bg, far * (uOne > 0.5 ? 0.0 : 0.45));
         if (uSymCol > 0.5) { float mx = max(c.r, max(c.g, c.b)); fg = mix(fg, c / max(mx, 0.05) * mix(0.75, 0.3, k), 0.55 * (1.0 - smoothstep(0.45, 0.8, k))); }   // farba len v svetlých tónoch, tmavé ostávajú čierne
         if (k > (isChar6 ? 0.74 : 0.86)) bg = mix(bg, inkC, smoothstep(isChar6 ? 0.74 : 0.86, isChar6 ? 0.9 : 1.0, k) * 0.92 * (1.0 - uDark));   // najtmavšie miesta = plná čierna   // jemná farba toho, čo znak kreslí
+        float spellPx = 0.0;
         { // KÚZLO ZO ZNAMIENOK: čo žiari (kúzlo, plamene, iskry, blesk), sa kreslí znamienkom kúzla (+ − × ÷) vo farbe kúzla, väčším písmom
           vec2 cs2 = cs * 3.0, cell2 = floor(frag / cs2), p2 = (frag - (cell2 + 0.5) * cs2) / cs2;   // väčšie znamienka kúzla
           vec2 uvs = (cell2 + 0.5) * cs2 / uRes;
@@ -140,7 +141,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
             vec3 sc = c2 / max(m2, 0.01);
             bg = mix(mix(bg, sc, inten * 0.06), bg + sc * inten * 0.12, uDark);   // v noci jemná žiara, nie tmavý štvorec
             float sInk = clamp(0.5 - dg * cs2.y, 0.0, 1.0);                                // znamienko len cez svoju čiaru, okolité znaky ostanú
-            fg = mix(fg, mix(sc * 0.95, vec3(1.0), inten * 0.25), sInk); ink = max(ink * (1.0 - sInk), sInk);
+            fg = mix(fg, mix(sc * 0.95, vec3(1.0), inten * 0.25), sInk); ink = max(ink * (1.0 - sInk), sInk); spellPx = max(spellPx, sInk * step(0.2, inten));
           }
         }
         bg = mix(bg, uFlash.rgb, uFlash.a); fg = mix(fg, uFlash.rgb, uFlash.a * 0.5);   // záblesk (blesk, výbuch)
@@ -150,6 +151,30 @@ export const kresbaMat = new THREE.ShaderMaterial({
         vec3 outC = mix(bg, fg, ink);
         // ŽIARA PALICE: mäkký kruh vo farbe živlu okolo kryštálu (v noci silná, cez deň jemná)
         if (uGlow.w > 0.0) { vec2 gq = (vUv - uGlow.xy) * vec2(uRes.x / uRes.y, 1.0); float gl = uGlow.w * exp(-dot(gq, gq) / (uGlow.z * uGlow.z)); outC = mix(mix(outC, uGlowC, gl * 0.5), outC + uGlowC * gl, uDark); }
+        // 1-BIT (noc, inšpirácia Glagstone): len čierna a kostená biela, farebné ostanú iba kúzla.
+        // Obrysy vecí z hĺbky a masky postáv – v tme biele čiary (vidno všetko), na svetle čierne; tma má jemnú mriežku bodiek.
+        if (uNight > 0.5 && uOneBit > 0.5) {
+          vec3 bone = vec3(0.93, 0.91, 0.86);
+          float Lm = smoothstep(0.06, 0.62, luma(outC));                // viac kontrastu: svetlo biele, tma čierna
+          vec3 mono = bone * Lm;
+          vec2 uvp = frag / uRes, tx = 3.0 / uRes;
+          float d0 = texture2D(tDepth, uvp).r, m0 = texture2D(tMask, uvp).r, e = 0.0;
+          for (int q = 0; q < 4; q++) {
+            vec2 o = q == 0 ? vec2(tx.x, 0.0) : q == 1 ? vec2(-tx.x, 0.0) : q == 2 ? vec2(0.0, tx.y) : vec2(0.0, -tx.y);
+            float dn = texture2D(tDepth, uvp + o).r, mn = texture2D(tMask, uvp + o).r;
+            if (dn - d0 > 0.0025) e = 1.0;                     // hrana bližšieho predmetu (len z jednej strany = tenká čiara)
+            if (m0 > 0.5 && mn < 0.5) e = 1.0;                 // obrys postavy
+            if (m0 > 0.5 && mn > 0.5 && abs(luma(texture2D(tAmb, uvp).rgb) - luma(texture2D(tAmb, uvp + o).rgb)) > 0.035) e = 1.0;   // kresba vnútri postavy: hrany farieb (klobúk, plášť, tvár)
+          }
+          vec4 wpO = uInvVP * vec4(uvp * 2.0 - 1.0, d0 * 2.0 - 1.0, 1.0); wpO /= wpO.w;
+          float distO = length(wpO.xz - uHero.xz), reach = 1.0 - smoothstep(uNightR.y, uNightR.y + 10.0, distO);   // obrysy dovidia ďalej ako svetlo, potom zmiznú
+          // POSTAVY: vo svetle svetlá výplň s čiernymi čiarami (čitateľné ako v Glagstone), v tme len biely obrys
+          bool chP = m0 > 0.5; float litC = 1.0 - smoothstep(uNightR.x, uNightR.y, distO);
+          if (chP) { float f = mix(0.16, 0.95, litC) * (0.8 + 0.2 * smoothstep(0.1, 0.5, luma(lin2srgb(texture2D(tAmb, uvp).rgb)))); mono = bone * f; }   // výplň: čistá kostená biela, tmavé časti len o kúsok sivšie
+          if (e > 0.5 && d0 < 0.9999) mono = (chP ? litC > 0.35 : Lm > 0.45) ? vec3(0.05) : mix(mono, bone * 0.85, reach);
+          else if (Lm < 0.05 && mod(frag.x, 4.0) < 1.0 && mod(frag.y, 4.0) < 1.0) mono = bone * 0.13;   // tma: mriežka bodiek
+          outC = mix(mono, outC, spellPx);
+        }
         gl_FragColor = vec4(outC, 1.0); return;
       }
     }`,
