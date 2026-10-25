@@ -20,11 +20,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; uniform float uLsK; uniform vec2 uLsR; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -155,12 +155,20 @@ export const kresbaMat = new THREE.ShaderMaterial({
         // Obrysy vecí z hĺbky a masky postáv – v tme biele čiary (vidno všetko), na svetle čierne; tma má jemnú mriežku bodiek.
         if (uNight > 0.5 && uOneBit > 0.5) {
           vec3 bone = vec3(0.93, 0.91, 0.86);
+          vec2 uvp = frag / uRes, tx = 3.0 / uRes;
           // ČISTÉ SVETLO (ako Glagstone): žiadne znaky vo svete – tón z bunky sa vykreslí pixelovým ditheringom:
           // plné svetlo = čistá biela plocha, prechod = riedke bodky, tma = čierna; znamienka kreslí len kúzlo
-          float T = smoothstep(0.1, 0.72, k);
+          // TÓN = skutočné svetlo na povrchu (palica, kúzla): strana k svetlu biela, odvrátená tmavá → predmety majú tvar a tieň
+          float Ls = luma(lin2srgb(texture2D(tScene, uvp).rgb)) * uLsK;   // v noci scénu svieti len palica, kúzla a mesiac → jas = svetlo na povrchu
+          vec4 wpT = uInvVP * vec4(uvp * 2.0 - 1.0, texture2D(tDepth, uvp).r * 2.0 - 1.0, 1.0); wpT /= wpT.w;
+          float dT = length(wpT.xz - uHero.xz);
+          bool objP = texture2D(tGround, uvp).r < 0.5 && texture2D(tMask, uvp).r < 0.5;   // predmet (kameň, strom, stena), nie zem ani postava
+          // DVA SVETY CEZ MASKU: zem je osvetlená len v kruhu palice, predmety, ktoré svetlo zasiahne, svietia ďalej
+          float poolT = 1.0 - smoothstep(uNightR.x * (objP ? 1.5 : 1.0), uNightR.y * (objP ? 1.5 : 1.0), dT);
+          for (int o2 = 0; o2 < 4; o2++) if (uOrbs[o2].w > 0.0) poolT = max(poolT, 1.0 - smoothstep(uOrbs[o2].w * 0.35, uOrbs[o2].w, length(wpT.xz - uOrbs[o2].xz)));
+          float T = smoothstep(uLsR.x, uLsR.y, Ls) * poolT;
           float Lm = T;
           vec3 mono = bone * (T > 0.96 ? 1.0 : step(bayer(floor(frag / 2.0)), T));
-          vec2 uvp = frag / uRes, tx = 3.0 / uRes;
           float d0 = texture2D(tDepth, uvp).r, m0 = texture2D(tMask, uvp).r, e = 0.0;
           for (int q = 0; q < 4; q++) {
             vec2 o = q == 0 ? vec2(tx.x, 0.0) : q == 1 ? vec2(-tx.x, 0.0) : q == 2 ? vec2(0.0, tx.y) : vec2(0.0, -tx.y);
