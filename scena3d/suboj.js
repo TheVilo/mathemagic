@@ -37,6 +37,7 @@ function makeTag(t, name) {
 function renderTag(t) {
   t.w = 0;
   if (fight.adv && !t.bolt) { // Pokročilý: nad hlavou je život ako číslo, kúzlo ho zníži o výsledok
+    if (t.el.classList.contains('bossbar')) { t.el.querySelector('.pr').innerHTML = `<i class="hpb"><b style="width:${Math.round(Math.max(0, t.hp) / (t.maxHp || 1) * 100)}%"></b></i>`; return; }
     t.el.querySelector('.pr').innerHTML = pix(shortNum(Math.max(0, t.hp)));
     t.el.classList.toggle('shield', !!t.shield); t.el.classList.toggle('match', fight.target === t);
     const hp = t.el.querySelector('.hp'); if (hp) hp.innerHTML = t.shield ? '<b class="sh"></b>' : '';
@@ -158,7 +159,7 @@ function addEnemy(f, isBoss, isElite) {
   if (e.state === 'stand') f.play('Sit_Floor_StandUp', 0.1); else f.play(f.d.walk);
   if (!fight.adv) e.p = fresh(e.shield ? 'missing' : isBoss ? 'normal' : f.d.prob, e);
   makeTag(e, e.name); renderTag(e);
-  if (fight.adv) { e.el.style.pointerEvents = 'auto'; e.el.style.cursor = 'pointer'; e.el.addEventListener('pointerdown', ev => { ev.stopPropagation(); setTarget(e); }); }
+  if (fight.adv) { e.el.style.pointerEvents = 'none'; if (!(e.hb || e.zb || isBoss)) e.el.style.display = 'none'; else e.el.classList.add('bossbar'); }   // HORDOVKA: bez čísel nad bežnými nepriateľmi, nič sa neklikne; vodca má pruh života
   fight.enemies.push(e);
   return e;
 }
@@ -619,6 +620,10 @@ export function updateFight(dt) {
   if (fight.cd2 > 0) fight.cd2 = Math.max(0, fight.cd2 - dt);
   if (G.run.mode === 'pokrocily') for (const h of hasB() ? ['a', 'b'] : ['a']) { const SK = handStats(h), e0 = handEnergy(h); if (e0 < SK.emax) G.run[h === 'b' ? 'energy2' : 'energy'] = Math.min(SK.emax, e0 + SK.regen * dt); }
   if (G.run.mode === 'pokrocily') renderEnergy();
+  if (G.run.mode === 'pokrocily' && G.autoFire !== false && !G.over) {
+    const live = fight.enemies.filter(e => e.state !== 'dead' && e.g.position.distanceTo(hero.position) < 11);
+    if (live.length) { if (fight.cd <= 0 && energy() >= rowCost(G.run.pack, curRow())) fireAt(null); if (hasB() && (fight.cd2 || 0) <= 0 && handEnergy('b') >= rowCost(G.run.pack, G.run.pack.bRow)) fireAt(null, null, 'b'); }
+  }
   updateSpells(dt); spellLights();
   flash.w = Math.max(0, flash.w - dt * 2.2);
   if (!spells.length && fight.charged) { const k = 1.6 + Math.sin(G.now * 12) * 0.25; crystal.scale.set(k, k * 1.6, k); crystalLight.color.set(COL[fight.charged.op] || 0xf2efe6); crystalLight.intensity = lamp.base * 2.5; }

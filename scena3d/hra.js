@@ -877,16 +877,18 @@ function updateHordes(dt) {
   const gap = hordeT * 0.6 / Math.max(1, n);
   for (let i = 0; i < n; i++) {
     const hb = boss && i === 0;
-    spawnQ.push({ t: hb ? 0 : gap * i, kind: hb ? 'barbarian' : roll(), size: hb ? (zoneBoss ? 1.8 : 1.5) : 1, hb, zb: hb && zoneBoss, opts: { horde: i === 0 ? 1 : 0, hb: hb && !zoneBoss ? 1 : 0, zb: hb && zoneBoss ? 1 : 0 } });
+    spawnQ.push({ t: hb ? 0 : boss ? 0.6 : gap * i, ring: boss && !hb ? i / n : null, kind: hb ? 'barbarian' : roll(), size: hb ? (zoneBoss ? 1.8 : 1.5) : 1, hb, zb: hb && zoneBoss, opts: { horde: i === 0 ? 1 : 0, hb: hb && !zoneBoss ? 1 : 0, zb: hb && zoneBoss ? 1 : 0 } });
   }
-  if (zoneBoss) say('VODCA ZÓNY prichádza!', 3000); else if (boss) say('Prichádza VODCA HORDY!', 2600);
+  if (zoneBoss) say('VODCA ZÓNY prichádza – obkľúčili ťa!', 3000); else if (boss) say('VODCA HORDY – obkľúčili ťa!', 2600);
   renderGoal();
 }
 const spawnQ = [];
 function updateSpawns(dt) {
   for (let i = spawnQ.length - 1; i >= 0; i--) {
     const q = spawnQ[i]; q.t -= dt; if (q.t > 0) continue;
+    if (fight.enemies.filter(e => e.state !== 'dead').length >= 30) { q.t = 0.5; continue; }   // strop pre mobil
     let at = null;
+    if (q.ring != null) { const a = q.ring * 6.283, x = hero.position.x + Math.cos(a) * 12, z = hero.position.z + Math.sin(a) * 12; if (R.inside(x, z)) at = [x, z]; }   // OBKĽÚČENIE: družina vodcu v kruhu
     for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 15 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
     if (!at) { q.t = 0.3; continue; }
     spawnQ.splice(i, 1);

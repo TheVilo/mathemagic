@@ -155,8 +155,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
         // Obrysy vecí z hĺbky a masky postáv – v tme biele čiary (vidno všetko), na svetle čierne; tma má jemnú mriežku bodiek.
         if (uNight > 0.5 && uOneBit > 0.5) {
           vec3 bone = vec3(0.93, 0.91, 0.86);
-          float Lm = smoothstep(0.06, 0.62, luma(outC));                // viac kontrastu: svetlo biele, tma čierna
-          vec3 mono = bone * Lm;
+          // ČISTÉ SVETLO (ako Glagstone): žiadne znaky vo svete – tón z bunky sa vykreslí pixelovým ditheringom:
+          // plné svetlo = čistá biela plocha, prechod = riedke bodky, tma = čierna; znamienka kreslí len kúzlo
+          float T = smoothstep(0.1, 0.72, k);
+          float Lm = T;
+          vec3 mono = bone * (T > 0.96 ? 1.0 : step(bayer(floor(frag / 2.0)), T));
           vec2 uvp = frag / uRes, tx = 3.0 / uRes;
           float d0 = texture2D(tDepth, uvp).r, m0 = texture2D(tMask, uvp).r, e = 0.0;
           for (int q = 0; q < 4; q++) {
@@ -172,7 +175,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
           bool chP = m0 > 0.5; float litC = 1.0 - smoothstep(uNightR.x, uNightR.y, distO);
           if (chP) { float f = mix(0.16, 0.95, litC) * (0.8 + 0.2 * smoothstep(0.1, 0.5, luma(lin2srgb(texture2D(tAmb, uvp).rgb)))); mono = bone * f; }   // výplň: čistá kostená biela, tmavé časti len o kúsok sivšie
           if (e > 0.5 && d0 < 0.9999) mono = (chP ? litC > 0.35 : Lm > 0.45) ? vec3(0.05) : mix(mono, bone * 0.85, reach);
-          else if (Lm < 0.05 && mod(frag.x, 4.0) < 1.0 && mod(frag.y, 4.0) < 1.0) mono = bone * 0.13;   // tma: mriežka bodiek
+          else if (T < 0.04 && mod(frag.x, 6.0) < 1.5 && mod(frag.y, 6.0) < 1.5) mono = bone * 0.16;   // tma: riedka mriežka bodiek
           outC = mix(mono, outC, spellPx);
         }
         gl_FragColor = vec4(outC, 1.0); return;
