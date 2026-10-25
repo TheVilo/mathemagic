@@ -13,12 +13,12 @@
 //   úroveň      výber 1 z 3 (nový kláves, lepšie číslo, viac políčok, palica, špeciálna funkcia)
 
 export const KIND_HP = { rogue: 1, hooded: 1, knight: 1.6, barbarian: 2.2, innkeeper: 1 };
-export const difficulty = (w, z) => Math.pow(1.22, Math.max(0, w - 1)) * Math.pow(3.3, Math.max(0, z - 1));
+export const difficulty = (w, z) => Math.pow(1.3, Math.max(0, w - 1)) * Math.pow(3.3, Math.max(0, z - 1));
 // HORDOVKA: veľa slabších nepriateľov (bežný ×0,4 života, v horde ×2,5 viac) – spolu podobne veľa života ako predtým, vodcovia ostávajú silní
 export const SWARM = 2.5;
 export const enemyHpM = (kind, w, z, { boss = false, elite = false } = {}) => Math.max(2, Math.round((KIND_HP[kind] || 1) * 4 * difficulty(w, z) * (boss === 2 ? 9 : boss ? 6 : elite ? 1.8 : 1 / SWARM)));
 export const hordeSize = (w, z) => Math.min(32, Math.round((2 + Math.floor(0.7 * w) + (z - 1)) * SWARM));
-export const hordeInterval = w => Math.max(9, 24 - 1.3 * w);   // hordy chodia často – nečaká sa
+export const hordeInterval = w => Math.max(7, 22 - 1.6 * w);   // hordy chodia často – nečaká sa
 export const ENEMY_SPEED = 2.2;   // Majster: nepriatelia bežia po hráčovi (×2,2 oproti Učňovi)
 export const AGGRO = 14;          // z koľkých metrov si ťa banda všimne
 export const isBossWave = w => w > 0 && w % 6 === 0;

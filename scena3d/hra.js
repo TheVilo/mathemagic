@@ -74,7 +74,8 @@ const G = {
     dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1) * (prime ? 3 : 1), prime);
     if (info.extra) return;
     if (prime) floatText(`<span style="color:#ffd25a">${pix(String(raw))} prvočíslo</span>`, e);
-    if (five) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));
+    if (five && Math.random() < 0.35) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // násobok 5: občas minca
+    else if (Math.random() < 0.06) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // inak vzácne
   },   // z nepriateľov padajú len kryštály (Lukáš 21. 10.)
 };
 initFight(G);
@@ -424,7 +425,7 @@ let packRow = 0;
 // rozloženie ako vedecká kalkulačka: funkcie v 4. stĺpci, znamienka vpravo
 const KEYS = [['C', 'fn'], ['⌫', 'fn'], ['( )', 'p'], ['√', 's'], ['÷', 'o'], ['7', 'n'], ['8', 'n'], ['9', 'n'], ['x²', 'x', -4, 'q'], ['×', 'o'], ['4', 'n'], ['5', 'n'], ['6', 'n'], ['x³', 'x', -5, 'c'], ['-', 'o'], ['1', 'n'], ['2', 'n'], ['3', 'n'], ['!', 'x', -6, 'f'], ['+', 'o'], ['□', 'd'], ['0', 'n'], ['=', 'fn']];
 function openPack() {
-  tutStep(1); tutTick();
+  tutStep(1); tutTick(); $('bBook').classList.remove('pulse');
   const P = run.pack; packRow = Math.min(packRow, P.rows.length - 1);
   const SP = P.kind2 && packRow === P.bRow ? { ...P, kind: P.kind2 } : P;   // kalkulačka = palica, ku ktorej patrí riadok (A alebo B)
   const usedIds = allIds(P), free = P.inv.filter(t => !usedIds.has(t.id));
@@ -577,23 +578,23 @@ function winFight(opts) {
     }, 2200);
     return;
   }
-  setTimeout(() => addCoins(n * 2 + (opts.elite ? 8 : 0), hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))), 700);
+  if (!adv()) setTimeout(() => addCoins(n * 2 + (opts.elite ? 8 : 0), hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))), 700);   // Majster: mince len z nepriateľov (vzácne) a od vodcov
   // Majster: z boja nepadajú čísla (tie sú len na mape) – boj dáva skúsenosti a mince
   persist();
   if (opts.horde) run.st.hordes += opts.horde;
-  if (opts.hb) { addCoins(25, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); setTimeout(() => say('Vodca hordy porazený! +25 mincí · prišiel obchodník', 3000), 600); spawnMerchant(25); }   // funkcie dáva len vodca zóny (sim-energia.mjs)
+  if (opts.hb) { addCoins(8 + run.zone * 2, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); setTimeout(() => say('Vodca hordy porazený! Prišiel obchodník.', 3000), 600); spawnMerchant(25); }   // funkcie dáva len vodca zóny (sim-energia.mjs)
   if (opts.zb) { // vodca zóny porazený: znamienko + špeciálna funkcia, obchodník, ďalšia zóna (po 8. výhra)
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)); if (newOp) { run.ops.push(newOp); addToken(run.pack, { t: 'o', v: newOp }); }
     const sp = nextSpecial(run.pack.unlock); if (sp) { specAdd(run.pack.unlock, sp.k); meta.unlock[sp.k] = true; }
     if (run.zone >= 2 && !run.pack.kind2) giveSecondStaff();
-    run.hearts = maxHearts(); renderHearts(); addCoins(20 + run.zone * 10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist();
+    run.hearts = maxHearts(); renderHearts(); addCoins(12 + run.zone * 4, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist();
     say(`Vodca zóny porazený! ${newOp ? `Znamienko ${newOp.replace('-', '−')}` : ''}${sp ? ` · nová funkcia ${sp.key}` : ''}`, 4500);
     spawnMerchant(20);
     if (run.zone >= FINAL_ZONE && !run.endless) setTimeout(victory, 2500);
     else setTimeout(() => nextZoneWorld(), 3500);
     return;
   }
-  if (opts.horde && !b) { if (++hordeWins % 3 === 0) setTimeout(() => cardOffer('Tri hordy porazené', null), 1600); else setTimeout(() => say(`Horda porazená! Ďalšia o ${Math.round(hordeT)} s.`), 900); return; }
+  if (opts.horde && !b) { if (++hordeWins % 3 === 0 && !adv()) setTimeout(() => cardOffer('Tri hordy porazené', null), 1600); else setTimeout(() => say(`Horda porazená! Ďalšia o ${Math.round(hordeT)} s.`), 900); return; }
   setTimeout(() => cardOffer(opts.elite ? 'Kapitán porazený' : 'Banda porazená', null), 2200);
 }
 // VÝHRA BEHU (Majster): po 8. vodcovi – skóre, rekord, a môžeš pokračovať do nekonečna
@@ -870,6 +871,7 @@ function updateHordes(dt) {
   // ZÓNA = 10 hôrd: 5. má vodcu hordy, 10. vodcu zóny (jeden z 8 s matematickou vlastnosťou); w = poradie hordy v zóne
   const wz = (hordeN - 1) % HPZ + 1, zoneBoss = wz === HPZ, boss = wz === 5 || zoneBoss;
   hordeT = hordeInterval(wz) + (zoneBoss ? 12 : 0);
+  G.diffSpeed = Math.min(1.6, 1 + 0.035 * (wz - 1) + 0.08 * (run.zone - 1));   // gradácia: rýchlejší nepriatelia
   const n = zoneBoss ? Math.max(3, hordeSize(wz, run.zone) - 3) : hordeSize(wz, run.zone), w = kindWeights(wz, run.zone), sum = Object.values(w).reduce((a, b) => a + b, 0);
   const roll = () => { let r = Math.random() * sum; for (const [k, v] of Object.entries(w)) if ((r -= v) <= 0) return k; return 'rogue'; };
   // PRÚD ZO SVETA (Lukáš 21. 10.): nepriatelia nechodia v kope, ale postupne zo všetkých strán spoza okraja obrazovky –
@@ -955,9 +957,8 @@ function openLevelUp() {
     else if (g.t === 'spec') { specAdd(run.pack.unlock, g.k); meta.unlock[g.k] = true; }
     else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
     else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
-    persist(); closeOverlay(); say(['n', 'o', 'spec'].includes(g.t) ? `${o.title}! Je v Knihe – ťukni naň (pri plnom displeji prepíše posledný znak).` : `${o.title}!`, 4000);
+    persist(); closeOverlay(); if (['n', 'o', 'spec'].includes(g.t)) $('bBook').classList.add('pulse'); else say(`${o.title}!`, 1500);
     // prvý nový kláves v behu: rovno otvor Knihu, nech ho hráč vloží do vzorca (potom už len vylepšuje)
-    if (['n', 'o', 'spec'].includes(g.t) && !meta.knihaTip) { meta.knihaTip = 1; persist(); openPack(); say('Nový kláves je v Knihe – ťukni naň a pridaj ho do vzorca. = zavrie.', 5000); }
   });
 }
 // DRUHÁ PALICA (ľavá ruka B): vlastný riadok v Knihe, vlastná energia; komba medzi palicami v suboj.js
@@ -987,7 +988,8 @@ function shopItems(rng) {
     .filter(([s]) => s === 'heal' ? run.hearts < maxHearts() : s === 'slot' ? run.pack.slots < MAX_SLOTS : s === 'row' ? run.pack.rows.length < MAX_ROWS : run.pack.staff < MAX_STAFF);
   if (run.zone >= 2 && !run.pack.kind2) svc.push(['hand2', 'Druhá palica', 'ľavá ruka B · komba', 30, pix('B')]);
   if (svc.length) { const [sk, t, x, p, a] = svc[Math.floor(rng() * svc.length)]; items.push({ kind: 'svc', s: sk, title: t, text: x, rar: 'b', price: p, art: a }); }
-  for (const it of items) { it.price = it.price || RAR_PRICE[it.rar] + (it.kind === 'card' && lvl(run, it.id) ? 4 : 0); it.expr = priceExpr(it.price, rng); }
+  const infl = 1 + 0.25 * (run.zone - 1);   // ceny rastú so zónou (ako Brotato) – mince stále niečo znamenajú
+  for (const it of items) { it.price = Math.round((it.price || RAR_PRICE[it.rar] + (it.kind === 'card' && lvl(run, it.id) ? 4 : 0)) * infl); it.expr = priceExpr(it.price, rng); }
   if (run.shopLock) { const li = items.findIndex(i => i.kind === run.shopLock.kind); const lk = { ...run.shopLock, locked: true }; if (li >= 0) items[li] = lk; else items.unshift(lk); }
   return items;
 }

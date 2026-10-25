@@ -125,6 +125,7 @@
   .spsign { position:fixed; z-index:5; pointer-events:none; transform:translate(-50%, -50%) rotate(var(--r, 0deg)); }
   .spsign .pix { height:22px; fill:currentColor; filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 1px #0e0e10); display:block; }
   .spsign.pop { animation:sppop .25s ease-out forwards; } @keyframes sppop { to { transform:translate(-50%, -50%) scale(2.6); opacity:0; } }
+  #bBook.pulse { animation:bpulse 1s ease-in-out infinite; } @keyframes bpulse { 50% { background:var(--line); color:var(--ink); box-shadow:0 0 14px var(--line); } }
   .palgrid { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; margin-top:8px; }
   .palc { font:inherit; color:var(--line); background:var(--ink); border:2px solid var(--rc); box-shadow:inset 0 0 0 1px var(--rc); padding:8px 6px; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
   .palc .rar { font-style:normal; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--rc); } .palc b { font-size:14px; font-weight:500; }

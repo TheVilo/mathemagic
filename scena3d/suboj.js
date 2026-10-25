@@ -338,7 +338,7 @@ function updateSpells(dt) {
       s.from.copy(cw);   // z kryštálu palice (ruka drží palicu pevne pred sebou)
     } else if (s.t < 0.56) { // let
       const k = (s.t - 0.22) / 0.34, e = k * k * (3 - 2 * k), to = targetPos(s.target);
-      const pw = s.info.power ?? 1; s.orb.visible = true; if (s.light) { s.light.intensity = 4 + 12 * pw; s.light.distance = 2.5 + 3 * pw; }
+      const pw = s.info.power ?? 1; s.orb.visible = !fight.adv; if (s.light) { s.light.intensity = 4 + 12 * pw; s.light.distance = 2.5 + 3 * pw; }
       const prev = s.orb.position.clone(); s.orb.position.lerpVectors(s.from, to, e); s.orb.position.y += Math.sin(e * Math.PI) * 1.2; if (s.light) s.light.position.copy(s.orb.position); animShape(s.orb, s.t, s.orb.position.clone().sub(prev));
       if (fight.adv) { if (!s.sign) s.sign = spellSign(s); const v = s.orb.position.clone().project(camera); s.sign.style.display = ''; s.sign.style.left = (v.x + 1) / 2 * innerWidth + 'px'; s.sign.style.top = (1 - v.y) / 2 * innerHeight + 'px'; }
       s.orb.scale.setScalar((s.info.power !== undefined ? 0.9 + s.info.power * 0.35 : s.info.fast ? 1.25 : 1.0) * (s.info.crit ? 1.6 : 1) * (1 + Math.sin(s.t * 40) * 0.08));   // znamienká, pri kritickom väčšie
@@ -473,7 +473,7 @@ function advHit(e, info) {
   dmgText(e, info, v, comboHit || e.hp === 0);
   if (e.hp <= 0) {
     // PRESNE DO NULY: kúzlo vráti energiu a padne dvakrát viac kryštálov
-    if (e.hp === 0 && before > 0 && !info.extra) { const c = info.cost || 0; if (c) G.run.energy = Math.min(staffStats(G.run.pack).emax, energy() + c); G.floatText(`Presne! ⚡+${c}`, e); G.addCoins(1, e); }
+    if (e.hp === 0 && before > 0 && !info.extra) { const c = info.cost || 0; if (c) G.run.energy = Math.min(staffStats(G.run.pack).emax, energy() + c); G.floatText(`Presne! ⚡+${c}`, e); if (!fight.adv) G.addCoins(1, e); }
     e.state = 'dead'; e.t = 0; e.play('Death_A', 0.05); e.el.remove(); e.knock = info.fast ? 1.4 : 0.6;
     if (fight.target === e) fight.target = null;
     afterHit(info); checkEnd(); return;
@@ -582,7 +582,7 @@ export function updateFight(dt) {
       if (F.t <= 0) e.fire = null;
     }
     if (e.stun > 0 && e.state !== 'dead') { e.mixer.update(edt * 0.15); if (Math.random() < 0.3) spark(e.g.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.1, (Math.random() - 0.5) * 1.2)), 0, 0.8, 0, 0.5, 0xc8923a); continue; }   // zem: stojí v prasklinách
-    const sp = e.speed * slowCard * (fight.adv ? 2.2 : 1) * (e.burn > 0 && lvl(G.run, 'ohen') ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1) * (e.wet > 0 ? 0.5 : 1);   // mokrý = polovičná rýchlosť   // Majster: bežia po hráčovi
+    const sp = e.speed * slowCard * (fight.adv ? 2.2 * (G.diffSpeed || 1) : 1) * (e.burn > 0 && lvl(G.run, 'ohen') ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1) * (e.wet > 0 ? 0.5 : 1);   // mokrý = polovičná rýchlosť   // Majster: bežia po hráčovi
     if (e.burn > 0 && Math.random() < 0.4) spark(pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * e.h * 0.8, (Math.random() - 0.5) * 0.6)), 0, 1.4, 0, 0.5, 0xff8a3a);
     if (e.frozen > 0 && e.state !== 'dead') { e.mixer.update(0); for (const m of e.mats) if (m.emissive) m.emissive.setRGB(0.15, 0.35, 0.6); if (Math.random() < 0.2) spark(targetPos(e), (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.6, 0x9fd8ff); continue; }
     if (e.state === 'stand') { if (e.t > (fight.adv ? 0.4 : 1.0)) { e.state = 'walk'; e.play(fight.adv ? 'Running_A' : e.d.walk); } }
