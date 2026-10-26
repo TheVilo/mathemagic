@@ -89,8 +89,10 @@ export function buildMagic(room, R, b, rnd) {
     }
   }
   // ČÍSLICE VO VZDUCHU (svetlušky mágie): vznášajú sa, v sopke stúpajú ako iskry
-  const air = [], N = 70, chars = [...b.air];
-  for (let i = 0; i < N; i++) { const x = 4 + rnd() * (R.W - 8), z = 4 + rnd() * (R.H - 8); air.push({ m: glyph(g, chars[i % chars.length], x, 0, z, c, 1 + rnd() * 0.7), x, z, y0: h(x, z) + 0.8 + rnd() * 2.6, ph: rnd() * 6.28, sp: 0.3 + rnd() * 0.5 }); }
+  const air = [], N = 140;
+  // SVETLUŠKY MÁGIE: drobné svietiace iskry (nie číslice – tie by vyzerali ako niečo na zbieranie), v sopke stúpajú ako žeravé uhlíky
+  const mote = new THREE.OctahedronGeometry(0.06, 0);
+  for (let i = 0; i < N; i++) { const x = 4 + rnd() * (R.W - 8), z = 4 + rnd() * (R.H - 8), m = new THREE.Mesh(mote, mat(c)); m.scale.setScalar(0.7 + rnd() * 1.2); g.add(m); air.push({ m, x, z, y0: h(x, z) + 0.4 + rnd() * 2.2, ph: rnd() * 6.28, sp: 0.3 + rnd() * 0.5 }); }
   glow(g);
   return {
     spots,
@@ -98,8 +100,8 @@ export function buildMagic(room, R, b, rnd) {
       const q = camera.quaternion;
       for (const a of air) {
         const y = b.rise ? a.y0 + ((t * a.sp * 0.8 + a.ph) % 3.5) : a.y0 + Math.sin(t * a.sp + a.ph) * 0.35;
-        a.m.position.set(a.x + Math.sin(t * 0.3 + a.ph) * 0.4, y, a.z + Math.cos(t * 0.25 + a.ph) * 0.4); a.m.quaternion.copy(q);
-        a.m.visible = !b.rise || ((t * a.sp * 0.8 + a.ph) % 3.5) < 3.2;
+        a.m.position.set(a.x + Math.sin(t * 0.3 + a.ph) * 0.6, y, a.z + Math.cos(t * 0.25 + a.ph) * 0.6); a.m.rotation.y = t * 2 + a.ph; a.m.visible = (Math.sin(t * 1.7 + a.ph * 3) > -0.3);
+        if (b.rise) a.m.visible = ((t * a.sp * 0.8 + a.ph) % 3.5) < 3.2;
       }
       for (const m of spin) { m.quaternion.copy(q); m.position.y += Math.sin(t * 1.4 + m.position.x) * 0.002; }
     },

@@ -209,12 +209,12 @@ export const kresbaMat = new THREE.ShaderMaterial({
   depthTest: false, depthWrite: false,
 });
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.22 }, uCell: { value: 5 } },
+  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.1 }, uCell: { value: 5 } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tImg; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uCell; varying vec2 vUv;
     void main(){
       float dy = abs(vUv.y - uFocus); vec2 q = vUv - 0.5;
-      float r = (smoothstep(uBand, uBand + 0.33, dy) * 1.6 + dot(q, q) * 1.5) * uCell;
+      float r = (smoothstep(uBand, uBand + 0.3, dy) * 3.2 + dot(q, q) * 1.5) * uCell;   // TILT-SHIFT: ostrý pás okolo čarodejníka, hore a dole silne rozmazané (svet pôsobí ako malá maketa)
       vec3 acc = vec3(0.0);
       for (int i = 0; i < 20; i++) { float fi = float(i), a = fi * 2.39996; acc += texture2D(tImg, vUv + vec2(cos(a), sin(a)) * sqrt((fi + 0.5) / 20.0) * r / uRes).rgb; }
       gl_FragColor = vec4(acc / 20.0 * (1.0 - dot(q, q) * 0.3), 1.0);

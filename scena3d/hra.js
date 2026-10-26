@@ -970,9 +970,9 @@ function updateRoom(dt, t) {
   for (const n of numStones) if (!n.got) {
     n.st.rotation.y = Math.sin(t * 1.4 + n.id) * 0.4; n.st.position.y = 0.75 + Math.sin(t * 2 + n.id) * 0.06;
     if (Math.hypot(n.x - hp.x, n.z - hp.z) < 1.1) {
-      n.got = true; run.w.nums = run.w.nums || []; run.w.nums.push(n.id); addToken(run.pack, { t: 'n', v: n.v }); persist();
+      n.got = true; run.w.nums = run.w.nums || []; run.w.nums.push(n.id); if (run.pack.wands) acquireMod(run.pack, { t: 'num', v: n.v }); else addToken(run.pack, { t: 'n', v: n.v }); persist();
       burst(n.obj.position.clone().add(new THREE.Vector3(0, 1, 0)), 90, 3, 0xffd25a); floatText(pix(String(n.v)), n.obj.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 'coin');
-      say(`Nový kláves: ${n.v}!`); room.remove(n.obj); efekt('objav', 0.5, 1.2);
+      say(run.pack.wands ? `Kameň ${n.v} – nové základné číslo do vaku (palica ním začína výpočet)` : `Nový kláves: ${n.v}!`, 3500); room.remove(n.obj); efekt('objav', 0.5, 1.2);
     }
   }
   // obchod = samostatná obrazovka (nie 3D miestnosť): pri dverách sa otvorí, po odchode stojíš pred dverami
@@ -1139,7 +1139,7 @@ function gainWand(k) {
 }
 // ---------- PALICA ZBLÍZKA (Majster): obraz sa rozmaže, zospodu sa vysunie palica s kalkulačkou; kamene z ruksaku = klávesy ----------
 // koliesko / šípky / ◀ ▶ = ďalšia palica; ťuk na kláves = vloží kameň (číslo vymení základ); ⌫ = posledný späť do ruksaku; C = všetko späť
-let staffI = 0, staffDir = 0;
+let staffI = 0, staffDir = 0, staffHit = false;
 // ILUSTROVANÉ PALICE (Gemini → nastroje/palica.py → dither): obrázok + poloha okienok displeja a klávesov v %
 const STAFF_ART = { zakladna: 'pocitadlo' }, ART = {};
 for (const [k, f] of Object.entries(STAFF_ART)) fetch(`palice/${f}.json`).then(r => r.json()).then(j => { ART[k] = { ...j, img: `palice/${f}.png` }; }).catch(() => {});
@@ -1154,14 +1154,14 @@ const STAFF_DECO = {
 // palica ako ilustrácia: okienka displeja = jamky (svietia vložené kamene), klávesy = kamene z ruksaku, výsledok svieti na kryštáli
 function artWand(A, w, n, r, cost, dir, still) {
   const P = run.pack, ccol = m => m.t === 'num' ? '#f2efe6' : OPCOL2[m.o], last = w.slots.filter(m => m && m.t === 'mod').pop();
-  const wins = A.wins.slice(0, n).map((o, j) => { const m = w.slots[j]; return `<i class="aw${m ? ' on' : ''}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.w}%;height:${o.h}%;--c:${m ? ccol(m) : 'transparent'}">${m ? pix(modLabel(m)) : ''}</i>`; }).join('');
-  const keys = A.keys.map((o, j) => { const m = P.bag[j]; return m ? `<button class="ak sk" data-b="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.r * 2}%;--c:${ccol(m)}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}</button>` : ''; }).join('');
+  const wins = A.wins.slice(0, n).map((o, j) => { const m = w.slots[j]; return `<i class="aw${m ? ' on' : ''}" data-w="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.w}%;height:${o.h}%;--c:${m ? ccol(m) : 'transparent'}">${m ? pix(modLabel(m)) : ''}</i>`; }).join('');
+  const keys = A.keys.map((o, j) => `<i class="ak" data-k="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.r * 2}%"></i>`).join('');   // klávesy len stlačí animácia pri vhodení kameňa
   const res = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
   return ` <div class="svart${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--g:${last ? OPCOL2[last.o] : '#f2efe6'};aspect-ratio:${A.w}/${A.h}">
     <img src="${A.img}" alt="">${wins}${keys}
     <b class="ares">${pix(String(res))}</b>
     <span class="aform">${r ? wandSteps(boostSlots(P, w.slots)) : 'najprv číslo'} · ⚡${cost}</span>
-    <span class="afn"><button class="sk fn" id="svback" title="posledný kameň späť do ruksaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
+    <span class="afn"><button class="sk fn" id="svback" title="posledný kameň späť do vaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
   </div>`;
 }
 function openStaff(dir = 0) {
@@ -1173,7 +1173,8 @@ function openStaff(dir = 0) {
   const tok = m => `<i style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}">${pix(modLabel(m))}</i>`;
   const lcd = !w.slots.length ? '<span class="blink">_</span>' : r ? `<i>${pix(r.text.replace(/-/g, '-'))}</i>` : w.slots.map(tok).join('');   // vzorec so zátvorkami (počíta sa zľava doprava)
   const holes = Array.from({ length: n }, (_, j) => `<u class="${w.slots[j] ? 'on' : ''}" style="--c:${w.slots[j] ? (w.slots[j].t === 'num' ? 'var(--line)' : OPCOL2[w.slots[j].o]) : 'transparent'}"></u>`).join('');
-  const keys = P.bag.map((m, j) => `<button class="sk${m.t === 'num' ? ' num' : ''}" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>`).join('');
+  const keys = '';   // klávesy kalkulačky nie sú inventár – kamene sú vo VAKU (spoločný pre všetky palice) a hádžu sa do kalkulačky
+  const vak = Array.from({ length: Math.max(8, P.bag.length) }, (_, j) => { const m = P.bag[j]; return m ? `<button class="vs" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo – palica ním začína'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>` : '<i class="vs empty"></i>'; }).join('');
   const html = `<div class="sv">
     <div class="svtabs"><button class="tab" id="svbag">Ruksak · ${P.bag.length}</button><span class="tab on">Palica ${staffI + 1}/${N}</span></div>
     ${N > 1 ? '<button class="svnav l" id="svl">◀</button><button class="svnav r" id="svr">▶</button>' : ''}
@@ -1187,19 +1188,36 @@ function openStaff(dir = 0) {
       </div>
       <div class="svshaft"></div>
     </div>`}
-    <p class="svhint">ťukni kameň · ${N > 1 ? 'koliesko / ◀ ▶ = ďalšia palica · ' : ''}Esc zavrie</p>
+    <div class="svvak"><b>Vak · spoločný pre všetky palice</b><div class="vk">${vak}</div></div>
+    <p class="svhint">hoď kameň do kalkulačky (potiahni alebo ťukni) · ťuk na okienko = späť do vaku · ${N > 1 ? 'koliesko / ◀ ▶ = ďalšia palica · ' : ''}Esc zavrie</p>
   </div>`;
   const again = ovEl.classList.contains('staffview') && ovEl.classList.contains('show');
   const el = again ? ovEl : overlay('Palica', html, 'staffview');
   if (again) el.querySelector('.box').innerHTML = `<span class="ptag">Palica</span>${html}`;
   else { addX(() => { closeOverlay(); if (fight.on) renderInput(); }); if (!el._wheelOn) el._wheelOn = 1, el.addEventListener('wheel', ev => { if (!el.classList.contains('staffview')) return; ev.preventDefault(); if (Math.abs(ev.deltaY) < 8 || performance.now() - (el._wt || 0) < 250) return; el._wt = performance.now(); el._flip(ev.deltaY > 0 ? 1 : -1); }, { passive: false }); }
   const redo = () => { persist(); openStaff(); };
-  el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => {
-    const j = +b.dataset.b, m = P.bag[j];
+  const put = j => {
+    const m = P.bag[j]; if (!m) return;
     if (m.t === 'num') { P.bag.splice(j, 1); if (w.slots[0]) P.bag.push(w.slots[0]); w.slots[0] = m; }
-    else { if (!w.slots.length) { say('Najprv číslo – palica začína číslom.', 1800); return; } if (w.slots.length >= n) { say(`Palica má len ${n} jamky – ⌫ uvoľní miesto.`, 1800); b.classList.add('no'); return; } P.bag.splice(j, 1); w.slots.push(m); }
-    efekt('minca', 0.4, 1.2 + w.slots.length * 0.08); redo();
+    else { if (!w.slots.length) { say('Najprv číslo – palica začína číslom.', 1800); return; } if (w.slots.length >= n) { say(`Palica má len ${n} jamky – ⌫ uvoľní miesto.`, 1800); return; } P.bag.splice(j, 1); w.slots.push(m); }
+    efekt('minca', 0.4, 1.2 + w.slots.length * 0.08); staffHit = true; redo();
+  };
+  // VHADZOVANIE: chytíš kameň vo vaku a pustíš ho nad kalkulačkou (alebo len ťukneš) → naskočí do ďalšieho okienka
+  el.querySelectorAll('.vs[data-b]').forEach(g => g.onpointerdown = ev => {
+    ev.preventDefault(); const j = +g.dataset.b, r0 = g.getBoundingClientRect(), x0 = ev.clientX, y0 = ev.clientY; let ghost = null;
+    const target = () => el.querySelector('.svart') || el.querySelector('.svcalc');
+    const mv = e => { if (!ghost && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
+      if (!ghost) { ghost = g.cloneNode(true); ghost.classList.add('ghost'); ghost.style.width = r0.width + 'px'; ghost.style.height = r0.height + 'px'; document.body.appendChild(ghost); g.classList.add('lifted'); }
+      ghost.style.transform = `translate(${e.clientX - r0.width / 2}px, ${e.clientY - r0.height / 2}px) scale(1.3) rotate(${(e.clientX - x0) * 0.06}deg)`;
+      const t = target(), r = t && t.getBoundingClientRect(), over = r && e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.top + r.height * (t.classList.contains('svart') ? 0.46 : 1); el.classList.toggle('dropok', !!over); };
+    const up = e => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      const ok = el.classList.contains('dropok'); el.classList.remove('dropok'); if (ghost) { ghost.remove(); g.classList.remove('lifted'); }
+      if (!ghost || ok) put(j); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   });
+  // ťuk na okienko = kameň späť do vaku (základné číslo sa dá len vymeniť)
+  el.querySelectorAll('.aw[data-w]').forEach(b => b.onclick = () => { const k = +b.dataset.w; if (!w.slots[k] || k === 0) { if (k === 0) say('Základné číslo vymeníš tak, že hodíš do kalkulačky iné číslo.', 2200); return; } P.bag.push(...w.slots.splice(k, 1)); efekt('minca', 0.3, 0.9); redo(); });
+  if (staffHit) { staffHit = false; const ks = el.querySelectorAll('.ak'); if (ks.length) ks[Math.floor(Math.random() * ks.length)].classList.add('hit'); const ws = el.querySelectorAll('.aw.on'); if (ws.length) ws[ws.length - 1].classList.add('drop'); }
   el.querySelector('#svback').onclick = () => { if (w.slots.length > 1) { P.bag.push(w.slots.pop()); efekt('minca', 0.3, 0.9); redo(); } };
   el.querySelector('#svclr').onclick = () => { if (w.slots.length > 1) { P.bag.push(...w.slots.splice(1)); efekt('minca', 0.3, 0.8); redo(); } };
   el.querySelector('#svbag').onclick = () => { closeOverlay(); openWands(); };
@@ -1349,7 +1367,7 @@ function updateInside() {
   if (Math.abs(IX - hp.x) < 1.3 && hp.z > 4.0) exitInterior();
 }
 let snapCam = true;
-const ZOOM_OUT = 1.25;   // Majster: kamera o 25 % ďalej – hordu vidno skôr (postavy ostávajú v pomere k svetu)
+const ZOOM_OUT = 2.0;   // Lukáš 26. 10.: svet menší a magickejší (+ tilt-shift v kresba.js)   // Majster: kamera o 25 % ďalej – hordu vidno skôr (postavy ostávajú v pomere k svetu)
 function draw(dt) {
   // kamera: pri skúmaní ide za čarodejníkom (drží sa v miestnosti), v súboji ukáže celé bojisko
   let look, view;
