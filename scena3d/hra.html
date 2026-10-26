@@ -116,7 +116,10 @@
   .actb { display:none; position:fixed; z-index:6; width:58px; height:58px; border-radius:50%; border:2px solid var(--line); outline:2px solid var(--ink); background:rgba(14,14,16,.55); color:var(--line); font:inherit; font-size:22px; }
   body.touch .actb { display:grid; place-items:center; } body.scron .actb, body.ovon .actb { display:none !important; }
   #bDash { right:calc(22px + env(safe-area-inset-right)); bottom:calc(96px + env(safe-area-inset-bottom)); } #bB { right:calc(92px + env(safe-area-inset-right)); bottom:calc(150px + env(safe-area-inset-bottom)); font-size:20px; color:#7fd6ff; border-color:#7fd6ff; }
-  .actb.cd { opacity:.4; }
+  .actb.cd { opacity:.4; } .actb small { display:none; }
+  /* PC (Majster): dash vidno aj na počítači – vpravo dole s klávesom */
+  body.advm:not(.touch) #bDash { display:grid; place-items:center; align-content:center; width:64px; height:64px; right:22px; bottom:96px; font-size:20px; cursor:pointer; background:conic-gradient(rgba(14,14,16,.85) calc(var(--cd,0)*360deg), rgba(14,14,16,.55) 0); }
+  body.advm:not(.touch) #bDash small { display:block; font-size:9px; color:var(--grey); margin-top:-2px; }
   .lrow.hb { border-color:#7fd6ff !important; } .lrow .ln { cursor:pointer; } .lrow.hb .ln { color:#7fd6ff; }
   .tag.bossbar { padding:3px 4px; } .tag .hpb { display:block; width:90px; height:7px; border:1.5px solid var(--line); position:relative; } .tag .hpb b { position:absolute; inset:1px auto 1px 1px; max-width:calc(100% - 2px); background:#e8443a; }
   .ov.lvup .lvopts { gap:18px; } .ov.lvup .lvo { padding:20px 16px 18px; min-height:300px; } .ov.lvup .lvo b { font-size:22px; } .ov.lvup .lvo span { font-size:15px; line-height:1.35; color:var(--line); opacity:.8; }
@@ -136,6 +139,32 @@
   .wand .wr { margin-top:8px; font-size:13px; color:var(--grey); } .wand .wr b { color:var(--line); font-size:16px; } .wand .wr em { color:#e8443a; font-style:normal; }
   .bagz { display:flex; flex-wrap:wrap; gap:6px; min-height:50px; padding:6px; border:1.5px dashed var(--dim); }
   @media (max-height:500px) { .wm { min-width:56px; height:48px; } .wm .pix { height:16px; } .wand { padding:6px 8px; margin:6px 0; } }
+  /* PALICA = palica s jamkami, moduly = kamene; ruksak = vak; galéria všetkých palíc */
+  .wbody { display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:14px; align-items:start; }
+  .staff { position:relative; display:flex; align-items:center; gap:0; padding:8px 0 8px 46px; }
+  .staff > img { position:absolute; left:-6px; top:50%; width:58px; height:58px; transform:translateY(-50%); object-fit:cover; border:1.5px solid var(--dim); }
+  .staff .shaft { position:relative; display:flex; align-items:center; gap:20px; padding:0 16px 0 24px; }
+  .staff .shaft::before { content:''; position:absolute; left:0; right:-4px; top:50%; height:12px; transform:translateY(-50%); background:repeating-linear-gradient(135deg, #2a2926 0 3px, #55524b 3px 5px); border:1.5px solid var(--line); }
+  .staff .head { width:22px; height:38px; position:relative; z-index:1; filter:drop-shadow(0 0 6px currentColor); }
+  .staff .res { margin-left:10px; font-size:20px; color:var(--line); white-space:nowrap; }
+  .gem { position:relative; z-index:1; font:inherit; width:46px; height:46px; border-radius:50%; border:2.5px solid var(--c, var(--line)); background:var(--ink); color:var(--c, var(--line)); display:grid; place-items:center; padding:0; cursor:pointer; box-shadow:0 0 0 3px var(--ink); }
+  .gem .pix { height:16px; fill:currentColor; } .gem small { position:absolute; bottom:-15px; left:50%; transform:translateX(-50%); font-size:9px; color:var(--grey); white-space:nowrap; }
+  .gem.base { border-radius:8px; border-width:3px; } .gem.sel { background:var(--c, var(--line)); color:var(--ink); transform:translateY(-4px); } .gem.sel .pix { fill:var(--ink); }
+  .gem.empty { border-style:dashed; border-color:var(--grey); color:var(--grey); font-size:9px; }
+  .gem:hover { transform:translateY(-2px); }
+  .wand .wr { margin-top:14px; }
+  .rucksak { position:relative; width:100%; max-width:360px; justify-self:center; border:2px solid var(--line); border-radius:16px 16px 40px 40px; padding:46px 12px 26px; min-height:160px; background:repeating-linear-gradient(0deg, transparent 0 7px, rgba(242,239,230,.04) 7px 8px); margin-top:10px; cursor:pointer; }
+  .rucksak .flap { position:absolute; left:-2px; right:-2px; top:-2px; height:30px; border:2px solid var(--line); border-radius:16px 16px 22px 22px; background:var(--ink); }
+  .rucksak .flap::after { content:''; position:absolute; left:50%; bottom:-8px; width:12px; height:12px; transform:translateX(-50%); border:2px solid var(--line); border-radius:3px; background:var(--ink); }
+  .rucksak::before, .rucksak::after { content:''; position:absolute; top:34px; width:8px; height:46%; border:2px solid var(--line); border-radius:6px; background:var(--ink); } .rucksak::before { left:-8px; } .rucksak::after { right:-8px; }
+  .rucksak .bt { position:absolute; top:7px; left:16px; font-size:11px; z-index:1; } .rucksak .bt span { color:var(--grey); margin-left:4px; }
+  .rucksak .bin { display:flex; flex-wrap:wrap; gap:18px 10px; justify-content:center; padding-top:4px; } .rucksak .bin .gem { width:40px; height:40px; } .rucksak .bin .sub { text-align:center; font-size:11px; }
+  .palrow { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:8px; }
+  .pal { border:1.5px solid var(--dim); padding:6px; display:flex; flex-direction:column; gap:3px; font-size:11px; opacity:.7; }
+  .pal.mine { border-color:var(--r); opacity:1; } .pal img { width:100%; aspect-ratio:1; object-fit:cover; filter:grayscale(.6) brightness(.8); } .pal.mine img { filter:none; }
+  .pal b { font-size:12px; color:var(--r); } .pal span { color:var(--grey); font-size:10px; line-height:1.25; } .pal em { font-style:normal; color:var(--line); font-size:10px; margin-top:auto; display:flex; align-items:center; gap:3px; } .pal em svg { height:10px; }
+  .pal .dots { display:flex; gap:3px; } .pal .dots u { width:8px; height:8px; border-radius:50%; border:1.5px solid var(--r); text-decoration:none; }
+  @media (max-width:760px), (max-height:500px) { .wbody { grid-template-columns:1fr; } .palrow { grid-template-columns:repeat(6, 104px); overflow-x:auto; padding-bottom:4px; } .gem { width:38px; height:38px; } .staff .shaft { gap:16px; } .rucksak { min-height:110px; } }
   .palgrid { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; margin-top:8px; }
   .palc { font:inherit; color:var(--line); background:var(--ink); border:2px solid var(--rc); box-shadow:inset 0 0 0 1px var(--rc); padding:8px 6px; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
   .palc .rar { font-style:normal; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--rc); } .palc b { font-size:14px; font-weight:500; }

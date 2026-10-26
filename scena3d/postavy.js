@@ -105,7 +105,9 @@ export const KINDS = {
   rogue: { file: 'Rogue', name: 'Zbojník', keep: ['Knife', 'Knife_Offhand'], weapons: ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable'], h: 1.4, speed: 0.8, hp: 1, attack: 'Dualwield_Melee_Attack_Chop', walk: 'Running_B', prob: 'easy' },
   knight: { file: 'Knight', name: 'Rytier', keep: ['1H_Sword', 'Badge_Shield'], weapons: ['1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Round_Shield', 'Spike_Shield', '1H_Sword', '2H_Sword'], h: 1.55, speed: 0.45, hp: 1, attack: '1H_Melee_Attack_Chop', walk: 'Walking_A', shield: true, prob: 'normal' },
   barbarian: { file: 'Barbarian', name: 'Barbar', keep: ['2H_Axe'], weapons: ['1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug'], h: 1.75, speed: 0.4, hp: 2, attack: '2H_Melee_Attack_Chop', walk: 'Walking_A', charge: true, prob: 'three' },
-  hooded: { file: 'Rogue_Hooded', name: 'Strelec', keep: ['2H_Crossbow'], weapons: ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable'], h: 1.4, speed: 0.6, hp: 1, attack: '2H_Ranged_Shoot', walk: 'Walking_A', ranged: true, prob: 'normal' },
+  hooded: { file: 'Rogue_Hooded', name: 'Strelec', keep: ['2H_Crossbow'], weapons: ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable'], h: 1.4, speed: 0.6, hp: 1, attack: '2H_Ranged_Shoot', walk: 'Walking_A', ranged: true, prob: 'normal', range: 10, aim: 1.2, cd: 2.8, shotSpeed: 15 },
+  // Majster: vrhač hádže 3 nože do vejára (bližšie, rýchlejšie mieri)
+  vrhac: { file: 'Rogue', name: 'Vrhač', keep: ['Throwable', 'Knife'], weapons: ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable'], h: 1.35, speed: 0.7, hp: 1, attack: 'Throw', walk: 'Running_B', ranged: true, prob: 'easy', range: 7, aim: 0.9, cd: 3.2, shotSpeed: 10, fan: 0.3 },
   innkeeper: { file: 'Barbarian', name: 'Obchodník', keep: ['Mug'], weapons: ['1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug'], h: 1.7, cape: 0x8a7a6a },
 };
 const TPL = {};

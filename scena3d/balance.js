@@ -13,7 +13,7 @@ import { wandOffers, modRar } from './wand.js';
 //   skúsenosti  XP za zabitie = ⌈HP / 3⌉,  ďalšia úroveň = ⌈12 · 1,45^(L−1)⌉  → každá úroveň je ťažšia
 //   úroveň      výber 1 z 3 (nový kláves, lepšie číslo, viac políčok, palica, špeciálna funkcia)
 
-export const KIND_HP = { rogue: 1, hooded: 1, knight: 1.6, barbarian: 2.2, innkeeper: 1 };
+export const KIND_HP = { rogue: 1, hooded: 1, vrhac: 0.8, knight: 1.6, barbarian: 2.2, innkeeper: 1 };
 export const difficulty = (w, z) => Math.pow(1.24, Math.max(0, w - 1)) * Math.pow(3.3, Math.max(0, z - 1));
 // HORDOVKA: veľa slabších nepriateľov (bežný ×0,4 života, v horde ×2,5 viac) – spolu podobne veľa života ako predtým, vodcovia ostávajú silní
 export const SWARM = 2.5;
@@ -28,7 +28,8 @@ export const xpNeed = L => Math.ceil(8 * Math.pow(1.45, L - 1));
 // druhy nepriateľov plynulo podľa obtiažnosti (log, aby sa zloženie menilo pozvoľna)
 export function kindWeights(w, z) {
   const d = Math.log(difficulty(w, z)) / Math.log(2.4);   // ≈ 0 na začiatku, 1 po zóne 1, …
-  return { rogue: 1, hooded: Math.min(0.8, Math.max(0, d - 0.1) * 1.6), knight: 0.25 + Math.min(1, d) * 0.6, barbarian: Math.min(0.9, Math.max(0, d - 0.5)) };
+  // strelci od 1. hordy, vrhači od 2., barbari (rozbeh) od 3. – každý druh útočí inak, všetci s varovaním
+  return { rogue: 1, hooded: 0.3 + Math.min(0.5, d * 0.5), vrhac: d < 0.2 ? 0 : Math.min(0.6, 0.2 + d * 0.4), knight: 0.3 + Math.min(1, d) * 0.6, barbarian: d < 0.4 ? 0 : Math.min(0.9, 0.25 + (d - 0.4) * 0.8) };
 }
 // ŠPECIÁLNE FUNKCIE (klávesy kalkulačky): každá je matematika, ktorá zväčšuje výsledok
 //   ( )  zátvorky – poradie výpočtu      √  odmocnina – prerazí štít

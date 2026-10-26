@@ -17,7 +17,7 @@ const spells = [], chains = [];
 const POOL = Array.from({ length: 4 }, () => { const l = new THREE.PointLight(0xffffff, 0, 5, 1.6); l.busy = false; scene.add(l); return l; });
 function borrow(color, dist = 4.5) { const l = POOL.find(x => !x.busy) || POOL[0]; l.busy = true; l.color.set(color); l.distance = dist; l.intensity = 0; return l; }
 function giveBack(l) { if (!l) return; l.busy = false; l.intensity = 0; }
-const targets = () => [...fight.enemies.filter(e => e.state !== 'dead'), ...fight.bolts];
+const targets = () => [...fight.enemies.filter(e => e.state !== 'dead'), ...fight.bolts.filter(b => !b.adv)];   // strely Majstra sa nedajú zostreliť ani nemajú štítok
 export { targets };
 
 // výsledky na scéne sa nesmú biť (ani 1 a 10 naraz), aby kúzlo vždy vedelo, kam letieť
@@ -190,6 +190,58 @@ function removeBolt(b, hitHero) {
   const i = fight.bolts.indexOf(b); if (i >= 0) fight.bolts.splice(i, 1);
   scene.remove(b.mesh); b.el.remove();
   burst(b.mesh.position, hitHero ? 40 : 70, 3, hitHero ? 0xff7a3a : 0xffd25a, 0.7);
+}
+
+// ---------- VAROVANIE PRED ÚTOKOM (Majster) ----------
+// červený obrys na zemi ukáže, KAM útok dopadne; výplň rastie a keď je plná, udrie. Kto z neho vyjde (alebo dashne), nedostane.
+// kruh = úder zblízka, pás = rozbeh barbara, čiara = mierenie strelca (posledných 0,4 s bliká = zamknuté, už nesleduje)
+// kreslí sa ostro na vlastné plátno nad hrou (v 1-bit vykreslení by sa tenké čiary stratili)
+const teleCv = document.createElement('canvas'); teleCv.id = 'tele'; teleCv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2'; document.body.appendChild(teleCv);
+const tctx = teleCv.getContext('2d');
+function makeTele(kind, { r = 1, len = 8, w = 1, fan = 0 } = {}) { return { kind, r, len, w, fan, x: 0, z: 0, angle: 0, fill: 0, blink: false }; }
+function setTele(t, x, z, angle, fill, blink = false) { t.x = x; t.z = z; if (angle != null) t.angle = angle; t.fill = Math.min(1, fill); t.blink = blink; }
+function dropTele(e) { e.tele = null; }
+const _v = new THREE.Vector3();
+export function drawTele(cam) {
+  const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+  if (teleCv.width !== Math.round(W * dpr)) { teleCv.width = Math.round(W * dpr); teleCv.height = Math.round(H * dpr); }
+  tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.clearRect(0, 0, W, H);
+  if (!fight.on) return;
+  const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
+  const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
+  for (const b of fight.bolts) if (b.adv) {   // strela: jasná čiarka so stopou
+    const p = b.mesh.position, [x0, y0] = P(p.x, p.z), [x1, y1] = P(p.x - b.v.x * 0.07, p.z - b.v.z * 0.07);
+    tctx.lineCap = 'round'; tctx.lineWidth = 7; tctx.strokeStyle = '#0e0e10'; tctx.beginPath(); tctx.moveTo(x0, y0); tctx.lineTo(x1, y1); tctx.stroke();
+    tctx.lineWidth = 3.5; tctx.strokeStyle = b.col || '#ff7a3a'; tctx.stroke(); tctx.lineCap = 'butt';
+  }
+  for (const e of fight.enemies) {
+    const t = e.tele; if (!t || (t.blink && Math.floor(G.now * 14) % 2)) continue;
+    tctx.lineWidth = 2; tctx.strokeStyle = '#ff3a2a'; tctx.fillStyle = 'rgba(255,58,42,.45)';
+    if (t.kind === 'disc') {
+      const ring = k => Array.from({ length: 28 }, (_, i) => { const a = i / 28 * 6.283; return P(t.x + Math.cos(a) * t.r * k, t.z + Math.sin(a) * t.r * k); });
+      poly(ring(1)); tctx.fillStyle = 'rgba(255,58,42,.12)'; tctx.fill(); tctx.stroke();
+      poly(ring(Math.max(0.02, t.fill))); tctx.fillStyle = 'rgba(255,58,42,.55)'; tctx.fill();
+      continue;
+    }
+    for (const da of t.fan ? [-t.fan, 0, t.fan] : [0]) {
+      const a = t.angle + da, dx = Math.sin(a), dz = Math.cos(a), px = Math.cos(a), pz = -Math.sin(a), hw = Math.max(0.07, t.w / 2);
+      const quad = (l0, l1, w) => [P(t.x + dx * l0 + px * w, t.z + dz * l0 + pz * w), P(t.x + dx * l1 + px * w, t.z + dz * l1 + pz * w), P(t.x + dx * l1 - px * w, t.z + dz * l1 - pz * w), P(t.x + dx * l0 - px * w, t.z + dz * l0 - pz * w)];
+      if (t.w > 0.4) { poly(quad(0, t.len, hw)); tctx.fillStyle = 'rgba(255,58,42,.12)'; tctx.fill(); tctx.stroke(); poly(quad(0, t.len * t.fill, hw)); tctx.fillStyle = 'rgba(255,58,42,.5)'; tctx.fill(); }
+      else { tctx.setLineDash([6, 5]); const [x0, y0] = P(t.x, t.z), [x1, y1] = P(t.x + dx * t.len, t.z + dz * t.len); tctx.beginPath(); tctx.moveTo(x0, y0); tctx.lineTo(x1, y1); tctx.stroke(); tctx.setLineDash([]);
+        poly(quad(0, t.len * t.fill, 0.12)); tctx.fillStyle = t.fill >= 1 ? '#ff3a2a' : 'rgba(255,58,42,.6)'; tctx.fill(); }
+    }
+  }
+}
+// strela Majstra letí rovno v smere mierenia (nesleduje ťa) – dá sa uhnúť bokom alebo dashom
+function shootAdv(e, dir) {
+  const D = e.d, sp = D.shotSpeed || 14, life = ((D.range || 9) + 4) / sp;
+  for (const a of D.fan ? [-D.fan, 0, D.fan] : [0]) {
+    const d = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a), mesh = new THREE.Group();
+    mesh.add(new THREE.Mesh(new THREE.ConeGeometry(D.fan ? 0.09 : 0.12, D.fan ? 0.5 : 0.8, 5).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: D.fan ? 0xffd25a : 0xff7a3a })));
+    mesh.position.copy(e.g.position).add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(d, 0.5); mesh.lookAt(mesh.position.clone().add(d));
+    mesh.traverse(o => o.layers.enable(4)); scene.add(mesh);
+    fight.bolts.push({ bolt: true, adv: true, col: D.fan ? '#ffd25a' : '#ff7a3a', mesh, v: d.multiplyScalar(sp), life, t: 0, el: { remove() {}, classList: { add() {}, remove() {}, toggle() {} } } });
+  }
 }
 
 // ---------- písanie výsledku ----------
@@ -480,6 +532,7 @@ function advHit(e, info) {
     afterHit(info); checkEnd(); return;
   }
   if (info.dot) { renderTag(e); return; }   // horenie: len číslo, nepriateľ sa nezastaví
+  if (fight.adv && e.tele) { renderTag(e); e.flash = 1; majsterFx(e, info, v); afterHit(info); return; }   // počas varovania sa útok nezastaví – treba uhnúť
   renderTag(e); e.state = 'hit'; e.t = 0; e.play('Hit_A', 0.05, true); e.knock = info.fast ? 2 : 1; e.charging = false;
   majsterFx(e, info, v);
   afterHit(info);
@@ -551,20 +604,86 @@ function hurtHero() {
 }
 function checkEnd() {
   if (fight.enemies.some(e => e.state !== 'dead')) return;
+  for (const e of fight.enemies) dropTele(e);
   for (const b of [...fight.bolts]) removeBolt(b);
   fight.on = false;
   G.onWin(fight.opts);
 }
 export function endFight() { // pri prehre / odchode
   for (const t of targets()) t.el && t.el.remove();
+  for (const e of fight.enemies) dropTele(e);
   for (const b of [...fight.bolts]) removeBolt(b);
   fight.on = false; fight.enemies = []; fight.aim = null;
 }
 
 // ---------- slučka súboja ----------
 const toHero = new THREE.Vector3();
+// MAJSTER – správanie nepriateľov: každý útok má varovanie (červené na zemi), aby sa dalo uhnúť
+//   zblízka: dobehne → zastaví sa, pod ním sa naplní kruh (rogue 0,6 s, rytier 0,75, barbar 0,95) → úder do kruhu
+//   barbar: z 2,5–6 m sa zaprie (0,8 s, pás 7 m) → rozbeh rovno po páse, potom chvíľu oddychuje
+//   strelec / vrhač: drží odstup, mieri (čiara ťa sleduje, posledných 0,4 s bliká a stojí) → strela letí rovno
+const ADV_STATES = new Set(['walk', 'charge', 'attack', 'back', 'aim', 'windup', 'chargeup', 'rush']);
+const WINDUP = { rogue: 0.6, knight: 0.75, barbarian: 0.95 };
+function separate(e) { const pos = e.g.position; for (const o of fight.enemies) if (o !== e && o.state !== 'dead') { const dx = pos.x - o.g.position.x, dz = pos.z - o.g.position.z, dd = Math.hypot(dx, dz); if (dd < 1.1 && dd > 0.001) { pos.x += dx / dd * (1.1 - dd) * 0.5; pos.z += dz / dd * (1.1 - dd) * 0.5; } } }
+function advAI(e, dist, sp, edt) {
+  const pos = e.g.position, D = e.d, reach = 1.15 + (e.size - 1);
+  e.chargeCd = Math.max(0, (e.chargeCd || 0) - edt); e.shoot -= edt;
+  if (e.state === 'walk' || e.state === 'charge') {
+    if (D.ranged) {
+      const range = D.range || 9;
+      if (dist < range && e.shoot <= 0 && fight.enemies.filter(x => x.state === 'aim').length < 5) {
+        e.state = 'aim'; e.t = 0; e.adir = toHero.clone(); e.play(D.fan ? 'Idle' : '2H_Ranged_Aiming');
+        e.tele = makeTele('line', { len: range + 3, w: 0.1, fan: D.fan || 0 }); return;
+      }
+      if (dist > range * 0.75) pos.addScaledVector(toHero, sp * edt);
+      else if (dist < 4.5) pos.addScaledVector(toHero, -sp * 0.7 * edt);   // drží odstup
+      separate(e); return;
+    }
+    if (D.charge && e.chargeCd <= 0 && dist < 6 && dist > 2.5) {
+      e.state = 'chargeup'; e.t = 0; e.cdir = toHero.clone(); e.play('Idle');
+      e.tele = makeTele('bar', { len: 7, w: 1.1 * e.size }); return;
+    }
+    if (dist > reach) { pos.addScaledVector(toHero, sp * edt); separate(e); return; }
+    e.state = 'windup'; e.t = 0; e.swung = false; e.play('Idle');
+    e.tc = pos.clone().addScaledVector(toHero, 0.85 * e.size); e.tr = 1.1 * e.size;
+    e.tele = makeTele('disc', { r: e.tr }); return;
+  }
+  if (e.state === 'windup') {
+    const W = (WINDUP[e.kind] || 0.7) * (e.hb ? 1.15 : 1);
+    if (!e.swung && e.t > W - 0.45) { e.swung = true; e.play(D.attack, 0.08, true); }
+    setTele(e.tele, e.tc.x, e.tc.z, null, e.t / W);
+    if (e.t >= W) {
+      if (Math.hypot(hero.position.x - e.tc.x, hero.position.z - e.tc.z) < e.tr + 0.25) hurtHero();
+      dropTele(e); e.state = 'back'; e.t = 0; e.play('Walking_Backwards');
+    }
+    return;
+  }
+  if (e.state === 'chargeup') {
+    e.g.rotation.y = Math.atan2(e.cdir.x, e.cdir.z);
+    setTele(e.tele, pos.x, pos.z, e.g.rotation.y, e.t / 0.8);
+    if (e.t >= 0.8) { dropTele(e); e.state = 'rush'; e.t = 0; e.hitDone = false; e.play('Running_A'); }
+    return;
+  }
+  if (e.state === 'rush') {
+    e.g.rotation.y = Math.atan2(e.cdir.x, e.cdir.z); pos.addScaledVector(e.cdir, 10 * edt);
+    if (!e.hitDone && Math.hypot(hero.position.x - pos.x, hero.position.z - pos.z) < 0.9 * e.size) { e.hitDone = true; hurtHero(); }
+    if (e.t >= 0.7) { e.state = 'back'; e.t = 0; e.chargeCd = 3.5; e.play('Walking_Backwards'); }
+    return;
+  }
+  if (e.state === 'aim') {
+    const A = D.aim || 1.1, lock = 0.4;
+    if (dist > (D.range || 9) + 4) { dropTele(e); e.state = 'walk'; e.play('Running_A'); return; }   // ušiel si
+    if (e.t < A - lock) e.adir.copy(toHero);
+    const ang = Math.atan2(e.adir.x, e.adir.z); e.g.rotation.y = ang;
+    setTele(e.tele, pos.x, pos.z, ang, Math.min(1, e.t / (A - lock)), e.t >= A - lock);
+    if (e.t >= A) { dropTele(e); e.play(D.attack, 0.05, true); shootAdv(e, e.adir); e.state = 'walk'; e.shoot = D.cd || 2.6; e.t = 0; }
+    return;
+  }
+  if (e.state === 'attack') { if (e.t > 1.1) { e.state = 'back'; e.t = 0; e.play('Walking_Backwards'); } return; }
+  if (e.state === 'back') { pos.addScaledVector(toHero, -1.6 * edt); if (e.t > (e.kind === 'barbarian' ? 1.2 : 0.9)) { e.state = 'walk'; e.play('Running_A'); } }
+}
 export function updateFight(dt) {
-  const danger = fight.on && !G.over && (fight.enemies.some(e => (e.state === 'walk' || e.state === 'charge') && !e.frozen && e.g.position.distanceTo(hero.position) < 2.6) || fight.bolts.some(b => b.mesh.position.distanceTo(hero.position) < 2.4));
+  const danger = fight.on && !G.over && (fight.enemies.some(e => (e.state === 'walk' || e.state === 'charge' || e.state === 'windup' || e.state === 'rush') && !e.frozen && e.g.position.distanceTo(hero.position) < 2.6) || fight.bolts.some(b => b.mesh.position.distanceTo(hero.position) < 2.4));
   fight.slow += ((danger ? 0.4 : 1) - fight.slow) * (1 - Math.exp(-dt * 6));
   G.danger = danger;
   const edt = dt * fight.slow, slowCard = 1 - [0, 0.2, 0.35][lvl(G.run, 'cas')];
@@ -582,11 +701,13 @@ export function updateFight(dt) {
       if (F.tick >= 0.5 || F.t <= 0) { F.tick = 0; const d = Math.round(F.acc + (F.t <= 0 ? F.left : 0)); F.acc -= d; if (d > 0) advHit(e, { v: d, raw: 0, extra: true, op: '-', dot: true }); }
       if (F.t <= 0) e.fire = null;
     }
+    if (e.tele && (e.stun > 0 || e.frozen > 0 || !ADV_STATES.has(e.state))) { dropTele(e); if (e.state !== 'dead' && e.state !== 'hit') { e.state = 'walk'; e.play('Running_A'); } }   // omráčený / zmrazený / zasiahnutý → útok sa zruší
     if (e.stun > 0 && e.state !== 'dead') { e.mixer.update(edt * 0.15); if (Math.random() < 0.3) spark(e.g.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.1, (Math.random() - 0.5) * 1.2)), 0, 0.8, 0, 0.5, 0xc8923a); continue; }   // zem: stojí v prasklinách
     const sp = e.speed * slowCard * (fight.adv ? 2.2 * (G.diffSpeed || 1) : 1) * (e.burn > 0 && lvl(G.run, 'ohen') ? 1 - (lvl(G.run, 'ohen') > 1 ? 0.6 : 0.4) : 1) * (e.wet > 0 ? 0.5 : 1);   // mokrý = polovičná rýchlosť   // Majster: bežia po hráčovi
     if (e.burn > 0 && Math.random() < 0.4) spark(pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * e.h * 0.8, (Math.random() - 0.5) * 0.6)), 0, 1.4, 0, 0.5, 0xff8a3a);
     if (e.frozen > 0 && e.state !== 'dead') { e.mixer.update(0); for (const m of e.mats) if (m.emissive) m.emissive.setRGB(0.15, 0.35, 0.6); if (Math.random() < 0.2) spark(targetPos(e), (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.6, 0x9fd8ff); continue; }
     if (e.state === 'stand') { if (e.t > (fight.adv ? 0.4 : 1.0)) { e.state = 'walk'; e.play(fight.adv ? 'Running_A' : e.d.walk); } }
+    else if (fight.adv && ADV_STATES.has(e.state)) advAI(e, dist, sp, edt);
     else if (e.state === 'walk' || e.state === 'charge') {
       if (e.d.charge && dist < 3.6 && e.state === 'walk') { e.state = 'charge'; e.play('Running_A'); G.floatText('Útok!', e); }
       if (e.d.ranged && dist < (fight.adv ? 9 : 7.6) && !(fight.adv && e.state === 'charge')) { e.state = 'aim'; e.t = 0; e.play('2H_Ranged_Aiming'); }
@@ -606,7 +727,7 @@ export function updateFight(dt) {
       if (e.shoot <= 0 && !G.over) { e.shoot = fight.adv ? 2.8 : 6.5; e.play(e.d.attack, 0.05, true); setTimeout(() => { if (e.state === 'aim' && fight.on) shootBolt(e); }, 300); }
       else if (e.cur === e.acts[e.d.attack] && !e.cur.isRunning()) e.play('2H_Ranged_Aiming');
     } else if (e.state === 'hit') {
-      if (e.t > 0.6) { e.state = e.d.ranged && dist < 7.8 ? 'aim' : 'walk'; e.play(e.state === 'aim' ? '2H_Ranged_Aiming' : e.d.walk); }
+      if (e.t > 0.6) { if (fight.adv) { e.state = 'walk'; e.play('Running_A'); } else { e.state = e.d.ranged && dist < 7.8 ? 'aim' : 'walk'; e.play(e.state === 'aim' ? '2H_Ranged_Aiming' : e.d.walk); } }
     } else if (e.state === 'dead') {   // telo chvíľu leží, potom sa rozpadne na iskry (nie pod zem)
       if (e.t > 1.8 && e.g.visible) { e.g.visible = false; burst(pos.clone().add(new THREE.Vector3(0, 0.4, 0)), 90, 2.2, 0xb8b4aa, 0.9); burst(pos.clone().add(new THREE.Vector3(0, 0.6, 0)), 30, 1.2, 0xffffff, 0.6); }
     }
@@ -616,6 +737,14 @@ export function updateFight(dt) {
     e.mixer.update(edt);
   }
   for (const b of [...fight.bolts]) {
+    if (b.adv) {   // Majster: strela letí rovno, zasiahne, keď ťa prejde
+      b.t += edt; b.mesh.position.addScaledVector(b.v, edt);
+      const hx = b.mesh.position.x - hero.position.x, hz = b.mesh.position.z - hero.position.z;
+      if (Math.hypot(hx, hz) < 0.55 && !G.dashing && !G.over) { removeBolt(b, true); hurtHero(); continue; }
+      if (Math.random() < 0.5) spark(b.mesh.position, 0, 0.2, 0, 0.35, 0xff7a3a);
+      if (b.t > b.life) removeBolt(b);
+      continue;
+    }
     b.t += edt;
     const to = b.to || hero.position.clone().add(new THREE.Vector3(0, 1.1, 0)), k = Math.min(1, b.t / b.dur);
     b.mesh.position.lerpVectors(b.from, to, k); b.mesh.lookAt(to);
