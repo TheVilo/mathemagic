@@ -85,7 +85,7 @@ export function startFight(band, opts = {}) {
 function newRoll() { fight.roll = spellWorks(G.run) ? rollSpell(G.run) : null; if (fight.roll) fight.roll.born = G.now; }
 // DOSAH PALICE (Lukáš 26. 10.: nestrieľať automaticky do diaľky): každá palica dostrelí len tak ďaleko (m)
 const RANGE = { rychla: 7.5, zakladna: 9, dvojita: 9, tazka: 10.5, vedecka: 10.5, graficka: 11.5 };
-export const wandRange = () => RANGE[wandKind(G.run.pack, G.run.pack && G.run.pack.wands ? curRow() : 0)] || 9;
+export const wandRange = () => (RANGE[wandKind(G.run.pack, G.run.pack && G.run.pack.wands ? curRow() : 0)] || 9) + 1.5 * itemN(G.run.pack, 'dosah');   // runa Ďaleký dosah
 const inRange = e => e.g.position.distanceTo(hero.position) <= wandRange() + 0.3;
 const aimAt = () => { const live = fight.enemies.filter(e => e.state !== 'dead' && inRange(e)); if (fight.target && live.includes(fight.target)) return fight.target; return live.sort((a, b) => a.g.position.distanceTo(hero.position) - b.g.position.distanceTo(hero.position))[0] || null; };
 export function setTarget(e) { if (!fight.adv || !fight.enemies.includes(e) || e.state === 'dead') return; fight.target = e; for (const t of fight.enemies) if (t.el) renderTag(t); if (fight.charged) fireAt(e); }
@@ -458,6 +458,22 @@ function cast(t, info) {
   // Zlatá ruka
   const zl = lvl(G.run, 'zlato');
   if (zl && info.fast && !info.extra) G.addCoins(zl, t);
+}
+// OBEŽNICA π (runa): znaky π krúžia okolo čarodejníka vo vzdialenosti π m a zrania, čoho sa dotknú (každý nepriateľ raz za 0,7 s)
+const orbitEls = [];
+function updateOrbit(dt) {
+  const n = fight.adv ? itemN(G.run.pack, 'obeh') : 0, cnt = n ? n + 1 : 0;
+  while (orbitEls.length < cnt) { const el = document.createElement('div'); el.className = 'spsign'; el.style.color = '#ffd25a'; el.innerHTML = pix('π'); document.body.appendChild(el); orbitEls.push(el); }
+  while (orbitEls.length > cnt) orbitEls.pop().remove();
+  if (!cnt) return;
+  fight.orbA = (fight.orbA || 0) + dt * 1.9;
+  const dmg = Math.round(Math.PI * cnt), hide = document.body.classList.contains('ovon');
+  orbitEls.forEach((el, i) => {
+    const a = fight.orbA + i / cnt * Math.PI * 2, x = hero.position.x + Math.cos(a) * Math.PI, z = hero.position.z + Math.sin(a) * Math.PI;
+    const v = new THREE.Vector3(x, G.height(x, z) + 0.9, z).project(camera); el.style.display = hide || !fight.on ? 'none' : ''; el.style.left = (v.x + 1) / 2 * innerWidth + 'px'; el.style.top = (1 - v.y) / 2 * innerHeight + 'px';
+    if (!fight.on) return;
+    for (const e of fight.enemies) { if (e.state === 'dead') continue; const p = e.g.position; if (Math.hypot(p.x - x, p.z - z) < 0.75 && G.now - (e.orbT || 0) > 0.7) { e.orbT = G.now; advHit(e, { v: dmg, raw: 0, extra: true, op: 'π' }); } }
+  });
 }
 // SVETLO KÚZIEL: každé letiace kúzlo osvetlí okolie (3,5 m), pri dopade krátko väčší záblesk (6 m)
 function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, c: s.color, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
@@ -883,7 +899,7 @@ export function updateFight(dt) {
     const live = fight.enemies.filter(e => e.state !== 'dead' && e.g.position.distanceTo(hero.position) < 11);
     if (live.length) { if (fight.cd <= 0 && energy() >= rowCost(G.run.pack, curRow())) fireAt(null); if (hasB() && (fight.cd2 || 0) <= 0 && handEnergy('b') >= rowCost(G.run.pack, G.run.pack.bRow)) fireAt(null, null, 'b'); }
   }
-  updateSpells(dt); spellLights();
+  updateSpells(dt); spellLights(); updateOrbit(dt);
   flash.w = Math.max(0, flash.w - dt * 2.2);
   if (!spells.length && fight.charged) { const k = 1.6 + Math.sin(G.now * 12) * 0.25; crystal.scale.set(k, k * 1.6, k); crystalLight.color.set(COL[fight.charged.op] || 0xf2efe6); crystalLight.intensity = lamp.base * 2.5; }
   else if (!spells.length) { crystal.scale.set(1, 1.6, 1); crystalLight.color.set(lamp.color); crystal.material.color.set(lamp.color); crystalLight.intensity = lamp.base + fight.streak * 1.2 + Math.sin(G.now * 4) * 0.3; }

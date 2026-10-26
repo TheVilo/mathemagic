@@ -21,6 +21,8 @@ export const ITEMS = {
   hojenie: { name: 'Hojenie', icon: '+1/s', rar: 'v', L: 3, text: n => `+1 život každých ${fmt(12 / n)} s` },
   prvo:    { name: 'Prvočísla', icon: 'p', rar: 'e', L: 4, text: n => `prvočíselný výsledok (2, 3, 5, 7, 11…) preskočí na ${n} ďalších` },
   okruhle: { name: 'Okrúhle', icon: '10k', rar: 'e', L: 5, text: n => `výsledok deliteľný 10 vybuchne · polomer ${1 + n} m` },
+  dosah:   { name: 'Ďaleký dosah', icon: 'r+', rar: 'v', L: 2, text: n => `palica dostrelí o ${fmt(1.5 * n)} m ďalej` },
+  obeh:    { name: 'Obežnica π', icon: '∘π', rar: 'e', L: 4, text: n => `okolo teba krúži ${n + 1}× π vo vzdialenosti π m · zraní ${Math.round(Math.PI * (n + 1))}` },
   stvorec: { name: 'Štvorce', icon: 'n²', rar: 'e', L: 5, text: n => `výsledok 1, 4, 9, 16, 25… zraní ×${1 + n}` },
 };
 export const itemN = (pack, id) => (pack && pack.items && pack.items[id]) || 0;

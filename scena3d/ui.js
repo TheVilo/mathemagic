@@ -31,3 +31,17 @@ export function card(id, { l = 1, mini = false, count = 0, foot = '', locked = f
 export const slot = (id, cls = '') => id ? `<div class="sl c ${cls}" style="--c:${CARDS[id].color}">${icon(CARDS[id].icon, '#fff')}${ditImg(`../zdroj/karty/${id}.jpg`, 'col')}</div>` : `<div class="sl empty ${cls}"></div>`;
 // riadky menu s ikonkou v kosoštvorci
 export const menu = items => items.map(([key, ic, t, off]) => `<div class="row ${off ? 'off' : ''}" data-k="${key}">${dia(ic)}${t}</div>`).join('');
+
+// JEDNOTNÁ KARTA PONUKY (Lukáš 26. 10.): všetko, čo hra ponúka – kameň, runa, palica, služba – má rovnakú kartu ako kúzlo:
+// štítok s názvom hore, obrázok v ditheri, vzácnosť bodkami, krátky text, tlačidlo; farba = vzácnosť (runa živlu = farba živlu)
+const PIPS = { b: 1, v: 2, e: 3, l: 4 };
+export function ocard({ title, label = '', rar = 'b', col = '#f2efe6', art = '', extra = '', text = '', foot = '', cls = '', data = '' }) {
+  // PAPIEROVÁ MAGICKÁ KARTA (Lukáš 26. 10.: ako karta v hre, nie web): kresba karty z Gemini v ditheri, názov na stuhe, obrázok v okne, atrament na papieri
+  return `<div class="ocard pick r-${rar} ${cls}" ${data} style="${tones(col)}">
+    ${ditImg('../zdroj/karty/karta-papier.jpg', 'grey', { paper: true, cls: 'cbg' })}
+    <b class="ct">${title}</b>
+    <div class="art">${art}</div>
+    <div class="ctext">${extra}<p>${text}</p></div>
+    <div class="cmeta"><span class="pips">${'<i></i>'.repeat(PIPS[rar] || 1)}</span><small>${label}</small></div>
+    ${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
+}

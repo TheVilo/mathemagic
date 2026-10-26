@@ -173,8 +173,9 @@ export const kresbaMat = new THREE.ShaderMaterial({
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) { float dO = length(wpq.xz - uOrbs[o].xz); orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, dO));
               float tw = (1.0 - smoothstep(uOrbs[o].w * 0.3, uOrbs[o].w * 1.7, dO)) * 0.5; orbT = max(orbT, tw); orbS += uOrbC[o] * tw; orbW += tw; }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.45));
-            { float halo = 1.0 - smoothstep(1.0, uDark > 0.5 ? 11.0 : 8.0, length(wpq.xz - uHero.xz)); halo *= halo;   // VEĽKÁ ROZPTÝLENÁ ŽIARA čarodejníka (Lukáš 26. 10.) – mäkko, bez tieňov
-              if (mg < 0.5) tone = max(tone, mix(tone, 0.97, halo * (uDark > 0.5 ? 0.75 : 0.45))); }
+            { float halo = 1.0 - smoothstep(1.0, uDark > 0.5 ? 15.0 : 9.0, length(wpq.xz - uHero.xz)); halo *= halo;   // VEĽKÁ ROZPTÝLENÁ ŽIARA čarodejníka (Lukáš 26. 10.) – mäkko, bez tieňov
+              if (uDark > 0.5) halo *= mix(0.4, 1.0, smoothstep(0.0004, 0.01, irr));   // TIENE AKO STEALTH INC (Lukáš 26. 10.): v tme svieti len to, kam palica vidí – za predmetmi dlhé tmavé klíny
+              if (mg < 0.5) tone = max(tone, mix(tone, 0.97, halo * (uDark > 0.5 ? 0.85 : 0.45))); }
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
@@ -191,7 +192,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
           float ti = tb + up;
           if (tone > 3.6) ti = 4.0;                                               // SVETLO = čistá plocha bez bodiek (Lukáš 26. 10.)
           vec3 g0 = vec3(0.22, 0.18, 0.22), g1 = vec3(0.41, 0.36, 0.41), g2 = vec3(0.6, 0.55, 0.58), g3 = vec3(0.79, 0.76, 0.76), g4 = vec3(0.96, 0.94, 0.87);   // sivé do fialova (predloha petitjus)
-          if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele
+          if (uDark > 0.5) { g3 = vec3(0.8, 0.78, 0.79); g4 = vec3(0.98, 0.97, 0.94); }   // v tme biele svetlo (Lukáš 26. 10.: nie žlté)   // v tme svetlo teplé ako sviečka, nie čisto biele
           vec3 gc = ti < 0.5 ? g0 : ti < 1.5 ? g1 : ti < 2.5 ? g2 : ti < 3.5 ? g3 : g4;
           if (orbW > 0.0) orbC = orbS / orbW;   // farby kúziel sa plynulo zmiešajú
           if (orbT > 0.0) gc = mix(gc, gc * mix(vec3(1.0), orbC * 1.25, 0.75) + orbC * 0.08, orbT);   // farba kúzla tónuje svetlo okolo neho
