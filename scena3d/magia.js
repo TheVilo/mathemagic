@@ -96,7 +96,7 @@ export function buildMagic(room, R, b, rnd) {
   clearWorldLights();
   const flames = [], FL = new THREE.OctahedronGeometry(0.1, 0), WHITE = mat(0xfff3d6);
   // plameň: 3 svietiace kúsky nad sebou, blikajú; + svetlo sveta (osvetlí okolie, za predmetmi tieň len od palice)
-  const flame = (x, y, z, s = 1, k = 1, r = 7) => { const f = new THREE.Group(); for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(FL, WHITE); m.position.y = i * 0.12 * s; m.scale.set(s * (1.3 - i * 0.35), s * (1.8 - i * 0.3), s * (1.3 - i * 0.35)); f.add(m); } f.position.set(x, y, z); g.add(f); flames.push({ f, ph: rnd() * 6.28 }); addWorldLight(new THREE.Vector3(x, y + 0.3, z), k, r); };
+  const flame = (x, y, z, s = 1, k = 1, r = 7) => { const f = new THREE.Group(); for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(FL, WHITE); m.position.y = i * 0.12 * s; m.scale.set(s * (1.3 - i * 0.35), s * (1.8 - i * 0.3), s * (1.3 - i * 0.35)); f.add(m); } f.position.set(x, y, z); g.add(f); flames.push({ f, ph: rnd() * 6.28 }); if (k > 0) addWorldLight(new THREE.Vector3(x, y + 0.3, z), k, r); };
   // OHNISKÁ: každé ohnisko vo svete horí
   for (const p of R.props) if (p.m === 'campfire_stones') flame(p.x, h(p.x, p.z) + 0.15, p.z, 1.8, 1.2, 9);
   // DEDINKA: niektoré okná svietia (na strane ku kamere)
@@ -114,29 +114,31 @@ export function buildMagic(room, R, b, rnd) {
     for (let k = 0; k < 400 && n < 46; k++) { const x = 4 + rnd() * (R.W - 8), z = 4 + rnd() * (R.H - 8); if (!R.inside(x, z) || rnd() > 0.15) continue;
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a2628 })); post.position.set(x, h(x, z) + 0.75, z); post.castShadow = true; room.add(post); flame(x, h(x, z) + 1.55, z, 1.4, 1.5, 9); n++; }
   }
-  // SOPKA: lávové rieky (svietia, kreslia sa ako čisté svetlo) a ohne z puklín
+  // SOPKA (Lukáš 26. 10.: nie lávové cesty): malé sopky so žeravým kráterom, hore veľká sopka, ktorá svieti na celý svet, a veľa tmavých kameňov
   const lava = [];
   if (b.id === 'sopka') {
-    const LM = mat(0xffe2b0), geo = new THREE.BoxGeometry(1, 0.05, 1), list = [];
-    for (let p = 0; p < 3; p++) {
-      let x = rnd() * R.W, z = 1, a = 1.2 + rnd() * 0.7, wob = rnd() * 6, wid = 1.2 + rnd() * 0.8;
-      for (let st = 0; st < 500; st++) {
-        a += Math.sin(st * 0.04 + wob) * 0.04; x += Math.cos(a) * 0.4; z += Math.sin(a) * 0.4;
-        if (x < 1 || z < 1 || x > R.W - 1 || z > R.H - 1) break;
-        if (Math.hypot(x - R.start[0], z - R.start[1]) < 5) continue;
-        const ww = wid * (0.7 + 0.3 * Math.sin(st * 0.13 + wob));
-        list.push([x, z, ww, a]); if (st % 14 === 0) addWorldLight(new THREE.Vector3(x, h(x, z) + 0.6, z), 0.7, 5);
-        if (st % 37 === 5) flame(x, h(x, z) + 0.1, z, 1.4, 0.4, 4);
-      }
-    }
-    const im = new THREE.InstancedMesh(geo, LM, list.length), o = new THREE.Object3D();
-    list.forEach(([x, z, w, a], i) => { o.position.set(x, h(x, z) + 0.03, z); o.rotation.set(0, -a, 0); o.scale.set(0.6, 1, w); o.updateMatrix(); im.setMatrixAt(i, o.matrix); });
-    g.add(im); lava.push(im); R.lava = list;
-    // stuhnutá kôra: tmavé kamienky plávajú v láve a tmavé brehy – aby to bola láva, nie svetlá cesta
-    const cr = list.filter((_, i) => i % 2 === 0), cm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.12, 1), new THREE.MeshStandardMaterial({ color: 0x1c1a1b, roughness: 1, flatShading: true }), cr.length * 3);
-    let ci = 0; for (const [x, z, w, a] of cr) for (let j = 0; j < 3; j++) { const side = j < 2 ? (j ? 1 : -1) * (w / 2 + 0.1) : (rnd() - 0.5) * w * 0.6, px = x - Math.sin(a) * side, pz = z + Math.cos(a) * side, sz = j < 2 ? 0.35 + rnd() * 0.3 : 0.12 + rnd() * 0.2;
-      o.position.set(px, h(px, pz) + 0.05, pz); o.rotation.set(0, rnd() * 3, 0); o.scale.set(sz, j < 2 ? 1.4 : 1, sz * (0.7 + rnd() * 0.6)); o.updateMatrix(); cm.setMatrixAt(ci++, o.matrix); }
-    cm.count = ci; cm.receiveShadow = true; cm.layers.enable(1); room.add(cm);   // vrstva 1: svetlo ju nezosvetlí → kôra ostane tmavá
+    const ROCK = new THREE.MeshStandardMaterial({ color: 0x1e1b1c, roughness: 1, flatShading: true }), GLOW = mat(0xffe2b0);
+    const volcano = (x, z, r, hh, big) => {
+      const y = h(x, z), cone = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.28, r, hh, big ? 11 : 7, 3), ROCK);
+      const pa = cone.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { const k = 1 + (rnd() - 0.5) * 0.18; pa.setX(i, pa.getX(i) * k); pa.setZ(i, pa.getZ(i) * k); } cone.geometry.computeVertexNormals();
+      cone.position.set(x, y + hh / 2 - 0.05, z); cone.castShadow = cone.receiveShadow = true; cone.layers.enable(1); room.add(cone);   // vrstva 1 = ostane tmavá aj vo vlastnom svetle
+      const crater = new THREE.Mesh(new THREE.CircleGeometry(r * 0.27, 9), GLOW); crater.rotation.x = -Math.PI / 2; crater.position.set(x, y + hh + 0.02, z); g.add(crater);
+      for (let i = 0; i < (big ? 6 : 2); i++) { const a = rnd() * 6.28, d = rnd() * r * 0.12; flame(x + Math.cos(a) * d, y + hh, z + Math.sin(a) * d, big ? 3.5 : 2, 0, 1); }
+      addWorldLight(new THREE.Vector3(x, y + hh + (big ? 3 : 0.8), z), big ? 3.5 : 1.3, big ? 40 : 8);
+      if (!big) R.props.push({ m: '_sopka', x, z, s: 1, col: r * 0.9 });   // nedá sa cez ňu prejsť
+      lava.push({ x, z, y: y + hh, r, big });
+    };
+    volcano(R.W * (0.35 + rnd() * 0.3), -14, 16, 13, true);   // veľká sopka za zadným okrajom sveta
+    for (let n = 0, k = 0; n < 7 && k < 200; k++) { const x = 6 + rnd() * (R.W - 12), z = 6 + rnd() * (R.H - 12);
+      if (!R.inside(x, z) || Math.hypot(x - R.start[0], z - R.start[1]) < 8 || lava.some(v => Math.hypot(v.x - x, v.z - z) < 12)) continue;
+      volcano(x, z, 1.8 + rnd() * 1, 1.3 + rnd() * 1.1, false); n++; }
+    // tmavé kamene všade (skupinky)
+    const rocks = [], o = new THREE.Object3D();
+    for (let k = 0; k < 260; k++) { const cx = 2 + rnd() * (R.W - 4), cz = 2 + rnd() * (R.H - 4); if (!R.inside(cx, cz)) continue;
+      for (let j = 0, n = 1 + Math.floor(rnd() * 4); j < n; j++) { const x = cx + (rnd() - 0.5) * 1.6, z = cz + (rnd() - 0.5) * 1.6; rocks.push([x, z, 0.12 + rnd() * rnd() * 0.55]); } }
+    const rm = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), ROCK, rocks.length);
+    rocks.forEach(([x, z, sc], i) => { o.position.set(x, h(x, z) + sc * 0.3, z); o.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); o.scale.set(sc * (0.8 + rnd() * 0.6), sc * 0.7, sc); o.updateMatrix(); rm.setMatrixAt(i, o.matrix); });
+    rm.castShadow = rm.receiveShadow = true; rm.layers.enable(1); room.add(rm);
   }
   // miesta pre znaky na zemi: náhodne vo svete, ďalej od seba
   for (let k = 0; k < 400 && spots.length < 9; k++) { const x = 6 + rnd() * (R.W - 12), z = 6 + rnd() * (R.H - 12); if (R.inside(x, z) && spots.every(s => Math.hypot(s[0] - x, s[1] - z) > 14)) spots.push([x, z]); }

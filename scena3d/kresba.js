@@ -155,7 +155,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
         // SIVÝ DITHER (Lukáš 26. 10., predloha petitjus): 5 teplých sivých tónov, medzi nimi usporiadaný dither po 2 px;
         // deň svetlý, noc o stupeň tmavšia, ale NIKDY čierna – svetlá (palica, kúzla) prerážajú; obrysy len jemne z hĺbky
         if (uGrey > 0.5) {
-          float tone = uDark > 0.5 ? 0.3 + 0.7 * k : 0.86 - 0.7 * smoothstep(0.02, 0.92, k);   // deň: zem svetlosivá (nie biela), predmety stredné a tmavé
+          float tone = uDark > 0.5 ? 0.3 + 0.7 * k : 0.9 - 0.7 * smoothstep(0.2, 0.95, k);   // deň (Lukáš 26. 10.: bol pochmúrny): zem svetlá krémová, predmety stredné a tmavé
           vec2 uvg = frag / uRes, tg = 3.0 / uRes;
           float dg = texture2D(tDepth, uvg).r, mg = texture2D(tMask, uvg).r, eg = 0.0;
           for (int q = 0; q < 4; q++) {
@@ -170,7 +170,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
             float irr = luma(texture2D(tLamp, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002) * uLampK;
             float pool = smoothstep(0.015, 0.16, irr);
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, length(wpq.xz - uOrbs[o].xz)));   // kúzla svietia naplno
-            if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.75));
+            if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.45));
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
@@ -249,16 +249,16 @@ export const kresbaMat = new THREE.ShaderMaterial({
   depthTest: false, depthWrite: false,
 });
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.06 }, uCell: { value: 7 } },
+  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.06 }, uCell: { value: 7 }, uVig: { value: 0.62 } },
   vertexShader: VS,
-  fragmentShader: `uniform sampler2D tImg; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uCell; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tImg; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uCell; uniform float uVig; varying vec2 vUv;
     void main(){
       float dy = abs(vUv.y - uFocus); vec2 q = vUv - 0.5;
-      float r = (smoothstep(uBand, uBand + 0.28, dy) * 3.6 + dot(q, q) * 2.5) * uCell;   // TILT-SHIFT: ostrý pás okolo čarodejníka, hore a dole silne rozmazané (svet pôsobí ako malá maketa)
+      float r = (smoothstep(uBand, uBand + 0.3, dy) * 1.8 + dot(q, q) * 1.2) * uCell;   // TILT-SHIFT: ostrý pás okolo čarodejníka, hore a dole silne rozmazané (svet pôsobí ako malá maketa)
       vec3 acc = vec3(0.0);
       for (int i = 0; i < 20; i++) { float fi = float(i), a = fi * 2.39996; acc += texture2D(tImg, vUv + vec2(cos(a), sin(a)) * sqrt((fi + 0.5) / 20.0) * r / uRes).rgb; }
       float vr = length(q * vec2(uRes.x / uRes.y, 1.0)) / (0.5 * max(uRes.x / uRes.y, 1.0));   // 0 stred … 1 roh
-      gl_FragColor = vec4(mix(acc / 20.0, vec3(0.07, 0.06, 0.07), smoothstep(0.62, 1.05, vr)), 1.0);   // GUĽATÁ VINETÁCIA ako šošovka (predloha petitjus)
+      gl_FragColor = vec4(mix(acc / 20.0, vec3(0.07, 0.06, 0.07), smoothstep(uVig, 1.08, vr)), 1.0);   // GUĽATÁ VINETÁCIA ako šošovka (predloha petitjus)
     }`,
   depthTest: false, depthWrite: false,
 });
@@ -312,8 +312,8 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
     const hi = hemi.intensity, li = lampLight.intensity, bg0 = scene.background.clone(), fg0 = scene.fog;
     hemi.intensity = 0; sun.intensity = 0; rim.intensity = 0; lampLight.intensity = 6; scene.background.set(0x000000); scene.fog = null;
     orbLights.forEach(l => { l.intensity = 5 * (l.userData.k || 0); });
-    { const c = lampLight.position, t = performance.now() / 1000; worldLights.sort((a, b) => a.p.distanceToSquared(c) - b.p.distanceToSquared(c));
-      wLights.forEach((l, i) => { const o = worldLights[i]; if (!o || o.p.distanceTo(c) > 30) { l.intensity = 0; return; } l.position.copy(o.p); l.distance = o.r; l.intensity = 5 * o.k * (o.fl ? 0.82 + 0.18 * Math.sin(t * 13 + o.ph) * Math.sin(t * 7.3 + o.ph * 2) : 1); }); }
+    { const c = lampLight.position, t = performance.now() / 1000; worldLights.sort((a, b) => (a.p.distanceTo(c) - a.r) - (b.p.distanceTo(c) - b.r));   // veľké svetlá (sopka) majú prednosť
+      wLights.forEach((l, i) => { const o = worldLights[i]; if (!o || o.p.distanceTo(c) > 30 + o.r) { l.intensity = 0; return; } l.position.copy(o.p); l.distance = o.r; l.intensity = 5 * o.k * (o.fl ? 0.82 + 0.18 * Math.sin(t * 13 + o.ph) * Math.sin(t * 7.3 + o.ph * 2) : 1); }); }
     renderer.setRenderTarget(lampRT); renderer.render(scene, camera);
     orbLights.forEach(l => { l.intensity = 0; }); wLights.forEach(l => { l.intensity = 0; });
     kresbaMat.uniforms.uLampK.value = hi / 6;

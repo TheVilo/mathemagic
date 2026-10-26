@@ -454,7 +454,7 @@ function openWands() {
     const cells = Array.from({ length: n }, (_, j) => w.slots[j] ? gem(w.slots[j], { w: i, j }) : `<button class="gem empty${j === 0 ? ' base' : ''}" data-loc='${JSON.stringify({ w: i, j: w.slots.length })}'></button>`).join('');
     const val = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
     const one = P.wands.length > 1;
-    return `<div class="krow wrow${one && curRow() === i ? ' next' : ''}">${one ? `<span class="kctl"><b>${i + 1}</b>${i ? `<button data-up="${i}" title="skôr v poradí">▲</button>` : ''}<button data-del="${i}" title="zahodiť palicu (kamene do ruksaku)">✕</button></span>` : ''}<img class="kimg" src="../zdroj/karty/palica-${kind}.jpg" alt="" title="Palica ${S.name} · ${ruleText(S.rule) || S.text}"><div class="kbar">${cells}</div>
+    return `<div class="krow wrow${one && curRow() === i ? ' next' : ''}">${one ? `<span class="kctl"><b>${i + 1}</b>${i ? `<button data-up="${i}" title="skôr v poradí">▲</button>` : ''}<button data-del="${i}" title="zahodiť palicu (kamene do ruksaku)">✕</button></span>` : ''}<img class="kimg" src="../zdroj/karty/palica-${kind}.png" alt="" title="Palica ${S.name} · ${ruleText(S.rule) || S.text}"><div class="kbar">${cells}</div>
       <span class="kres" title="${r ? wandSteps(bs) : ''}"><b class="${lastRes[i] != null && lastRes[i] !== val ? 'pop' : ''}">${val}</b><small${cost > M.emax ? ' class="over"' : ''}>⚡${cost}</small></span></div>`; };
   const bagN = Math.max(6, P.bag.length + 1);
   const bag = Array.from({ length: bagN }, (_, j) => P.bag[j] ? gem(P.bag[j], { j }) : `<i class="gem empty" data-loc='{"bag":1}'></i>`).join('');
@@ -612,7 +612,7 @@ function openShop() {
     <div class="cards">${ids.map(id => card(id, { l: lvl(run, id) + 1, cls: 'pick', data: `data-id="${id}"`, count: lvl(run, id) ? 2 : 0, foot: `<span class="price">${icon('coin')} ${price(id)}</span>` })).join('')}</div>
     <div class="acts"><button class="btn" id="heal" ${heal && run.coins >= 6 ? '' : 'disabled'}>${icon('heart')} Srdiečko · ${icon('coin')} 6</button>${adv() && run.pack.slots < MAX_SLOTS ? `<button class="btn" id="slot" ${run.coins >= slotPrice(run.pack) ? '' : 'disabled'}>+2 políčka · ${icon('coin')} ${slotPrice(run.pack)}</button>` : ''}${adv() && run.pack.rows.length < MAX_ROWS ? `<button class="btn" id="row" ${run.coins >= rowPrice(run.pack) ? '' : 'disabled'}>Ďalšie kúzlo · ${icon('coin')} ${rowPrice(run.pack)}</button>` : ''}${adv() && run.pack.staff < MAX_STAFF ? `<button class="btn" id="staff" ${run.coins >= staffPrice(run.pack) ? '' : 'disabled'}>Lepšia palica · ${icon('coin')} ${staffPrice(run.pack)}</button>` : ''}</div>
     ${adv() ? `<h3>Palice · model kalkulačky</h3><div class="palgrid">${Object.entries(STAFFS).map(([k, m]) => { const r = STAFF_RAR[k], mine = run.pack.kind === k;
-      return `<button class="palc r-${r}${mine ? ' mine' : ''}" data-staff="${k}" style="--rc:${RARITY[r].col}" ${mine || run.coins < m.price ? 'disabled' : ''}><em class="rar">${RARITY[r].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.jpg" alt="" onerror="this.remove()"></div><b>${m.name}</b><span class="pst"><i>displej</i>${m.disp}<i>⚡ max</i>${m.emax}<i>⚡ za s</i>+${m.regen}${m.shots > 1 ? '<i>ciele</i>2' : ''}</span><span class="pp">${mine ? 'máš' : `${icon('coin')} ${m.price}`}</span></button>`; }).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
+      return `<button class="palc r-${r}${mine ? ' mine' : ''}" data-staff="${k}" style="--rc:${RARITY[r].col}" ${mine || run.coins < m.price ? 'disabled' : ''}><em class="rar">${RARITY[r].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.png" alt="" onerror="this.remove()"></div><b>${m.name}</b><span class="pst"><i>displej</i>${m.disp}<i>⚡ max</i>${m.emax}<i>⚡ za s</i>+${m.regen}${m.shots > 1 ? '<i>ciele</i>2' : ''}</span><span class="pp">${mine ? 'máš' : `${icon('coin')} ${m.price}`}</span></button>`; }).join('')}</div>` : ''}<div class="row"><button class="btn ghost" id="close">Odísť</button></div>`, 'offer shopscr');
   el.querySelectorAll('.card').forEach(c => {
     const id = c.dataset.id; if (run.coins < price(id)) c.classList.add('poor');
     c.addEventListener('click', () => { if (run.coins < price(id)) { say('Nemáš dosť mincí.'); return; } run.coins -= price(id); renderCoins(); closeOverlay(); addCard(id); });
@@ -1091,9 +1091,9 @@ function openLevelUp() {
   const cards = offer(run, Math.random, 6).map(id => ({ id, name: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1) }));
   // Majster: mix modulov na palicu a VYLEPŠENÍ (pravidlá na čísla), každé miesto 55 % vylepšenie
   const pack = adv() && run.pack.wands ? (() => { const mods = wandOffers(run.lvl, run, Math.random, 3), its = itemOffers(run.lvl, run.pack, Math.random, 3), out = []; for (let k = 0; k < 3; k++) { const src = (Math.random() < 0.55 && its.length) || !mods.length ? its : mods; out.push(src.shift()); } out.forEach(o => { if (o.give.t === 'wmod') o.rar = modRar(o.give.m); }); return { items: out }; })() : levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
-  // obrázok: karta → zdroj/karty/<id>.jpg, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
+  // obrázok: karta → zdroj/karty/<id>.png, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
   const KEYLAB = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' };
-  const art = o => { const g = o.give; if (g.t === 'item') return `<div class="lvart key itm">${o.icon}</div>`; if (g.t === 'wmod') return `<div class="lvart key">${pix(modLabel(g.m))}</div>`; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.jpg" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
+  const art = o => { const g = o.give; if (g.t === 'item') return `<div class="lvart key itm">${o.icon}</div>`; if (g.t === 'wmod') return `<div class="lvart key">${pix(modLabel(g.m))}</div>`; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.png" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.png" alt="" onerror="this.remove()"></div>`;
     const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.jpg" alt="" onerror="this.remove()"></div>`; };
   const LV = run.lvl - lvlQueue;
   const el = overlay(`Úroveň ${LV}`, `<div class="lvhead">${pix(`${LV - 1}+1=${LV}`)}</div><div class="lvsigns">${['+', '-', '×', '÷'].map((o, i) => `<i style="--i:${i}">${pix(o)}</i>`).join('')}</div><p class="sub">${adv() ? 'Vyber si vylepšenie alebo kameň na palicu.' : 'Vyber si kartu alebo kláves do kalkulačky.'}</p>
@@ -1126,7 +1126,7 @@ function openWandChoice() {
   while (pick.length < 2 && pool.length) { const sum = pool.reduce((a, b) => a + b.w, 0); let r = Math.random() * sum, i = pool.findIndex(p => (r -= p.w) <= 0); if (i < 0) i = pool.length - 1; pick.push(pool.splice(i, 1)[0].k); }
   const P = run.pack, full = P.wands.length >= MAX_WANDS;
   const el = overlay('Palica od vodcu', `<p class="sub">Vodca pustil palice. Vyber si jednu${full ? ' – máš ich už ' + MAX_WANDS + ', jednu vymeníš' : ` – bude tvoja ${P.wands.length + 1}. palica`}.</p>
-    <div class="lvopts wchoice">${pick.map((k, i) => { const m = STAFF_MODELS[k], n = WAND_SLOTS[k] || 3; return `<button class="lvo panel r-${STAFF_RAR[k]}" data-k="${k}" style="--rc:${RARITY[STAFF_RAR[k]].col};--i:${i}"><em class="rar">${RARITY[STAFF_RAR[k]].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.jpg" alt=""></div><b>Palica ${m.name}</b><i class="dots">${'<u></u>'.repeat(n)}</i><span>${n} jamky · rýchlosť ×${+(1 / m.cd).toFixed(2)} · sila ×${m.dmg}${m.shots > 1 ? ' · 2 ciele' : ''}</span><span class="rule">${ruleText(m.rule) || m.text}</span></button>`; }).join('')}</div>
+    <div class="lvopts wchoice">${pick.map((k, i) => { const m = STAFF_MODELS[k], n = WAND_SLOTS[k] || 3; return `<button class="lvo panel r-${STAFF_RAR[k]}" data-k="${k}" style="--rc:${RARITY[STAFF_RAR[k]].col};--i:${i}"><em class="rar">${RARITY[STAFF_RAR[k]].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.png" alt=""></div><b>Palica ${m.name}</b><i class="dots">${'<u></u>'.repeat(n)}</i><span>${n} jamky · rýchlosť ×${+(1 / m.cd).toFixed(2)} · sila ×${m.dmg}${m.shots > 1 ? ' · 2 ciele' : ''}</span><span class="rule">${ruleText(m.rule) || m.text}</span></button>`; }).join('')}</div>
     <div class="acts"><button class="btn ghost" id="skip">${icon('coin')} Radšej 10 mincí</button></div>`, 'small lvup');
   el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { closeOverlay(); gainWand(b.dataset.k); });
   el.querySelector('#skip').onclick = () => { closeOverlay(); addCoins(10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist(); };
@@ -1136,7 +1136,7 @@ function gainWand(k) {
   const P = run.pack, i = addWand(P, k);
   if (i != null) { persist(); say(`Palica ${STAFF_MODELS[k].name} je ${i + 1}. palica – vlož do nej kamene v Knihe.`, 3500); $('bBook').classList.add('pulse'); return; }
   const el = overlay('Ktorú vymeníš?', `<p class="sub">Máš ${MAX_WANDS} palice. Kamene zo starej prejdú na Palicu ${STAFF_MODELS[k].name}.</p>
-    <div class="repl">${P.wands.map((w, j) => `<button class="krow wrow" data-j="${j}"><img class="kimg" src="../zdroj/karty/palica-${w.kind}.jpg" alt=""><span class="kbar">${w.slots.map(m => `<i class="gem${m.t === 'num' ? ' base' : ''}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}">${pix(modLabel(m))}</i>`).join('')}</span></button>`).join('')}</div>
+    <div class="repl">${P.wands.map((w, j) => `<button class="krow wrow" data-j="${j}"><img class="kimg" src="../zdroj/karty/palica-${w.kind}.png" alt=""><span class="kbar">${w.slots.map(m => `<i class="gem${m.t === 'num' ? ' base' : ''}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}">${pix(modLabel(m))}</i>`).join('')}</span></button>`).join('')}</div>
     <div class="acts"><button class="btn ghost" id="keep">Nechať si staré</button></div>`, 'small wandsbook');
   el.querySelectorAll('[data-j]').forEach(b => b.onclick = () => { replaceWand(P, +b.dataset.j, k); persist(); closeOverlay(); say(`Palica ${STAFF_MODELS[k].name}!`, 2500); });
   el.querySelector('#keep').onclick = () => { closeOverlay(); addCoins(10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); };
@@ -1260,12 +1260,12 @@ function shopItems(rng) {
   const L = run.lvl || 1, items = [];
   const id = run.pack.wands ? null : offer(run, rng, 1)[0];   // Majster: namiesto kariet vylepšenia (pravidlá na čísla)
   if (run.pack.wands) for (const o of itemOffers(L, run.pack, rng, 2)) items.push({ kind: 'item', give: o.give, title: o.title, text: o.text, rar: o.rar, art: o.icon });
-  if (id) items.push({ kind: 'card', id, title: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1), rar: CARD_RAR[id] || 'v', art: `<img src="../zdroj/karty/${id}.jpg" alt="">` });
+  if (id) items.push({ kind: 'card', id, title: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1), rar: CARD_RAR[id] || 'v', art: `<img src="../zdroj/karty/${id}.png" alt="">` });
   const k = (run.pack.wands ? wandOffers(L, run, rng, 1) : calcOffers(L, run, rng, 1))[0];
   if (k && k.give.t === 'wmod') items.push({ kind: 'key', give: k.give, n: 1, title: k.title, text: k.text, rar: modRar(k.give.m), art: pix(modLabel(k.give.m)) });
   else if (k) { const KL = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' }, g = k.give; items.push({ kind: 'key', give: g, n: k.n || 1, title: k.title, text: k.text, rar: rarityOf(k), art: pix(g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KL[g.k] : '+2') }); }
   const cur = STAFFS[run.pack.kind] || STAFFS.zakladna, better = run.pack.wands ? Object.entries(STAFFS).filter(([k]) => k !== 'zakladna').sort(() => rng() - 0.5) : Object.entries(STAFFS).filter(([, m]) => m.price > cur.price);   // Majster: palica navyše (najviac 4)
-  if (better.length) { const [pk, m] = better[Math.floor(rng() * Math.min(2, better.length))]; items.push({ kind: 'pal', k: pk, title: `Palica ${m.name}`, text: `displej ${m.disp} · ⚡${m.emax} · +${m.regen}/s`, rar: STAFF_RAR[pk], price: m.price, art: `<img src="../zdroj/karty/palica-${pk}.jpg" alt="">` }); }
+  if (better.length) { const [pk, m] = better[Math.floor(rng() * Math.min(2, better.length))]; items.push({ kind: 'pal', k: pk, title: `Palica ${m.name}`, text: `displej ${m.disp} · ⚡${m.emax} · +${m.regen}/s`, rar: STAFF_RAR[pk], price: m.price, art: `<img src="../zdroj/karty/palica-${pk}.png" alt="">` }); }
   const svc = [['heal', 'Srdiečko', 'doplní 1 srdce', 6, icon('heart')], ['slot', '+2 políčka', 'dlhší vzorec', slotPrice(run.pack), pix('+2')], ['row', 'Ďalšie kúzlo', 'nový riadok v Knihe', rowPrice(run.pack), icon('book')], ['lv', 'Lepšia palica', '+25 % damage, +15 % energie', staffPrice(run.pack), icon('star')]]
     .filter(([s]) => s === 'heal' ? run.hearts < maxHearts() : s === 'slot' ? run.pack.slots < MAX_SLOTS : s === 'row' ? run.pack.rows.length < MAX_ROWS : run.pack.staff < MAX_STAFF);
   if (run.zone >= 2 && !run.pack.kind2 && !run.pack.wands) svc.push(['hand2', 'Druhá palica', 'ľavá ruka B · komba', 30, pix('B')]);
@@ -1407,7 +1407,7 @@ function draw(dt) {
   // žiara palice na obrazovke (kryštál), v noci silnejšia, pulzuje
   const cv = crystalLight.position.clone().project(camera), gU = kresbaMat.uniforms;   // žiara z kryštálu pod klobúkom
   gU.uGlow.value.set((cv.x + 1) / 2, (cv.y + 1) / 2, 0.035 + dnT * 0.055, inside ? 0.25 : 0.35 + dnT * (0.2 + Math.sin(simT * 2.3) * 0.08) + (fight.on ? fight.streak * 0.05 : 0)); gU.uGlowC.value.set(crystalLight.color);
-  kresbaBlur.uniforms.uBand.value = 0.07;   // tilt-shift: úzky ostrý pás (predloha petitjus)
+  kresbaBlur.uniforms.uBand.value = 0.16; kresbaBlur.uniforms.uVig.value = kresbaMat.uniforms.uDark.value > 0.5 ? 0.62 : 0.8;   // cez deň menšia vinetácia   // tilt-shift: úzky ostrý pás (predloha petitjus)
   drawTags(camera); drawTele(camera); drawHeroSprite(dt); drawFighterSprites(dt);
   for (const l of labels) { const v = l.pos.clone().project(camera); l.el.style.transform = `translate(${(v.x + 1) / 2 * innerWidth}px, ${(1 - v.y) / 2 * innerHeight}px) translate(-50%, -100%)`; }
   $('streak').classList.toggle('hidden', !fight.on);
@@ -1647,12 +1647,15 @@ requestAnimationFrame(tick);
 const TEST = new URLSearchParams(location.search).has('test'); let testHorde = false, testDark = null;
 if (TEST) {
   const p = document.createElement('div'); p.id = 'testmap'; p.className = 'dpanel';
-  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button><button class="btn" id="tmw">Palice ×3 · π · e · φ</button>`;
+  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button><button class="btn" id="tmw">Silná výbava (kúzla)</button>`;
   document.body.appendChild(p);
   p.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { closeOverlay(); run.hearts = Math.max(run.hearts, maxHearts()); run.zone = +b.dataset.z - 1; nextZoneWorld(); });
   p.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { testDark = b.dataset.l === '' ? null : +b.dataset.l; });
   p.querySelector('#tmh').onclick = () => { testHorde = true; hordeT = 0; };
-  p.querySelector('#tmw').onclick = () => { run.pack.wands = [{ kind: 'zakladna', slots: [{ t: 'num', v: 7 }, { t: 'mod', o: '×', v: 3 }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 5 }, { t: 'mod', o: 'π' }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 9 }, { t: 'mod', o: 'e' }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 8 }, { t: 'mod', o: 'φ' }] }]; persist(); say('4 palice: 7×3 · 5×π · 9×e · 8×φ – strieľajú na striedačku', 2500); };
+  p.querySelector('#tmw').onclick = () => {   // SILNÁ VÝBAVA na test: 4 palice s rôznymi kúzlami + plný ruksak
+    const N = v => ({ t: 'num', v }), M = (o, v) => ({ t: 'mod', o, v });
+    run.pack.wands = [{ kind: 'graficka', slots: [N(9), M('+', 7), M('×', 4), M('²'), M('π')] }, { kind: 'vedecka', slots: [N(8), M('×', 3), M('e'), M('√')] }, { kind: 'tazka', slots: [N(7), M('÷', 2), M('φ')] }, { kind: 'graficka', slots: [N(6), M('-', 3), M('³'), M('×', 2), M('!')] }];
+    run.pack.bag = [M('π'), M('e'), M('φ'), M('²'), M('!'), M('×', 4), M('+', 7), M('-', 5), M('√'), N(9)]; persist(); say('Silná výbava: 4 palice (π · e · φ · mocniny · faktoriál) a plný ruksak', 2500); };
 }
 // testovací háčik: __h.step(s) posunie hru o s sekúnd (Browser pane beží pomaly)
 window.__h = {

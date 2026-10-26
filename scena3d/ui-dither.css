@@ -179,3 +179,6 @@ body.ovon #hero2d { visibility: hidden; }
 
 .hero2d-ghost { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; background-repeat: no-repeat; image-rendering: pixelated; filter: brightness(4) sepia(.3); }
 body.ovon .hero2d-ghost { visibility: hidden; }
+
+/* fotky kúziel a palíc sú ditherované (nastroje/karty-dither.py) – ostré pixely */
+img[src*="zdroj/karty/"] { image-rendering: pixelated; }
