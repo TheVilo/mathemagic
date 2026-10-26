@@ -154,7 +154,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
         // SIVÝ DITHER (Lukáš 26. 10., predloha petitjus): 5 teplých sivých tónov, medzi nimi usporiadaný dither po 2 px;
         // deň svetlý, noc o stupeň tmavšia, ale NIKDY čierna – svetlá (palica, kúzla) prerážajú; obrysy len jemne z hĺbky
         if (uGrey > 0.5) {
-          float tone = uDark > 0.5 ? 0.2 + 0.74 * k : 0.78 - 0.72 * smoothstep(0.02, 0.9, k);   // deň: zem svetlosivá (nie biela), predmety stredné a tmavé
+          float tone = uDark > 0.5 ? 0.3 + 0.7 * k : 0.86 - 0.7 * smoothstep(0.02, 0.92, k);   // deň: zem svetlosivá (nie biela), predmety stredné a tmavé
           vec2 uvg = frag / uRes, tg = 3.0 / uRes;
           float dg = texture2D(tDepth, uvg).r, mg = texture2D(tMask, uvg).r, eg = 0.0;
           for (int q = 0; q < 4; q++) {
@@ -167,8 +167,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
             float pd = length(wpq.xz - uHero.xz), pool = 1.0 - smoothstep(uDark > 0.5 ? 2.0 : 2.5, uDark > 0.5 ? 6.5 : 7.5, pd);
             for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) pool = max(pool, 1.0 - smoothstep(uOrbs[o].w * 0.3, uOrbs[o].w, length(wpq.xz - uOrbs[o].xz)));   // kúzla tiež svietia
-            float lit = uDark > 0.5 ? 0.9 : 0.97;
-            if (mg < 0.5) tone = mix(tone, max(tone, lit - (1.0 - tone) * 0.35), pool * (uDark > 0.5 ? 0.95 : 0.6));
+            if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.75));
           }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
           if (eg > 0.5 && dg < 0.9999) tone *= 0.62;                             // jemný obrys
@@ -178,8 +177,9 @@ export const kresbaMat = new THREE.ShaderMaterial({
           float tb = floor(min(tone, 3.999)), tf = tone - tb;
           float th = bayer(floor(frag / 2.0));
           float ti = tf > th ? tb + 1.0 : tb;
-          vec3 g0 = vec3(0.14, 0.13, 0.14), g1 = vec3(0.33, 0.31, 0.32), g2 = vec3(0.53, 0.50, 0.50), g3 = vec3(0.74, 0.71, 0.69), g4 = vec3(0.91, 0.89, 0.85);
-          if (uDark > 0.5) { g3 = vec3(0.68, 0.62, 0.52); g4 = vec3(0.9, 0.8, 0.6); }   // v tme svetlo teplé ako sviečka, nie čisto biele
+          if (tone > 3.6) ti = 4.0;                                               // SVETLO = čistá plocha bez bodiek (Lukáš 26. 10.)
+          vec3 g0 = vec3(0.16, 0.15, 0.16), g1 = vec3(0.38, 0.36, 0.37), g2 = vec3(0.58, 0.55, 0.55), g3 = vec3(0.78, 0.75, 0.72), g4 = vec3(0.95, 0.93, 0.86);
+          if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele
           vec3 gc = ti < 0.5 ? g0 : ti < 1.5 ? g1 : ti < 2.5 ? g2 : ti < 3.5 ? g3 : g4;
           gl_FragColor = vec4(mix(gc, outC, spellPx), 1.0); return;
         }
