@@ -209,10 +209,18 @@ export function drawTele(cam) {
   if (!fight.on) return;
   const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
   const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
-  for (const b of fight.bolts) if (b.adv) {   // strela: jasná čiarka so stopou
-    const p = b.mesh.position, [x0, y0] = P(p.x, p.z), [x1, y1] = P(p.x - b.v.x * 0.07, p.z - b.v.z * 0.07);
-    tctx.lineCap = 'round'; tctx.lineWidth = 7; tctx.strokeStyle = '#0e0e10'; tctx.beginPath(); tctx.moveTo(x0, y0); tctx.lineTo(x1, y1); tctx.stroke();
-    tctx.lineWidth = 3.5; tctx.strokeStyle = b.col || '#ff7a3a'; tctx.stroke(); tctx.lineCap = 'butt';
+  for (const b of fight.bolts) if (b.adv) {   // strela = číslica (tieň na zemi + číslo vo vzduchu)
+    const p = b.mesh.position, [gx, gy] = P(p.x, p.z);
+    tctx.fillStyle = 'rgba(0,0,0,.45)'; tctx.beginPath(); tctx.ellipse(gx, gy, 9, 4, 0, 0, 6.283); tctx.fill();
+    _v.copy(p).project(cam); const x = (_v.x + 1) / 2 * W, y = (1 - _v.y) / 2 * H, big = b.digit === 0 ? 34 : 28;
+    tctx.save(); tctx.translate(x, y);
+    let ch = String(b.digit);
+    if (b.wave) { const rot = b.t * 9; tctx.rotate(rot); if (Math.floor(rot / Math.PI) % 2) ch = b.digit === 6 ? '9' : '6'; tctx.scale(1, 0.75); }   // tanier sa krúti: 6 ↔ 9
+    else if (b.digit === 0) tctx.rotate(b.t * 6);   // nula sa kotúľa
+    tctx.font = `700 ${big}px 'Pixelify Sans', monospace`; tctx.textAlign = 'center'; tctx.textBaseline = 'middle';
+    tctx.lineWidth = 6; tctx.strokeStyle = '#0e0e10'; tctx.strokeText(ch, 0, 0);
+    tctx.fillStyle = b.digit === 1 ? '#ffd25a' : b.wave ? '#7fe8d8' : b.digit === 8 || b.digit === 4 ? '#ff9a5a' : '#ff6a3a'; tctx.fillText(ch, 0, 0);
+    tctx.restore();
   }
   for (const e of fight.enemies) {
     const t = e.tele; if (!t || (t.blink && Math.floor(G.now * 14) % 2)) continue;
@@ -232,16 +240,33 @@ export function drawTele(cam) {
     }
   }
 }
-// strela Majstra letí rovno v smere mierenia (nesleduje ťa) – dá sa uhnúť bokom alebo dashom
+// STRELY = ČÍSLA (Majster): nepriatelia strieľajú číslice a každá letí podľa svojho tvaru
+//   1 rovná a najrýchlejšia (čiarka) · 2 3 4 5 7 rovno · 0 pomalá kotúľajúca sa obruč, väčšia
+//   8 = dve gule: po chvíli sa rozdelí na 4 a 4 (8 = 4 + 4) · 6 a 9 = lietajúci tanier: krúti sa (6 ↔ 9) a letí vlnovito
+// ZÁSAH: číslo ti zoberie toľko ⚡ energie palice; keď ju nemáš (⚡ < číslo), stratíš srdce → menšie čísla stačí „zaplatiť“
+const DIGIT_SPEED = { 1: 1.35, 0: 0.6, 6: 0.7, 9: 0.7, 8: 0.85 };
+function digitFor(e) {
+  const z = G.run.zone || 1;
+  if (e.d.fan) return 1 + Math.floor(Math.random() * Math.min(3, z + 1));   // vrhač: malé čísla 1–3
+  const pool = z <= 1 ? [1, 2, 3, 4, 6, 8, 9, 0] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function numBolt(pos, dir, digit, speed, life, extra = {}) {
+  const mesh = new THREE.Group(); mesh.position.copy(pos); scene.add(mesh);   // poloha; kreslí sa ako číslica na plátne #tele
+  fight.bolts.push({ bolt: true, adv: true, digit, mesh, dir: dir.clone().setY(0).normalize(), v: dir.clone().setY(0).normalize().multiplyScalar(speed), sp: speed, life, t: 0, r: digit === 0 ? 0.8 : 0.55, el: { remove() {}, classList: { add() {}, remove() {}, toggle() {} } }, ...extra });
+}
 function shootAdv(e, dir) {
-  const D = e.d, sp = D.shotSpeed || 14, life = ((D.range || 9) + 4) / sp;
+  const D = e.d, base = D.shotSpeed || 14, digit = digitFor(e);
   for (const a of D.fan ? [-D.fan, 0, D.fan] : [0]) {
-    const d = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a), mesh = new THREE.Group();
-    mesh.add(new THREE.Mesh(new THREE.ConeGeometry(D.fan ? 0.09 : 0.12, D.fan ? 0.5 : 0.8, 5).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: D.fan ? 0xffd25a : 0xff7a3a })));
-    mesh.position.copy(e.g.position).add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(d, 0.5); mesh.lookAt(mesh.position.clone().add(d));
-    mesh.traverse(o => o.layers.enable(4)); scene.add(mesh);
-    fight.bolts.push({ bolt: true, adv: true, col: D.fan ? '#ffd25a' : '#ff7a3a', mesh, v: d.multiplyScalar(sp), life, t: 0, el: { remove() {}, classList: { add() {}, remove() {}, toggle() {} } } });
+    const d = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a), sp = base * (DIGIT_SPEED[digit] || 1);
+    numBolt(e.g.position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(d, 0.5), d, digit, sp, ((D.range || 9) + 4) / sp, { split: digit === 8 ? 0.35 : 0, wave: digit === 6 || digit === 9 ? 1 : 0 });
   }
+}
+function boltHit(b) {
+  const n = b.digit, k = 'energy', E = G.run[k] || 0;
+  if (n === 0) { G.floatText('0 · nič sa nestalo', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); return; }   // nula nezraní – len zdrží
+  if (E >= n) { G.run[k] = E - n; G.floatText(`<span style="color:#ff7a3a">−${n} ⚡</span>`, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0)), 'dmg'); efekt('zasah', 0.4, 1.4); }
+  else { G.run[k] = 0; G.floatText(`<span style="color:#ff6a5a">${n} &gt; ${Math.floor(E)} ⚡ → −1 srdce</span>`, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0)), 'dmg'); hurtHero(); }
 }
 
 // ---------- písanie výsledku ----------
@@ -736,11 +761,16 @@ export function updateFight(dt) {
     e.mixer.update(edt);
   }
   for (const b of [...fight.bolts]) {
-    if (b.adv) {   // Majster: strela letí rovno, zasiahne, keď ťa prejde
-      b.t += edt; b.mesh.position.addScaledVector(b.v, edt);
+    if (b.adv) {   // Majster: číslo letí podľa svojho tvaru, zasiahne, keď ťa prejde
+      b.t += edt;
+      if (b.wave) { const side = new THREE.Vector3(b.dir.z, 0, -b.dir.x), w = Math.cos(b.t * 5) * 6; b.mesh.position.addScaledVector(b.v, edt).addScaledVector(side, w * edt); }   // tanier: vlnovka
+      else b.mesh.position.addScaledVector(b.v, edt);
+      if (b.split && b.t > b.split) {   // 8 = 4 + 4
+        for (const a of [-0.38, 0.38]) numBolt(b.mesh.position, b.dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a), 4, b.sp * 1.1, Math.max(0.3, b.life - b.t));
+        G.floatText('8 = 4 + 4', b.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0))); removeBolt(b); continue;
+      }
       const hx = b.mesh.position.x - hero.position.x, hz = b.mesh.position.z - hero.position.z;
-      if (Math.hypot(hx, hz) < 0.55 && !G.dashing && !G.over) { removeBolt(b, true); hurtHero(); continue; }
-      if (Math.random() < 0.5) spark(b.mesh.position, 0, 0.2, 0, 0.35, 0xff7a3a);
+      if (Math.hypot(hx, hz) < b.r && !G.dashing && !G.over) { removeBolt(b, true); boltHit(b); continue; }
       if (b.t > b.life) removeBolt(b);
       continue;
     }
