@@ -94,15 +94,16 @@ export function buildMagic(room, R, b, rnd) {
   const g = new THREE.Group(); room.add(g);
   const h = R.height, c = b.col, spots = [];
   clearWorldLights();
+  const lit = new THREE.Group(); room.add(lit);   // svetlá sveta (plamene, okná, krátery) – NIE vo vrstve kúziel, inak by sa kreslili znamienkami (+ + +)
   const flames = [], FL = new THREE.OctahedronGeometry(0.1, 0), WHITE = mat(0xfff3d6);
   // plameň: 3 svietiace kúsky nad sebou, blikajú; + svetlo sveta (osvetlí okolie, za predmetmi tieň len od palice)
-  const flame = (x, y, z, s = 1, k = 1, r = 7) => { const f = new THREE.Group(); for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(FL, WHITE); m.position.y = i * 0.12 * s; m.scale.set(s * (1.3 - i * 0.35), s * (1.8 - i * 0.3), s * (1.3 - i * 0.35)); f.add(m); } f.position.set(x, y, z); g.add(f); flames.push({ f, ph: rnd() * 6.28 }); if (k > 0) addWorldLight(new THREE.Vector3(x, y + 0.3, z), k, r); };
+  const flame = (x, y, z, s = 1, k = 1, r = 7) => { const f = new THREE.Group(); for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(FL, WHITE); m.position.y = i * 0.12 * s; m.scale.set(s * (1.3 - i * 0.35), s * (1.8 - i * 0.3), s * (1.3 - i * 0.35)); f.add(m); } f.position.set(x, y, z); lit.add(f); flames.push({ f, ph: rnd() * 6.28 }); if (k > 0) addWorldLight(new THREE.Vector3(x, y + 0.3, z), k, r); };
   // OHNISKÁ: každé ohnisko vo svete horí
   for (const p of R.props) if (p.m === 'campfire_stones') flame(p.x, h(p.x, p.z) + 0.15, p.z, 1.8, 1.2, 9);
   // DEDINKA: niektoré okná svietia (na strane ku kamere)
   if (R.town) for (const p of R.props) if (p.m.startsWith('building_') && p.m !== 'building_well_blue' && Math.hypot(p.x - R.town.x, p.z - R.town.z) < 9 && rnd() < 0.8) {
     const d = (p.col || 1.5) * 0.95, y = h(p.x, p.z);
-    for (const [ox, oy] of [[-0.45, 1.3], [0.45, 1.3], [0, 2.4]]) if (rnd() < 0.6) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.05), WHITE); w.position.set(p.x + ox, y + oy, p.z + d); g.add(w); }
+    for (const [ox, oy] of [[-0.45, 1.3], [0.45, 1.3], [0, 2.4]]) if (rnd() < 0.6) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.05), WHITE); w.position.set(p.x + ox, y + oy, p.z + d); lit.add(w); }
     addWorldLight(new THREE.Vector3(p.x, y + 1.4, p.z + d + 0.6), 0.6, 5, false);
   }
   // KOBKA A HRAD: fakle (stojany s ohňom) pri stenách a po svete
@@ -122,7 +123,7 @@ export function buildMagic(room, R, b, rnd) {
       const y = h(x, z), cone = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.28, r, hh, big ? 11 : 7, 3), ROCK);
       const pa = cone.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { const k = 1 + (rnd() - 0.5) * 0.18; pa.setX(i, pa.getX(i) * k); pa.setZ(i, pa.getZ(i) * k); } cone.geometry.computeVertexNormals();
       cone.position.set(x, y + hh / 2 - 0.05, z); cone.castShadow = cone.receiveShadow = true; cone.layers.enable(1); room.add(cone);   // vrstva 1 = ostane tmavá aj vo vlastnom svetle
-      const crater = new THREE.Mesh(new THREE.CircleGeometry(r * 0.27, 9), GLOW); crater.rotation.x = -Math.PI / 2; crater.position.set(x, y + hh + 0.02, z); g.add(crater);
+      const crater = new THREE.Mesh(new THREE.CircleGeometry(r * 0.27, 9), GLOW); crater.rotation.x = -Math.PI / 2; crater.position.set(x, y + hh + 0.02, z); lit.add(crater);
       for (let i = 0; i < (big ? 6 : 2); i++) { const a = rnd() * 6.28, d = rnd() * r * 0.12; flame(x + Math.cos(a) * d, y + hh, z + Math.sin(a) * d, big ? 3.5 : 2, 0, 1); }
       addWorldLight(new THREE.Vector3(x, y + hh + (big ? 3 : 0.8), z), big ? 3.5 : 1.3, big ? 40 : 8);
       if (!big) R.props.push({ m: '_sopka', x, z, s: 1, col: r * 0.9 });   // nedá sa cez ňu prejsť
@@ -185,7 +186,7 @@ export function buildMagic(room, R, b, rnd) {
   // dedinka: lampáše (svietiace kocky) okolo námestia
   if (R.town) for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283 + 0.3, x = R.town.x + Math.cos(a) * 3, z = R.town.z + Math.sin(a) * 2.4;
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.3, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a2628 })); post.position.set(x, h(x, z) + 0.65, z); post.castShadow = true; room.add(post);
-    const lan = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), mat(c)); lan.position.set(x, h(x, z) + 1.4, z); g.add(lan); orbit.push({ lan, ph: rnd() * 6.28 }); }
+    const lan = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), mat(c)); lan.position.set(x, h(x, z) + 1.4, z); lit.add(lan); orbit.push({ lan, ph: rnd() * 6.28 }); }
   glow(g);
   return {
     spots,

@@ -54,3 +54,35 @@ export function nastavZvuk(k, v) {
   zvuk[k] = v; save();
   if (k === 'hudba' && musicG && ac) musicG.gain.setTargetAtTime(v ? 0.3 : 0, ac.currentTime, 0.2);
 }
+
+// ZVUK DOPADU podľa kúzla (Lukáš 26. 10.: rôzne zvuky, oživiť) – syntéza, bez súborov
+let NOISE = null;
+const noiseBuf = () => { if (NOISE) return NOISE; NOISE = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return NOISE; };
+function sTone(type, f0, f1, dur, vol, at = 0) {
+  const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.02);
+}
+function sNoise(ft, f0, f1, dur, vol, at = 0) {
+  const t = ac.currentTime + at, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = noiseBuf(); f.type = ft; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur); f.Q.value = ft === 'bandpass' ? 2 : 0.7;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(master); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+}
+export function dopad(op, pw = 1) {
+  if (!ac || !zvuk.efekty) return;
+  const v = Math.min(1.4, 0.7 + pw * 0.3), r = Math.random;
+  switch (op) {
+    case '+': sTone('sine', 150, 50, 0.28, 0.5 * v); sNoise('lowpass', 500, 120, 0.22, 0.35 * v); break;                       // zem: duté buchnutie
+    case '-': sNoise('bandpass', 1400, 300, 0.5, 0.35 * v); for (let i = 0; i < 6; i++) sNoise('highpass', 3000, 2000, 0.02, 0.18, 0.05 + r() * 0.4); break;   // oheň: šum a praskanie
+    case '×': sNoise('highpass', 3200, 700, 0.32, 0.3 * v); sTone('sine', 600, 1400, 0.2, 0.05); break;                    // vzduch: švih
+    case '÷': for (let i = 0; i < 5; i++) sTone('sine', 900 + r() * 900, 1800 + r() * 600, 0.07, 0.16, i * 0.05 + r() * 0.03); sNoise('lowpass', 900, 300, 0.15, 0.2); break;   // voda: kvapky
+    case '√': sTone('triangle', 95, 65, 0.4, 0.45 * v); sTone('sawtooth', 230, 170, 0.22, 0.06, 0.04); break;           // koreň: drevo a vŕzganie
+    case '²': case '³': case '!': sTone('sine', 90, 32, 0.7, 0.65 * v); sNoise('lowpass', 400, 60, 0.55, 0.45 * v); sTone('sine', 660, 640, 0.9, 0.08, 0.03); break;   // mocnina: veľký úder
+    case 'π': [523, 1046, 1643].forEach((f, i) => sTone('sine', f, f * 0.995, 1.3 - i * 0.3, 0.18 / (i + 1))); break; // π: zvon
+    case 'e': for (let i = 0; i < 6; i++) sTone('square', 200 + r() * 1400, 100 + r() * 300, 0.04, 0.1, i * 0.035); sNoise('highpass', 4000, 1500, 0.18, 0.18); break;   // e: elektrina
+    case 'φ': for (let i = 0; i < 5; i++) { const f = 1320 / Math.pow(1.618, i * 0.5); sTone('sine', f, f, 0.45, 0.13, i * 0.07); } break;   // φ: zvonkohra po zlatom reze
+    default: sTone('sine', 300, 120, 0.2, 0.3);
+  }
+}

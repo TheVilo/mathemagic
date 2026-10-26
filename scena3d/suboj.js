@@ -8,7 +8,8 @@ import { staffStats, manaStats, SHOT_MIN } from './balance.js';
 import { evalWand, wandKind, CONST } from './wand.js';
 import { applyRules, itemN } from './vylepsenia.js';
 import { kresbaMat, setOrbs } from './kresba.js';
-import { efekt, akord } from './zvuk.js';
+import { efekt, akord, dopad } from './zvuk.js';
+import { addImpact, drawImpacts, mainOp } from './dopad.js';
 
 let G = null;
 export function initFight(g) { G = g; }
@@ -242,6 +243,8 @@ export function drawTele(cam) {
   const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
   if (teleCv.width !== Math.round(W * dpr)) { teleCv.width = Math.round(W * dpr); teleCv.height = Math.round(H * dpr); }
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.clearRect(0, 0, W, H);
+  { const now = performance.now(), dt = Math.min(0.1, (now - (drawTele.last || now)) / 1000); drawTele.last = now;
+    drawImpacts(tctx, (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; }, dt); }
   if (!fight.on) return;
   const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
   const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
@@ -410,11 +413,13 @@ export function animShape(g, t, dir) {
 // ---------- kúzla (letia z kryštálu palice) ----------
 // ŠTYRI ŽIVLY: + zem (popraská, zastaví), − voda (zamrzne), × oheň (zapáli, šíri sa), ÷ vzduch (odsunie)
 const COL = { 'π': 0xffd25a, 'e': 0x8dff98, 'φ': 0xf0c040, '+': 0xc8923a, '-': 0xff5a22, '×': 0x7fe8d8, '÷': 0x4fa8ff, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
+const PRI_OPS = ['π', 'e', 'φ', '!', '³', '²', '√', '÷', '×', '-', '+'];
 const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5, '√': 6, '²': 9, '³': 9, '!': 6 };
 function cast(t, info) {
   t.locked = true; t.el.classList.add('locked');
   info.op = info.op || (t.p && t.p.op);
-  const color = info.color || COL[info.op] || (fight.adv ? 0xf2efe6 : COL['+']);
+  const mo = PRI_OPS.some(o => (info.ops || []).includes(o)) ? mainOp(info) : null;   // strela letí vo farbe najsilnejšieho gemu (Lukáš 26. 10.)
+  const color = info.color || COL[info.op] || (mo && COL[mo]) || (fight.adv ? 0xf2efe6 : COL['+']);
   kresbaMat.uniforms.uSpellG.value = GLYPH[info.op] || 3;
   // SALVA: každé znamienko vzorca letí ako samostatný znak vo svojej farbe, krátko po sebe; damage nesie posledný
   const vol = fight.adv && !info.extra && info.ops && info.ops.length > 1 ? info.ops.slice(1) : [];
@@ -436,7 +441,7 @@ function cast(t, info) {
   if (zl && info.fast && !info.extra) G.addCoins(zl, t);
 }
 // SVETLO KÚZIEL: každé letiace kúzlo osvetlí okolie (3,5 m), pri dopade krátko väčší záblesk (6 m)
-function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
+function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, c: s.color, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
 // KÚZLO = VEĽKÉ FAREBNÉ ZNAMIENKO: každá strela letí ako jasné + − × ÷ vo farbe živlu (ostré, mimo ditheringu), pri dopade sa rozprskne
 const SIGN = { 'π': 'π', 'e': 'e', 'φ': 'φ', '+': '+', '-': '-', '×': '×', '÷': '÷', '√': '√', '²': '²', '³': '³', '!': '!' };
 function spellSign(s) {
@@ -469,6 +474,7 @@ function updateSpells(dt) {
       if (s.info.crit && !s.target.fake) { G.floatText('KRITICKÝ ×2', s.target); G.shake(0.6); efekt('zasah', 0.95, 0.7); }
       else efekt('zasah', s.target.fake ? 0.25 : 0.45 + Math.min(0.4, pw * 0.2), s.target.fake ? 1.4 : 0.9 + Math.random() * 0.2);
       burst(p, Math.round(110 * pw), 2 + 3 * pw, s.color); burst(p, Math.round(30 * pw), 1 + pw, 0xffffff, 0.5);
+      if (fight.adv) { const op = mainOp(s.info); addImpact(p.x, p.z, op, COL[op] || s.color, pw); dopad(op, pw); }   // dopad podľa kúzla + stopa na zemi + zvuk
       if (pw > 1.1) G.shake(0.25 * pw);
       if (s.target.fake) { G.floatText('vedľa', s.target); }
       else if (!s.target.bolt) { if (s.info.ops && s.info.ops.length > 1) [...new Set(s.info.ops)].slice(1).forEach(o => zivel(s.target, { op: o, quiet: true })); zivel(s.target, s.info); }

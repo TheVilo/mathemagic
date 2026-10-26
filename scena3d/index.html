@@ -126,7 +126,7 @@
   .ov.lvup .lvart, .ov.lvup .lvart img { height:120px; width:120px; } .ov.lvup .lvart { margin:6px auto; } .ov.lvup .lvart.key .pix { height:72px; } .ov.lvup .lvo .rar { font-size:12px; }
   @media (max-height:500px) { .ov.lvup .lvo { min-height:0; padding:12px 10px; } .ov.lvup .lvart, .ov.lvup .lvart img { height:64px; width:64px; } .ov.lvup .lvart.key .pix { height:40px; } .ov.lvup .lvo b { font-size:16px; } .ov.lvup .lvo span { font-size:12px; } }
   .spsign { position:fixed; z-index:5; pointer-events:none; transform:translate(-50%, -50%) rotate(var(--r, 0deg)); }
-  .spsign .pix { height:24px; fill:#fffdf4; filter:drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 9px #fff6dc) drop-shadow(0 0 18px currentColor); display:block; }   /* projektil = čisté svetlo, farba živlu len v žiare */
+  .spsign .pix { height:24px; fill:currentColor; filter:drop-shadow(0 0 1px #fffdf4) drop-shadow(0 0 4px currentColor) drop-shadow(0 0 14px currentColor); display:block; }   /* projektil vo farbe živlu (Lukáš 26. 10.), okraj svetlý */
   .spsign.pop { animation:sppop .25s ease-out forwards; } @keyframes sppop { to { transform:translate(-50%, -50%) scale(2.6); opacity:0; } }
   #bBook.pulse { animation:bpulse 1s ease-in-out infinite; } @keyframes bpulse { 50% { background:var(--line); color:var(--ink); box-shadow:0 0 14px var(--line); } }
   #veil { position:fixed; inset:0; z-index:80; background:#0e0e10; transition:opacity .45s; pointer-events:none; } #veil.day { background:#ede9df; } #veil.off { opacity:0; }   /* clona pri načítaní: žiadny záblesk starého obrazu */

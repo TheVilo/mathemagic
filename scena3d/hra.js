@@ -202,7 +202,7 @@ let dnT = 0;   // 0 = deň, 1 = noc (plynulo pri výbere režimu)
 function denNocT(t) {
   dnT = t; const L = (a, b) => a + (b - a) * t;
   scene.background.copy(PAPERC).lerp(NIGHT, t); scene.fog.color.copy(scene.background); svetloDenNoc(t);
-  lamp.base = L(0.35, 5);   // cez deň palica takmer nesvieti – žiadny svetlý kruh s tmavým okolím crystalLight.distance = L(5, 7.5); crystalLight.decay = L(1.6, 1.5); crystalLight.intensity = lamp.base;
+  lamp.base = L(0.35, 5); crystalLight.distance = 10; crystalLight.decay = 1.1;   // väčšia, rozptýlená žiara okolo čarodejníka (Lukáš 26. 10.)   // cez deň palica takmer nesvieti – žiadny svetlý kruh s tmavým okolím crystalLight.distance = L(5, 7.5); crystalLight.decay = L(1.6, 1.5); crystalLight.intensity = lamp.base;
   if (sun.castShadow !== !(t > 0.5)) { sun.castShadow = !(t > 0.5); } crystalLight.castShadow = true;   // svetlo palice vrhá tiene vždy (cez deň aj v tme)   // v noci mesiac bez tieňov (len jemné svetlo), tiene len od palice   // v noci palica vrhá tiene; čarodejník sám od svojej palice nie
 }
 function denNoc() { denNocT(adv() ? 1 : 0); document.body.classList.toggle('majster', adv()); }

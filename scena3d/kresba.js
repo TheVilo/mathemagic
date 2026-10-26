@@ -21,11 +21,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.0) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uGrey: { value: 1 }, tLamp: { value: lampRT.texture }, uLampK: { value: 0.28 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.0) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOrbC: { value: [0, 1, 2, 3].map(() => new THREE.Color(1, 1, 1)) }, uOneBit: { value: 1 }, uGrey: { value: 1 }, tLamp: { value: lampRT.texture }, uLampK: { value: 0.28 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; uniform float uGrey; uniform sampler2D tLamp; uniform float uLampK; uniform float uLsK; uniform vec2 uLsR; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform vec3 uOrbC[4]; uniform float uOneBit; uniform float uGrey; uniform sampler2D tLamp; uniform float uLampK; uniform float uLsK; uniform vec2 uLsR; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -164,12 +164,14 @@ export const kresbaMat = new THREE.ShaderMaterial({
             if (mg > 0.5 && texture2D(tMask, uvg + o).r < 0.5) eg = 1.0;
           }
           // ČARODEJNÍK STÁLE SVIETI (Lukáš 26. 10., predloha petitjus): svetlý kruh okolo neho cez deň aj v tme, okraj sa rozpadá ditherom
+          float orbT = 0.0; vec3 orbC = vec3(1.0);
           if (dg < 0.9999) {
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
             // SKUTOČNÉ SVETLO PALICE: osobitný obraz len so svetlom palice (a kúziel) – svieti na stranu predmetov k čarodejníkovi, za nimi tieň
             float irr = luma(texture2D(tLamp, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002) * uLampK;
-            float pool = smoothstep(0.015, 0.16, irr);
-            float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, length(wpq.xz - uOrbs[o].xz)));   // kúzla svietia naplno
+            float pool = smoothstep(0.003, 0.2, irr);   // široký mäkký okraj → svetlo rozptýlené ditherom
+            float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) { float dO = length(wpq.xz - uOrbs[o].xz); orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, dO));
+              float tw = (1.0 - smoothstep(uOrbs[o].w * 0.6, uOrbs[o].w * 4.5, dO)) * 0.75; if (tw > orbT) { orbT = tw; orbC = uOrbC[o]; } }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.45));
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
@@ -189,6 +191,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
           vec3 g0 = vec3(0.22, 0.18, 0.22), g1 = vec3(0.41, 0.36, 0.41), g2 = vec3(0.6, 0.55, 0.58), g3 = vec3(0.79, 0.76, 0.76), g4 = vec3(0.96, 0.94, 0.87);   // sivé do fialova (predloha petitjus)
           if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele
           vec3 gc = ti < 0.5 ? g0 : ti < 1.5 ? g1 : ti < 2.5 ? g2 : ti < 3.5 ? g3 : g4;
+          if (orbT > 0.0) gc = mix(gc, gc * mix(vec3(1.0), orbC * 1.25, 0.75) + orbC * 0.08, orbT);   // farba kúzla tónuje svetlo okolo neho
           gl_FragColor = vec4(mix(gc, outC, spellPx), 1.0); return;
         }
         // 1-BIT (noc, inšpirácia Glagstone): len čierna a kostená biela, farebné ostanú iba kúzla.
@@ -338,7 +341,7 @@ const worldLights = [], wLights = [0, 1, 2, 3, 4, 5].map(() => { const l = new T
 export function addWorldLight(p, k = 1, r = 8, fl = true) { const o = { p: p.clone(), k, r, fl, ph: Math.random() * 6.28 }; worldLights.push(o); return o; }
 export const clearWorldLights = () => { worldLights.length = 0; };
 export const worldLightList = () => worldLights;
-export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r * 0.45 : 0); orbLights[i].userData.k = o ? o.r / 3.5 : 0; if (o) orbLights[i].position.set(o.x, 0.9, o.z); } }
+export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value, uc = kresbaMat.uniforms.uOrbC.value; for (let i = 0; i < 4; i++) { const o = list[i]; if (o && o.c != null) uc[i].set(o.c); u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r * 0.45 : 0); orbLights[i].userData.k = o ? o.r / 3.5 : 0; if (o) orbLights[i].position.set(o.x, 0.9, o.z); } }
 
 // ---------- SVETLO PALICE ----------
 let lampLight = null;
