@@ -72,7 +72,7 @@ function addCoins(n, at) { run.coins += n; renderCoins(true); efekt('minca', 0.4
 let shakeV = 0, hurtV = 0;
 const G = {
   get run() { return run; }, now: 0, over: false, danger: false, room: null, stats: { ok: 0, bad: 0 },
-  tagsEl: $('tags'), inpEl, height: (x, z) => place.height(x, z),
+  tagsEl: $('tags'), inpEl, height: (x, z) => place.height(x, z), blockers: () => place.blockers,
   say, floatText, renderStreak, addCoins, heal: (n, raw) => { run.hearts = Math.min(maxHearts(), run.hearts + (raw ? n : n * HEALK())); renderHearts(); persist(); }, shake: v => { shakeV = Math.max(shakeV, v); },
   hurt(n = 1) {
     if (G.over) return;

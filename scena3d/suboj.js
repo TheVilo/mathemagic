@@ -465,6 +465,8 @@ function updateSpells(dt) {
       const pw = s.info.power ?? 1; s.orb.visible = !fight.adv; if (s.light) { s.light.intensity = 4 + 12 * pw; s.light.distance = 2.5 + 3 * pw; }
       const prev = s.orb.position.clone(); s.orb.position.lerpVectors(s.from, to, e); s.orb.position.y += Math.sin(e * Math.PI) * 1.2; if (s.light) s.light.position.copy(s.orb.position); animShape(s.orb, s.t, s.orb.position.clone().sub(prev));
       if (fight.adv) { if (!s.sign) s.sign = spellSign(s); const v = s.orb.position.clone().project(camera); s.sign.style.display = ''; s.sign.style.left = (v.x + 1) / 2 * innerWidth + 'px'; s.sign.style.top = (1 - v.y) / 2 * innerHeight + 'px'; }
+      if (s.t > 0.27 && !s.target.fake) { const w = wallAt(s.orb.position.x, s.orb.position.z), tp0 = s.target.g.position;   // KÚZLO NARAZÍ DO BUDOVY / STROMU: vybuchne tam, nepriateľa nezraní
+        if (w && Math.hypot(tp0.x - w.x, tp0.z - w.z) > w.r + 0.3) { s.target.locked = false; s.target.el.classList.remove('locked'); const g = new THREE.Object3D(); g.position.copy(s.orb.position); g.position.y = G.height(g.position.x, g.position.z); s.target = { fake: true, wall: true, g, h: 0, el: { classList: { add() {}, remove() {} } } }; s.t = 0.56; } }
       s.orb.scale.setScalar((s.info.power !== undefined ? 0.9 + s.info.power * 0.35 : s.info.fast ? 1.25 : 1.0) * (s.info.crit ? 1.6 : 1) * (1 + Math.sin(s.t * 40) * 0.08));   // znamienká, pri kritickom väčšie
       crystal.scale.set(1, 1.6, 1);
       for (let n = 0; n < (s.info.fast ? 8 : 5); n++) spark(s.orb.position, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.2, 0.5, s.color);
@@ -478,7 +480,7 @@ function updateSpells(dt) {
       burst(p, Math.round(110 * pw), 2 + 3 * pw, s.color); burst(p, Math.round(30 * pw), 1 + pw, 0xffffff, 0.5);
       if (fight.adv) { const op = mainOp(s.info); addImpact(p.x, p.z, op, COL[op] || s.color, pw); dopad(op, pw); }   // dopad podľa kúzla + stopa na zemi + zvuk
       if (pw > 1.1) G.shake(0.25 * pw);
-      if (s.target.fake) { G.floatText('vedľa', s.target); }
+      if (s.target.fake) { if (!s.target.wall) G.floatText('vedľa', s.target); }
       else if (!s.target.bolt) { if (s.info.ops && s.info.ops.length > 1) [...new Set(s.info.ops)].slice(1).forEach(o => zivel(s.target, { op: o, quiet: true })); zivel(s.target, s.info); }
       hitTarget(s.target, s.info);
     } else {
@@ -701,6 +703,23 @@ const toHero = new THREE.Vector3();
 //   strelec / vrhač: drží odstup, mieri (čiara ťa sleduje, posledných 0,4 s bliká a stojí) → strela letí rovno
 const ADV_STATES = new Set(['walk', 'charge', 'attack', 'back', 'aim', 'windup', 'chargeup', 'rush']);
 const WINDUP = { rogue: 0.6, knight: 0.75, barbarian: 0.95 };
+// PREKÁŽKY: najprv vytlačiť von, potom smer k čarodejníkovi ohnúť okolo prekážky, ktorá je v ceste (vyberie bližšiu stranu)
+function avoid(e, dir, dist) {
+  const pos = e.g.position, R0 = 0.35 * (e.size || 1);
+  let sx = 0, sz = 0;
+  for (const b of G.blockers()) {
+    const dx = pos.x - b.x, dz = pos.z - b.z; if (Math.abs(dx) > b.r + 3 || Math.abs(dz) > b.r + 3) continue;
+    const d = Math.hypot(dx, dz), rr = b.r + R0;
+    if (d < rr && d > 1e-4) { pos.x = b.x + dx / d * rr; pos.z = b.z + dz / d * rr; }
+    const ahead = -(dx * dir.x + dz * dir.z); if (ahead <= 0 || ahead > dist) continue;   // prekážka je pred ním a bližšie ako čarodejník
+    const side = dx * dir.z - dz * dir.x, gap = Math.abs(side) - rr; if (gap > 0.6) continue;
+    const w = (1 - Math.max(0, gap) / 0.6) * Math.min(1, 2.5 / Math.max(0.5, ahead - b.r));
+    const sg = side >= 0 ? 1 : -1; sx += dir.z * sg * w * 1.6; sz += -dir.x * sg * w * 1.6;
+  }
+  if (sx || sz) { dir.x += sx; dir.z += sz; dir.normalize(); }
+}
+// STENA: bod vo vnútri prekážky (strom, skala, dom) – kúzla a strely cez ňu neprejdú (platí pre všetkých)
+function wallAt(x, z) { if (!G.blockers) return null; for (const b of G.blockers()) if (b.r > 0.35 && Math.abs(x - b.x) < b.r && Math.abs(z - b.z) < b.r && Math.hypot(x - b.x, z - b.z) < b.r * 0.9) return b; return null; }
 function separate(e) { const pos = e.g.position; for (const o of fight.enemies) if (o !== e && o.state !== 'dead') { const dx = pos.x - o.g.position.x, dz = pos.z - o.g.position.z, dd = Math.hypot(dx, dz); if (dd < 1.1 && dd > 0.001) { pos.x += dx / dd * (1.1 - dd) * 0.5; pos.z += dz / dd * (1.1 - dd) * 0.5; } } }
 function advAI(e, dist, sp, edt) {
   const pos = e.g.position, D = e.d, reach = 1.15 + (e.size - 1);
@@ -771,6 +790,7 @@ export function updateFight(dt) {
     if (e.dummy && e.state !== 'dead') { if (e.state === 'stand' || (e.state === 'hit' && e.t > 0.6)) { e.state = 'idle'; e.play('Idle'); } e.flash = Math.max(0, e.flash - dt * 4); for (const m of e.mats) if (m.emissive) m.emissive.setScalar(e.flash * 0.9); e.mixer.update(edt); continue; }   // strašiak stojí a nebráni sa
     toHero.subVectors(hero.position, pos).setY(0);
     const dist = toHero.length(); toHero.normalize();
+    if (e.state !== 'dead' && G.blockers) avoid(e, toHero, dist);   // obchádzajú prekážky (stromy, skaly, domy), neprechádzajú cez ne
     if (e.state !== 'dead') e.g.rotation.y = Math.atan2(toHero.x, toHero.z);
     if (e.knock > 0) { const k = Math.min(e.knock, edt * 6); pos.addScaledVector(toHero, -k); e.knock -= k; }
     e.frozen = Math.max(0, e.frozen - edt); e.burn = Math.max(0, e.burn - edt); e.stun = Math.max(0, (e.stun || 0) - edt); e.wet = Math.max(0, (e.wet || 0) - edt);
@@ -825,12 +845,14 @@ export function updateFight(dt) {
       }
       const hx = b.mesh.position.x - hero.position.x, hz = b.mesh.position.z - hero.position.z;
       if (Math.hypot(hx, hz) < b.r && !G.dashing && !G.over) { removeBolt(b, true); boltHit(b); continue; }
+      if (wallAt(b.mesh.position.x, b.mesh.position.z)) { removeBolt(b); continue; }   // narazí do prekážky
       if (b.t > b.life) removeBolt(b);
       continue;
     }
     b.t += edt;
     const to = b.to || hero.position.clone().add(new THREE.Vector3(0, 1.1, 0)), k = Math.min(1, b.t / b.dur);
     b.mesh.position.lerpVectors(b.from, to, k); b.mesh.lookAt(to);
+    if (k > 0.1 && k < 0.95 && wallAt(b.mesh.position.x, b.mesh.position.z)) { removeBolt(b); continue; }   // šíp sa zarazí do prekážky
     if (b.to && k >= 1) { removeBolt(b, true); if (b.to.distanceTo(hero.position.clone().add(new THREE.Vector3(0, 1.1, 0))) < 0.9 && !G.dashing) hurtHero(); continue; }
     if (Math.random() < 0.6) spark(b.mesh.position, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.5, 0xff7a3a);
     if (k >= 1 && !b.locked) { removeBolt(b, true); hurtHero(); }

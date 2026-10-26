@@ -51,3 +51,4 @@ export function drawImpacts(ctx, P, dt) {
   ctx.globalAlpha = 1;
 }
 export const clearImpacts = () => { FX.length = 0; MARKS.length = 0; };
+export const fxCount = () => [FX.length, MARKS.length];

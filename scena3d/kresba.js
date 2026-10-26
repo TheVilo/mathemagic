@@ -164,15 +164,17 @@ export const kresbaMat = new THREE.ShaderMaterial({
             if (mg > 0.5 && texture2D(tMask, uvg + o).r < 0.5) eg = 1.0;
           }
           // ČARODEJNÍK STÁLE SVIETI (Lukáš 26. 10., predloha petitjus): svetlý kruh okolo neho cez deň aj v tme, okraj sa rozpadá ditherom
-          float orbT = 0.0; vec3 orbC = vec3(1.0);
+          float orbT = 0.0, orbW = 0.0; vec3 orbC = vec3(1.0), orbS = vec3(0.0);
           if (dg < 0.9999) {
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
             // SKUTOČNÉ SVETLO PALICE: osobitný obraz len so svetlom palice (a kúziel) – svieti na stranu predmetov k čarodejníkovi, za nimi tieň
             float irr = luma(texture2D(tLamp, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002) * uLampK;
             float pool = smoothstep(0.003, 0.2, irr);   // široký mäkký okraj → svetlo rozptýlené ditherom
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) { float dO = length(wpq.xz - uOrbs[o].xz); orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, dO));
-              float tw = (1.0 - smoothstep(uOrbs[o].w * 0.6, uOrbs[o].w * 4.5, dO)) * 0.75; if (tw > orbT) { orbT = tw; orbC = uOrbC[o]; } }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
+              float tw = (1.0 - smoothstep(uOrbs[o].w * 0.4, uOrbs[o].w * 2.6, dO)) * 0.7; orbT = max(orbT, tw); orbS += uOrbC[o] * tw; orbW += tw; }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.45));
+            { float halo = 1.0 - smoothstep(1.0, uDark > 0.5 ? 11.0 : 8.0, length(wpq.xz - uHero.xz)); halo *= halo;   // VEĽKÁ ROZPTÝLENÁ ŽIARA čarodejníka (Lukáš 26. 10.) – mäkko, bez tieňov
+              if (mg < 0.5) tone = max(tone, mix(tone, 0.97, halo * (uDark > 0.5 ? 0.75 : 0.45))); }
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
@@ -191,6 +193,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
           vec3 g0 = vec3(0.22, 0.18, 0.22), g1 = vec3(0.41, 0.36, 0.41), g2 = vec3(0.6, 0.55, 0.58), g3 = vec3(0.79, 0.76, 0.76), g4 = vec3(0.96, 0.94, 0.87);   // sivé do fialova (predloha petitjus)
           if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele
           vec3 gc = ti < 0.5 ? g0 : ti < 1.5 ? g1 : ti < 2.5 ? g2 : ti < 3.5 ? g3 : g4;
+          if (orbW > 0.0) orbC = orbS / orbW;   // farby kúziel sa plynulo zmiešajú
           if (orbT > 0.0) gc = mix(gc, gc * mix(vec3(1.0), orbC * 1.25, 0.75) + orbC * 0.08, orbT);   // farba kúzla tónuje svetlo okolo neho
           if (uFxOn > 0.5) { vec4 fx = texture2D(tFx, uvg); float gdF = texture2D(tGDepth, uvg).r;   // DOPADY A STOPY ležia na zemi: predmety pred nimi ich zakryjú
             if (fx.a > 0.01 && dg > gdF - 0.0006) gc = mix(gc, fx.rgb, fx.a); }
@@ -331,8 +334,8 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
   scene.overrideMaterial = null; camera.layers.set(4); renderer.setRenderTarget(maskS); renderer.render(scene, camera);
   scene.background.copy(bg); scene.fog = fog; camera.layers.set(0);
   quad.material = kresbaMat; renderer.setRenderTarget(glyphRT); renderer.render(quadScene, quadCam);
+  if (sprScene.children.length) { renderer.autoClear = false; renderer.render(sprScene, sprCam); renderer.autoClear = true; }   // pixelové postavičky do obrazu PRED rozmazaním – sú súčasťou sveta (tilt-shift ich rozmaže, Lukáš 26. 10.)
   quad.material = blurMat; renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
-  if (sprScene.children.length) { renderer.autoClear = false; renderer.render(sprScene, sprCam); renderer.autoClear = true; }   // pixelové postavičky navrch, s hĺbkou
 }
 
 // svetlá kúzla (najviac 4): [{ x, z, r }] – volá suboj.js každý snímok
