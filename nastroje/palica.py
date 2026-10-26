@@ -7,7 +7,7 @@ from PIL import Image
 from scipy import ndimage
 
 src, name = sys.argv[1], sys.argv[2]
-SCALE = 0.25                      # 1440 px → 360 px (veľkosť „pixelu“ ako vo svete), v hre sa zväčší ostro
+SCALE = 0.5                       # 1440 px → 720 px: jemnejšie bodky (Lukáš 26. 10.), v hre sa zobrazí v rovnakej veľkosti
 INK, BONE = (14, 14, 16), (242, 239, 230)
 
 g = np.asarray(Image.open(src).convert('L'), dtype=np.float32) / 255

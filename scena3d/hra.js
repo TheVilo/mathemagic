@@ -1161,7 +1161,7 @@ function artWand(A, w, n, r, cost, dir, still) {
     <img src="${A.img}" alt="">${wins}${keys}
     <b class="ares">${pix(String(res))}</b>
     <span class="aform">${r ? wandSteps(boostSlots(P, w.slots)) : 'najprv číslo'} · ⚡${cost}</span>
-    <span class="afn"><button class="sk fn" id="svback" title="posledný kameň späť do vaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
+    <span class="afn"><button class="btn sq" id="svback" title="posledný kameň späť do vaku">⌫</button><button class="btn sq" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
   </div>`;
 }
 function openStaff(dir = 0) {
@@ -1174,11 +1174,10 @@ function openStaff(dir = 0) {
   const lcd = !w.slots.length ? '<span class="blink">_</span>' : r ? `<i>${pix(r.text.replace(/-/g, '-'))}</i>` : w.slots.map(tok).join('');   // vzorec so zátvorkami (počíta sa zľava doprava)
   const holes = Array.from({ length: n }, (_, j) => `<u class="${w.slots[j] ? 'on' : ''}" style="--c:${w.slots[j] ? (w.slots[j].t === 'num' ? 'var(--line)' : OPCOL2[w.slots[j].o]) : 'transparent'}"></u>`).join('');
   const keys = '';   // klávesy kalkulačky nie sú inventár – kamene sú vo VAKU (spoločný pre všetky palice) a hádžu sa do kalkulačky
-  const vak = Array.from({ length: Math.max(8, P.bag.length) }, (_, j) => { const m = P.bag[j]; return m ? `<button class="vs" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo – palica ním začína'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>` : '<i class="vs empty"></i>'; }).join('');
+  const vak = Array.from({ length: Math.max(16, P.bag.length) }, (_, j) => { const m = P.bag[j]; return m ? `<button class="vs" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo – palica ním začína'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>` : '<i class="vs empty"></i>'; }).join('');
   const html = `<div class="sv">
-    <div class="svtabs"><button class="tab" id="svbag">Ruksak · ${P.bag.length}</button><span class="tab on">Palica ${staffI + 1}/${N}</span></div>
-    ${N > 1 ? '<button class="svnav l" id="svl">◀</button><button class="svnav r" id="svr">▶</button>' : ''}
-    <div class="svinfo"><b style="color:${col}">Palica ${S.name}</b><span>${n} jamky · rýchlosť ×${+(1 / S.cd).toFixed(2)} · sila ×${S.dmg}</span><span class="rule">${ruleText(S.rule) || S.text}</span><span>mana ⚡${M.emax} · +${+M.regen.toFixed(1)}/s</span></div>
+    <div class="svtabs">${N > 1 ? '<button class="btn sq" id="svl">◀</button>' : ''}<button class="btn" id="svbag">Ruksak</button><button class="btn on">Palica ${staffI + 1}/${N}</button><button class="btn sq" id="svi" title="o palici">i</button>${N > 1 ? '<button class="btn sq" id="svr">▶</button>' : ''}</div>
+    <div class="svinfo dpanel" hidden><b style="color:${col}">Palica ${S.name}</b><span>${n} jamky · rýchlosť ×${+(1 / S.cd).toFixed(2)} · sila ×${S.dmg}</span><span class="rule">${ruleText(S.rule) || S.text}</span><span>mana ⚡${M.emax} · +${+M.regen.toFixed(1)}/s</span></div>
     ${ART[kind] ? artWand(ART[kind], w, n, r, cost, dir, still) : `<div class="svwand k-${kind}${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--c:${col}">
       <svg class="svdeco" viewBox="-40 -70 340 160">${STAFF_DECO[kind] || ''}</svg>
       <div class="svcalc">
@@ -1188,7 +1187,7 @@ function openStaff(dir = 0) {
       </div>
       <div class="svshaft"></div>
     </div>`}
-    <div class="svvak"><b>Vak · spoločný pre všetky palice</b><div class="vk">${vak}</div></div>
+    <div class="svvak"><div class="vk">${vak}</div></div>
     <p class="svhint">hoď kameň do kalkulačky (potiahni alebo ťukni) · ťuk na okienko = späť do vaku · ${N > 1 ? 'koliesko / ◀ ▶ = ďalšia palica · ' : ''}Esc zavrie</p>
   </div>`;
   const again = ovEl.classList.contains('staffview') && ovEl.classList.contains('show');
@@ -1221,6 +1220,7 @@ function openStaff(dir = 0) {
   el.querySelector('#svback').onclick = () => { if (w.slots.length > 1) { P.bag.push(w.slots.pop()); efekt('minca', 0.3, 0.9); redo(); } };
   el.querySelector('#svclr').onclick = () => { if (w.slots.length > 1) { P.bag.push(...w.slots.splice(1)); efekt('minca', 0.3, 0.8); redo(); } };
   el.querySelector('#svbag').onclick = () => { closeOverlay(); openWands(); };
+  el.querySelector('#svi').onclick = () => { const i = el.querySelector('.svinfo'); i.hidden = !i.hidden; };   // názov a pravidlo palice len ako info
   const flip = d => { if (N < 2) return; staffI = (staffI + d + N) % N; efekt('minca', 0.25, 0.7); openStaff(d); };
   if (el.querySelector('#svl')) { el.querySelector('#svl').onclick = () => flip(-1); el.querySelector('#svr').onclick = () => flip(1); }
   el._flip = flip;
