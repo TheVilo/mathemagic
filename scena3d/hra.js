@@ -1557,20 +1557,31 @@ await Promise.all([loadProps(), loadFighters(), loadHero()]);
 // 3D model ostáva neviditeľný (nekreslí farbu), aby čarodejník stále vrhal tieň a svietil palicou
 // MALINKÁ SILUETA (Lukáš 26. 10.: ako v predlohe – pár pixelov, nie detailná postava): 12 × 16 bodov nakreslených tu,
 // k = tmavá, g = tmavosivá (tieň plášťa, palica), c = svetlo kryštálu; riadky: 0 chôdza, 1 státie (plášť veje), 2 kúzlo
-const BASE = ['...kk.......', '....kk....c.', '....kkk..ccc', '...kkkkk..c.', '.kkkkkkkk.g.', '...kkgkk..g.', '...kkkkkkkg.', '..kkkkkkk.g.', '..kkkkkkk.g.', '.kkkkkkkk.g.', '.gkkkkkkk.g.', 'ggkkkkkkk.g.', '.kkkkkkkk.g.', '..kk..kk..g.', '..k....k..g.', '............'];
-const fr = (f) => { const r = BASE.map(l => l.split('')); f(r); return r.map(l => l.join('')); };
-const set = (r, y, x, ch) => { if (r[y]) r[y][x] = ch; };
-const LEGS = [['..kk..kk..g.', '..k....k..g.'], ['...kk.kk..g.', '...k...k..g.'], ['..kk..kk..g.', '.k.....k..g.'], ['..kkkk....g.', '..k..k....g.']];
-const CAPE = [[11, 0, 'g'], [11, 1, 'g'], [10, 0, '.'], [12, 0, '.']];
-const FR = [
-  ...LEGS.map((lg, i) => fr(r => { r[13] = lg[0].split(''); r[14] = lg[1].split(''); set(r, 10 + (i % 2), 0, 'g'); set(r, 11, 0, i % 2 ? '.' : 'g'); })),                 // chôdza
-  ...[0, 1, 2, 1].map(i => fr(r => { set(r, 11, 0, i ? '.' : 'g'); set(r, 10, 0, i === 2 ? 'g' : '.'); set(r, 0, 2 + (i === 2 ? 1 : 0), i === 2 ? 'k' : '.'); })),        // státie: plášť a špička klobúka jemne vejú
-  ...[0, 1, 2, 3].map(i => fr(r => { for (let y = 1; y < 4; y++) for (let x = 9; x < 12; x++) r[y][x] = '.'; const top = i < 2 ? 1 - i : 0; set(r, top, 10, 'c'); set(r, top + 1, 9, 'c'); set(r, top + 1, 10, 'c'); set(r, top + 1, 11, 'c'); set(r, top + 2, 10, 'c'); if (i >= 2) { set(r, top, 9, 'c'); set(r, top, 11, 'c'); set(r, top + 2, 9, 'c'); set(r, top + 2, 11, 'c'); } for (let y = top + 3; y < 4; y++) set(r, y, 10, 'g'); })),   // kúzlo: kryštál sa zdvihne a zablysne
+// telo bez palice (12 × 16); palica sa kreslí zvlášť pod uhlom – nikdy zvislo pred sebou ako vychádzková palica (Lukáš 26. 10.)
+const BODY = ['...kk.......', '....kk......', '....kkk.....', '...kkkkk....', '.kkkkkkkk...', '...kkgkk....', '...kkkkkk...', '..kkkkkkk...', '..kkkkkkk...', '.kkkkkkkk...', '.gkkkkkkk...', 'ggkkkkkkk...', '.kkkkkkkk...', '..kk..kk....', '..k....k....', '............'];
+const LEGS = [['..kk..kk....', '..k....k....'], ['...kk.kk....', '...k...k....'], ['..kk..kk....', '.k.....k....'], ['..kkkk......', '..k..k......']];
+// uhol palice od zvislice (° – kladný = špička dopredu), posun ruky, záblesk kryštálu
+const POSE = [
+  ...[[48, 0], [38, -1], [48, 0], [58, -1]].map(([a, dy], i) => ({ row: 0, i, a, dy })),               // chôdza: šikmo dopredu, kýve sa s krokom
+  ...[[24, 0], [20, -1], [24, 0], [28, 0]].map(([a, dy], i) => ({ row: 1, i, a, dy })),                 // státie: šikmo dopredu, jemne sa pohupuje
+  ...[[-40, -1, 0], [25, -2, 1], [70, -1, 1], [90, 0, 2]].map(([a, dy, fl], i) => ({ row: 2, i, a, dy, fl })),   // kúzlo: rozmach dozadu → výpad dopredu → záblesk
 ];
-const SPR = { cw: 12, ch: 16 };
-{ const cv = document.createElement('canvas'); cv.width = 48; cv.height = 48; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', c: '#fff6dc' };
-  FR.forEach((f, i) => f.forEach((l, y) => [...l].forEach((ch, xx) => { if (PC[ch]) { x.fillStyle = PC[ch]; x.fillRect((i % 4) * 12 + xx, Math.floor(i / 4) * 16 + y, 1, 1); } })));
-  SPR.url = cv.toDataURL(); }
+const FR = POSE.map(P => {
+  const g = Array.from({ length: 16 }, (_, y) => (BODY[y] + '....').split(''));
+  if (P.row === 0) { g[13] = (LEGS[P.i][0] + '....').split(''); g[14] = (LEGS[P.i][1] + '....').split(''); g[10][0] = P.i % 2 ? '.' : 'g'; }
+  if (P.row === 1) { g[11][0] = P.i === 2 ? '.' : 'g'; g[10][0] = P.i === 2 ? 'g' : '.'; if (P.i === 2) g[0][3] = 'k'; }
+  const hx = 7.5, hy = 8 + P.dy, rad = P.a * Math.PI / 180, L = 8, put = (x, y, ch) => { x = Math.round(x); y = Math.round(y); if (y >= 0 && y < 16 && x >= 0 && x < 16 && (ch !== 'k' || g[y][x] === '.')) g[y][x] = ch; };   // palica (w) aj cez telo – vidno ju vždy
+  for (let t = 0.5; t <= L; t += 0.5) put(hx + Math.sin(rad) * t, hy - Math.cos(rad) * t, 'w');   // palica
+  const tx = hx + Math.sin(rad) * (L + 1), ty = hy - Math.cos(rad) * (L + 1);
+  put(tx, ty, 'c'); if (P.fl) { put(tx + 1, ty, 'c'); put(tx - 1, ty, 'c'); put(tx, ty + 1, 'c'); put(tx, ty - 1, 'c'); }
+  if (P.fl === 2) { put(tx + 2, ty, 'c'); put(tx - 2, ty, 'c'); put(tx, ty + 2, 'c'); put(tx, ty - 2, 'c'); }
+  g[8][7] = 'k'; g[8 + P.dy] && (g[8 + P.dy][8] = 'k');   // ruka drží palicu
+  return g.map(r => r.join(''));
+});
+const SPR = { cw: 16, ch: 16 };
+{ const cv = document.createElement('canvas'); cv.width = 64; cv.height = 48; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', w: '#8c8089', c: '#fff6dc' };
+  FR.forEach((f, i) => f.forEach((l, y) => [...l].forEach((ch, xx) => { if (PC[ch]) { x.fillStyle = PC[ch]; x.fillRect((i % 4) * 16 + xx, Math.floor(i / 4) * 16 + y, 1, 1); } })));
+  SPR.url = cv.toDataURL(); window.__spr = SPR.url; }
 const sprEl = document.createElement('div'); sprEl.id = 'hero2d'; document.body.appendChild(sprEl);
 if (SPR) hero.traverse(o => { if (o.isMesh) { o.material.colorWrite = false; o.material.depthWrite = false; o.layers.disable(1); } });
 let sprT = 0, sprFlip = false; const sprLast = new THREE.Vector3(), sprA = new THREE.Vector3(), sprB = new THREE.Vector3();
@@ -1584,7 +1595,7 @@ function drawHeroSprite(dt) {
   const look = casting && aim.p ? aim.p : moving ? hero.position.clone().add(vel) : null;
   if (look) { const lx = (look.clone().project(camera).x + 1) / 2 * innerWidth; if (Math.abs(lx - fx) > 2) sprFlip = lx < fx; }
   const k = Math.max(1, Math.round(hpx / 16)), w = SPR.cw * k, h = SPR.ch * k;   // celé pixely – ostrá silueta
-  sprEl.style.cssText = `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * 3 * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform:translate(${fx - w / 2}px, ${fy - h * 0.97}px) scaleX(${sprFlip ? -1 : 1})`;
+  sprEl.style.cssText = `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * 3 * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform-origin:${4.5 * k}px 50%;transform:translate(${fx - 4.5 * k}px, ${fy - h * 0.94}px) scaleX(${sprFlip ? -1 : 1})`;   // kotva = nohy postavy (stĺpec 4,5), nie stred obrázka
 }
 buildInterior();
 buildRoom();
