@@ -1649,11 +1649,13 @@ requestAnimationFrame(tick);
 const TEST = new URLSearchParams(location.search).has('test'); let testHorde = false, testDark = null;
 if (TEST) {
   const p = document.createElement('div'); p.id = 'testmap'; p.className = 'dpanel';
-  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button><button class="btn" id="tmw">Silná výbava (kúzla)</button>`;
+  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button><button class="btn" id="tmw">Silná výbava (kúzla)</button><b>Menu</b><button class="btn" data-m="lvl">Úroveň – výber</button><button class="btn" data-m="card">Karty kúziel</button><button class="btn" data-m="shop">Obchod</button><button class="btn" data-m="wand">Nová palica</button><button class="btn" data-m="book">Kniha kúziel</button><button class="btn" data-m="staff">Palica zblízka</button><button class="btn" data-m="map">Mapa</button>`;
   document.body.appendChild(p);
   p.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { closeOverlay(); run.hearts = Math.max(run.hearts, maxHearts()); run.zone = +b.dataset.z - 1; nextZoneWorld(); });
   p.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { testDark = b.dataset.l === '' ? null : +b.dataset.l; });
   p.querySelector('#tmh').onclick = () => { testHorde = true; hordeT = 0; };
+  const MENU = { lvl: () => addXp(xpNeed(run.lvl) + 1), card: () => cardOffer('Nové kúzlo'), shop: () => openShop(), wand: () => { wandQ++; }, book: () => openBook(), staff: () => openStaff(), map: () => openMap() };   // test: všetky menu na jeden klik
+  p.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { closeOverlay(); MENU[b.dataset.m](); });
   p.querySelector('#tmw').onclick = () => {   // SILNÁ VÝBAVA na test: 4 palice s rôznymi kúzlami + plný ruksak
     const N = v => ({ t: 'num', v }), M = (o, v) => ({ t: 'mod', o, v });
     run.pack.wands = [{ kind: 'graficka', slots: [N(9), M('+', 7), M('×', 4), M('²'), M('π')] }, { kind: 'vedecka', slots: [N(8), M('×', 3), M('e'), M('√')] }, { kind: 'tazka', slots: [N(7), M('÷', 2), M('φ')] }, { kind: 'graficka', slots: [N(6), M('-', 3), M('³'), M('×', 2), M('!')] }];
