@@ -154,3 +154,16 @@
 .svart .adisp small { font-size: clamp(8px, 1.3vh, 11px); line-height: 1.15; color: rgba(242,239,230,.55); text-align: left; white-space: nowrap; overflow: hidden; }
 .svart .adisp .pix { height: 78%; flex: none; }
 .vs.art { width: 46px; height: 46px; }
+
+/* ČITATEĽNÝ ZNAK NA DRAHOKAME (Lukáš: čísla nebolo vidieť, nesvietiť): bez žiary; v strede hladká plôška vo farbe kameňa prekryje rytinu, znak navrchu s obrysom */
+.gemart, .svvak .vk > .vs:not(.empty), .bagz .gem { filter: none !important; }
+.gemart .pix { height: 30% !important; padding: 9% 12%; box-sizing: content-box; border-radius: 40%;
+  background: radial-gradient(closest-side, var(--c) 78%, transparent 100%);
+  filter: none !important; overflow: visible; }
+.gemart .pix path { stroke: rgba(255,255,255,.85); stroke-width: .5px; paint-order: stroke; }
+/* prázdne miesto vo vaku: tichý obrys, žiadne bodky */
+.vs.empty { background: #141416 !important; box-shadow: inset 0 0 0 1.5px #3a3936 !important; }
+/* výsledok v strede displeja, postup výpočtu drobne v rohu */
+.svart .adisp { justify-content: center !important; }
+.svart .adisp small { position: absolute; left: 3%; top: 8%; font-size: clamp(7px, 1vh, 9px) !important; }
+.svart .adisp { background: #101012; box-shadow: inset 0 0 0 2px #0a0a0b; border-radius: 2px; }
