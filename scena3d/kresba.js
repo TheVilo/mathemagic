@@ -20,7 +20,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.6) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.0) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
@@ -191,7 +191,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
         if (uNight < 0.5 && uOneBit > 0.5) {
           vec3 paperC = vec3(0.93, 0.91, 0.86), inkD = vec3(0.06, 0.06, 0.07);
           vec2 uvq = frag / uRes, tq = 3.0 / uRes;
-          float D = smoothstep(0.12, 0.8, k);                                  // tma = hustota atramentu
+          float D = smoothstep(0.24, 0.95, k);                                 // tma = hustota atramentu (riedšia – svetlý deň, tmavé len tiene a predmety)
           vec3 monoD = step(bayer(floor(frag / 2.0)), D) > 0.5 ? inkD : paperC;
           float dq = texture2D(tDepth, uvq).r, mq = texture2D(tMask, uvq).r, eq = 0.0;
           for (int q = 0; q < 4; q++) {
@@ -235,7 +235,7 @@ const points = []; let frameN = 0;
 const cDay = new THREE.Color(0xffffff), cSky = new THREE.Color(0x9fb0ff), cMoon = new THREE.Color(0xb8c8ff);
 export function svetloDenNoc(t) {
   const L = (a, b) => a + (b - a) * t;
-  hemi.intensity = L(1.0, 0.14); hemi.color.copy(cDay).lerp(cSky, t); sun.intensity = L(3.6, 0.1); sun.color.copy(cDay).lerp(cMoon, t); rim.intensity = L(1.6, 0);
+  hemi.intensity = L(1.7, 0.14); hemi.color.copy(cDay).lerp(cSky, t); sun.intensity = L(4.0, 0.1);   // deň svetlejší (Lukáš 26. 10.: celý deň svetlý ako predloha) sun.color.copy(cDay).lerp(cMoon, t); rim.intensity = L(1.6, 0);
   U.gray.value = 0; U.desat.value = 0.35; U.tex.value = 0;
   kresbaMat.uniforms.uDark.value = t; kresbaMat.uniforms.uNight.value = t > 0.5 ? 1 : 0;
 }

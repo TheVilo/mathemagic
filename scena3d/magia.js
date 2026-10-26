@@ -28,11 +28,11 @@ export const WORLDS = [
   { id: 'les', name: 'Les prirodzených čísel', rule: null, col: 0x8dff98, air: '123456789', mark: 'svetlusky' },
   { id: 'hory', name: 'Šesťuholníkové štíty', rule: { t: 'párne výsledky ×2', f: n => n > 0 && n % 2 === 0 }, col: 0x9fd8ff, air: '2468', mark: 'hex' },
   { id: 'ruiny', name: 'Pytagorove ruiny', rule: { t: 'prepony a²+b²=c² ×2 (5, 10, 13…)', f: n => PYTH.has(n) }, col: 0xffd25a, air: '345', mark: 'pyth' },
-  { id: 'dungeon', name: 'Kobka trojok', rule: { t: 'násobky 3 ×2', f: n => n > 0 && n % 3 === 0 }, col: 0xb07ad8, air: '369', mark: 'runy' },
+  { id: 'dungeon', dark: true, name: 'Kobka trojok', rule: { t: 'násobky 3 ×2', f: n => n > 0 && n % 3 === 0 }, col: 0xb07ad8, air: '369', mark: 'runy' },
   { id: 'haj', name: 'Fibonacciho háj', rule: { t: 'Fibonacciho čísla ×2 (1, 2, 3, 5, 8, 13…)', f: n => FIB.has(n) }, col: 0xf0c040, air: '1235813', mark: 'spirala' },
-  { id: 'sopka', name: 'Sopka prvočísel', rule: { t: 'prvočísla ×2', f: isPrime }, col: 0xff7a3a, air: '235711', mark: 'ziar', rise: true },
+  { id: 'sopka', dark: true, name: 'Sopka prvočísel', rule: { t: 'prvočísla ×2', f: isPrime }, col: 0xff7a3a, air: '235711', mark: 'ziar', rise: true },
   { id: 'kruhy', name: 'Kruhy π', rule: { t: 'násobky 7 ×2 (22 ÷ 7 ≈ π)', f: n => n > 0 && n % 7 === 0 }, col: 0xc8a8ff, air: 'π314159', mark: 'kruhy' },
-  { id: 'hrad', name: 'Hrad štvorcov', rule: { t: 'štvorce ×2 (1, 4, 9, 16…)', f: n => n > 0 && Number.isInteger(Math.sqrt(n)) }, col: 0xf2efe6, air: '²149', mark: 'kocky' },
+  { id: 'hrad', dark: true, name: 'Hrad štvorcov', rule: { t: 'štvorce ×2 (1, 4, 9, 16…)', f: n => n > 0 && Number.isInteger(Math.sqrt(n)) }, col: 0xf2efe6, air: '²149', mark: 'kocky' },
 ];
 export const worldOf = z => WORLDS[(z - 1) % WORLDS.length];
 

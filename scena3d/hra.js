@@ -200,7 +200,7 @@ let dnT = 0;   // 0 = deň, 1 = noc (plynulo pri výbere režimu)
 function denNocT(t) {
   dnT = t; const L = (a, b) => a + (b - a) * t;
   scene.background.copy(PAPERC).lerp(NIGHT, t); scene.fog.color.copy(scene.background); svetloDenNoc(t);
-  lamp.base = L(1.6, 5); crystalLight.distance = L(5, 7.5); crystalLight.decay = L(1.6, 1.5); crystalLight.intensity = lamp.base;
+  lamp.base = L(0.35, 5);   // cez deň palica takmer nesvieti – žiadny svetlý kruh s tmavým okolím crystalLight.distance = L(5, 7.5); crystalLight.decay = L(1.6, 1.5); crystalLight.intensity = lamp.base;
   if (crystalLight.castShadow !== t > 0.5) { crystalLight.castShadow = t > 0.5; sun.castShadow = !(t > 0.5); hero.traverse(o => { if (o.isMesh) o.castShadow = !(t > 0.5); }); }   // v noci mesiac bez tieňov (len jemné svetlo), tiene len od palice   // v noci palica vrhá tiene; čarodejník sám od svojej palice nie
 }
 function denNoc() { denNocT(adv() ? 1 : 0); document.body.classList.toggle('majster', adv()); }
@@ -835,15 +835,15 @@ function dash() {
   efekt('gula', 0.35, 1.6); renderDashBtn();
 }
 function renderDashBtn() { const b = $('bDash'); if (b) { b.classList.toggle('cd', dashCd > 0); b.style.setProperty('--cd', dashCd / 1.4); } }
-// DEŇ A NOC (Majster): hordy 1–4 cez deň, od 5. (vodca hordy) padá noc; v ďalšej zóne svitá
-// NOC = matematické pravidlo: zásahy do teba ×2, skúsenosti ×2 (riziko za odmenu)
+// SVETLO SVETA (Majster, Lukáš 26. 10.): väčšina svetov je cez deň (svetlý papier ako predloha), TEMNÉ sú len kobka, sopka a hrad
+// TMA = matematické pravidlo: zásahy do teba ×2, skúsenosti ×2 (riziko za odmenu)
 let dnCur = 0, nightOn = false;
 function dayNight(dt) {
   if (!adv() || scrOn || modeOn || inside) return;
-  const wz = hordeN > 0 ? (hordeN - 1) % HPZ + 1 : 0, want = wz >= 5 ? 1 : 0;
+  const want = biomeOf(run.zone).dark ? 1 : 0;
   if (Math.abs(want - dnCur) < 0.001 && Math.abs(dnT - dnCur) < 0.001) return;
   dnCur += Math.sign(want - dnCur) * Math.min(Math.abs(want - dnCur), dt * 0.35); denNocT(dnCur);
-  const n = dnCur > 0.5; if (n !== nightOn) { nightOn = n; G.night = n; say(n ? 'Padá noc · zásahy do teba ×2 · skúsenosti ×2' : 'Svitá · deň', 3500); efekt('objav', 0.6, n ? 0.8 : 1.4); }
+  const n = dnCur > 0.5; if (n !== nightOn) { nightOn = n; G.night = n; say(n ? 'Temný svet · zásahy do teba ×2 · skúsenosti ×2' : 'Svetlo · deň', 3500); efekt('objav', 0.6, n ? 0.8 : 1.4); }
 }
 function update(dt, t) {
   dayNight(dt); if (magic) magic.update(t);
