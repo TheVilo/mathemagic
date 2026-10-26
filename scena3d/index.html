@@ -144,7 +144,7 @@
   .ov.staffview .box { max-width:none; width:100%; height:100%; border:0; background:none; padding:0; animation:none; position:relative; }
   .ov.staffview .box > .ptag { display:none; }
   .sv { position:absolute; inset:0; }
-  .svtabs { position:absolute; top:18px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:3; }
+  .svtabs { position:absolute; top:18px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:5; } .svtabs .tab { background:rgba(14,14,16,.85) !important; }
   .svtabs .tab { font:inherit; font-size:13px; color:var(--grey); background:none; border:1.5px dashed var(--dim); padding:6px 18px; cursor:pointer; } .svtabs .tab.on { color:var(--line); border:1.5px solid var(--line); }
   .svnav { position:absolute; top:50%; z-index:3; font:inherit; font-size:20px; color:var(--line); background:rgba(14,14,16,.6); border:1.5px solid var(--line); width:44px; height:64px; cursor:pointer; } .svnav.l { left:4vw; } .svnav.r { right:4vw; }
   .svinfo { position:absolute; right:calc(4vw + 60px); top:22%; display:flex; flex-direction:column; gap:8px; text-align:left; max-width:240px; font-size:12px; color:var(--grey); z-index:2; } .svinfo b { font-size:20px; } .svinfo .rule { color:#ffd25a; }
@@ -170,6 +170,21 @@
   .svhint { position:absolute; bottom:10px; left:16px; font-size:10px; color:var(--grey); margin:0; }
   @media (max-width:1150px) { .svinfo { left:16px; right:auto; top:70px; max-width:min(190px, 24vw); font-size:10px; } .svinfo b { font-size:15px; } .svwand { width:min(360px, 50vw); } }
   @media (max-height:500px), (max-width:760px) { .svinfo { top:64px; left:12px; right:auto; max-width:min(170px, 22vw); font-size:10px; } .svinfo b { font-size:15px; } .svwand { width:min(300px, 52vw); } .svlcd { min-height:60px; } .svlcd .r { font-size:20px; } .sk { height:36px; } .svholes { margin:6px 0; } .svcalc { padding:10px; } .svnav.l { left:8px; } .svnav.r { right:8px; } }
+  /* PALICA AKO ILUSTRÁCIA (ditherovaný obrázok): veľká hlava palice v strede, kamene v okienkach svietia, klávesy = ruksak */
+  .svart { z-index:1; position:absolute; left:50%; top:-24vh; height:240vh; transform:translateX(-50%); animation:svrise .55s cubic-bezier(.2,1.1,.35,1) both; filter:drop-shadow(0 0 24px rgba(0,0,0,.7)); }
+  .svart.fr { animation:svfr .3s cubic-bezier(.2,1,.35,1) both; } .svart.fl { animation:svfl .3s cubic-bezier(.2,1,.35,1) both; }
+  .svart.still, .svwand.still { animation:none; }
+  .svart img { width:100%; height:100%; image-rendering:pixelated; display:block; }
+  .svart::before { content:''; position:absolute; left:42%; top:3%; width:16%; height:16%; background:radial-gradient(closest-side, color-mix(in srgb, var(--g) 45%, transparent), transparent); mix-blend-mode:screen; animation:aglow 2.4s ease-in-out infinite; pointer-events:none; }
+  @keyframes aglow { 50% { opacity:.55; } }
+  .svart .aw { position:absolute; transform:translate(-50%, -50%); display:grid; place-items:center; } .svart .aw .pix { height:58%; fill:var(--c); filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 6px var(--c)); }
+  .svart .aw.on { background:radial-gradient(closest-side, color-mix(in srgb, var(--c) 25%, transparent), transparent); }
+  .svart .ak { position:absolute; transform:translate(-50%, -50%); aspect-ratio:1; height:auto; border-radius:50%; border:0; padding:0; background:transparent; box-shadow:0 0 0 2px var(--c), 0 0 10px var(--c); color:#0e0e10; display:grid; place-items:center; cursor:pointer; }
+  .svart .ak .pix { height:34%; fill:#0e0e10; } .svart .ak small { display:none; }
+  .svart .ak:hover { transform:translate(-50%, -54%) scale(1.12); } .svart .ak:active { transform:translate(-50%, -46%) scale(.95); }
+  .svart .ares { position:absolute; left:50%; top:19%; transform:translate(-50%, -50%); pointer-events:none; } .svart .ares .pix { height:5.5vh; fill:var(--g); filter:drop-shadow(0 0 4px var(--g)) drop-shadow(0 0 12px var(--g)) drop-shadow(0 2px 0 #0e0e10); }
+  .svart .aform { position:absolute; left:50%; top:44.5%; transform:translateX(-50%); white-space:nowrap; font-size:11px; color:var(--line); background:rgba(14,14,16,.8); border:1px solid var(--dim); padding:2px 8px; }
+  .svart .afn { position:absolute; left:63%; top:30%; display:flex; flex-direction:column; gap:8px; } .svart .afn .sk { width:40px; height:36px; font-size:15px; }
   /* MAJSTER: život ako číslo + vylepšenia vľavo hore */
   #hearts.hpnum { display:flex; align-items:center; gap:5px; color:#e8443a; } #hearts.hpnum b { font-size:18px; color:var(--line); font-weight:500; } #hearts.hpnum span { font-size:11px; color:var(--grey); margin-left:-3px; }
   #hearts.hpnum i { display:block; width:84px; height:7px; border:1.5px solid var(--line); background:rgba(14,14,16,.6); position:relative; } #hearts.hpnum i u { position:absolute; inset:0 auto 0 0; background:#e8443a; text-decoration:none; transition:width .2s steps(4); }

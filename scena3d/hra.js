@@ -1140,6 +1140,9 @@ function gainWand(k) {
 // ---------- PALICA ZBLÍZKA (Majster): obraz sa rozmaže, zospodu sa vysunie palica s kalkulačkou; kamene z ruksaku = klávesy ----------
 // koliesko / šípky / ◀ ▶ = ďalšia palica; ťuk na kláves = vloží kameň (číslo vymení základ); ⌫ = posledný späť do ruksaku; C = všetko späť
 let staffI = 0, staffDir = 0;
+// ILUSTROVANÉ PALICE (Gemini → nastroje/palica.py → dither): obrázok + poloha okienok displeja a klávesov v %
+const STAFF_ART = { zakladna: 'pocitadlo' }, ART = {};
+for (const [k, f] of Object.entries(STAFF_ART)) fetch(`palice/${f}.json`).then(r => r.json()).then(j => { ART[k] = { ...j, img: `palice/${f}.png` }; }).catch(() => {});
 const STAFF_DECO = {
   zakladna: '<path d="M18 40 C6 30 4 14 14 6 M14 6 l-6 2 M14 6 l2 -6 M242 40 C254 30 256 14 246 6 M246 6 l6 2" />',
   rychla: '<path d="M14 40 L-36 26 L-24 38 L-52 40 L-30 50 L-48 58 L-22 62 L-34 72 L14 70 Z M246 40 L296 26 L284 38 L312 40 L290 50 L308 58 L282 62 L294 72 L246 70 Z" />',
@@ -1148,9 +1151,23 @@ const STAFF_DECO = {
   vedecka: '<path d="M60 -6 l14 -26 l14 26 M116 -6 l14 -34 l14 34 M172 -6 l14 -26 l14 26" /><circle cx="130" cy="-40" r="5" />',
   graficka: '<rect x="-14" y="-60" width="288" height="56" /><polyline points="-6,-32 20,-50 46,-14 72,-52 98,-20 124,-44 150,-12 176,-48 202,-24 228,-46 254,-16" />',
 };
+// palica ako ilustrácia: okienka displeja = jamky (svietia vložené kamene), klávesy = kamene z ruksaku, výsledok svieti na kryštáli
+function artWand(A, w, n, r, cost, dir, still) {
+  const P = run.pack, ccol = m => m.t === 'num' ? '#f2efe6' : OPCOL2[m.o], last = w.slots.filter(m => m && m.t === 'mod').pop();
+  const wins = A.wins.slice(0, n).map((o, j) => { const m = w.slots[j]; return `<i class="aw${m ? ' on' : ''}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.w}%;height:${o.h}%;--c:${m ? ccol(m) : 'transparent'}">${m ? pix(modLabel(m)) : ''}</i>`; }).join('');
+  const keys = A.keys.map((o, j) => { const m = P.bag[j]; return m ? `<button class="ak sk" data-b="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.r * 2}%;--c:${ccol(m)}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}</button>` : ''; }).join('');
+  const res = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
+  return ` <div class="svart${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--g:${last ? OPCOL2[last.o] : '#f2efe6'};aspect-ratio:${A.w}/${A.h}">
+    <img src="${A.img}" alt="">${wins}${keys}
+    <b class="ares">${pix(String(res))}</b>
+    <span class="aform">${r ? wandSteps(boostSlots(P, w.slots)) : 'najprv číslo'} · ⚡${cost}</span>
+    <span class="afn"><button class="sk fn" id="svback" title="posledný kameň späť do ruksaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
+  </div>`;
+}
 function openStaff(dir = 0) {
   tutStep(1); $('bBook').classList.remove('pulse');
   const P = run.pack, N = P.wands.length; staffI = Math.max(0, Math.min(N - 1, staffI)); staffDir = dir;
+  const still = ovEl.classList.contains('staffview') && ovEl.classList.contains('show');   // prekreslenie po ťuku – palica sa nevysúva znova
   const w = P.wands[staffI], kind = wandKind(P, staffI), S = staffStats({ ...P, kind }), M = manaStats(P), n = wandSlots(P, staffI);
   const bs = boostSlots(P, w.slots), r = evalWand(bs), cost = wandCost(w.slots, P), col = RARITY[STAFF_RAR[kind] || 'b'].col;
   const tok = m => `<i style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}">${pix(modLabel(m))}</i>`;
@@ -1161,7 +1178,7 @@ function openStaff(dir = 0) {
     <div class="svtabs"><button class="tab" id="svbag">Ruksak · ${P.bag.length}</button><span class="tab on">Palica ${staffI + 1}/${N}</span></div>
     ${N > 1 ? '<button class="svnav l" id="svl">◀</button><button class="svnav r" id="svr">▶</button>' : ''}
     <div class="svinfo"><b style="color:${col}">Palica ${S.name}</b><span>${n} jamky · rýchlosť ×${+(1 / S.cd).toFixed(2)} · sila ×${S.dmg}</span><span class="rule">${ruleText(S.rule) || S.text}</span><span>mana ⚡${M.emax} · +${+M.regen.toFixed(1)}/s</span></div>
-    <div class="svwand k-${kind}${dir ? (dir > 0 ? ' fr' : ' fl') : ''}" style="--c:${col}">
+    ${ART[kind] ? artWand(ART[kind], w, n, r, cost, dir, still) : `<div class="svwand k-${kind}${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--c:${col}">
       <svg class="svdeco" viewBox="-40 -70 340 160">${STAFF_DECO[kind] || ''}</svg>
       <div class="svcalc">
         <div class="svlcd"><div class="f">${lcd}</div><div class="r">${r ? '= ' + shortNum(Math.round(r.value * 100) / 100) : '?'}</div><div class="m">${r ? wandSteps(bs) : 'najprv číslo'} · ⚡${cost}</div></div>
@@ -1169,7 +1186,7 @@ function openStaff(dir = 0) {
         <div class="svkeys">${keys || '<span class="empty">ruksak je prázdny – kamene dostaneš pri úrovni a u obchodníka</span>'}<button class="sk fn" id="svback" title="posledný kameň späť do ruksaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></div>
       </div>
       <div class="svshaft"></div>
-    </div>
+    </div>`}
     <p class="svhint">ťukni kameň · ${N > 1 ? 'koliesko / ◀ ▶ = ďalšia palica · ' : ''}Esc zavrie</p>
   </div>`;
   const again = ovEl.classList.contains('staffview') && ovEl.classList.contains('show');
