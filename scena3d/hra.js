@@ -15,7 +15,7 @@ import { manaStats } from './balance.js';
 import { WORLDS, themeProps, buildMagic, groundStrokes, pavement } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
-import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
+import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur, addSprite, setLampLight } from './kresba.js';
 import { points } from './svet.js';
 import { ZIVLY, card, slot, dia, menu } from './ui.js';
 points.layers.enable(4);   // iskry patria kúzlu
@@ -202,11 +202,11 @@ function denNocT(t) {
   dnT = t; const L = (a, b) => a + (b - a) * t;
   scene.background.copy(PAPERC).lerp(NIGHT, t); scene.fog.color.copy(scene.background); svetloDenNoc(t);
   lamp.base = L(0.35, 5);   // cez deň palica takmer nesvieti – žiadny svetlý kruh s tmavým okolím crystalLight.distance = L(5, 7.5); crystalLight.decay = L(1.6, 1.5); crystalLight.intensity = lamp.base;
-  if (crystalLight.castShadow !== t > 0.5) { crystalLight.castShadow = t > 0.5; sun.castShadow = !(t > 0.5); hero.traverse(o => { if (o.isMesh) o.castShadow = !(t > 0.5); }); }   // v noci mesiac bez tieňov (len jemné svetlo), tiene len od palice   // v noci palica vrhá tiene; čarodejník sám od svojej palice nie
+  if (sun.castShadow !== !(t > 0.5)) { sun.castShadow = !(t > 0.5); } crystalLight.castShadow = true;   // svetlo palice vrhá tiene vždy (cez deň aj v tme)   // v noci mesiac bez tieňov (len jemné svetlo), tiene len od palice   // v noci palica vrhá tiene; čarodejník sám od svojej palice nie
 }
 function denNoc() { denNocT(adv() ? 1 : 0); document.body.classList.toggle('majster', adv()); }
 // tiene od svetla palice (v noci): kocková mapa 512 px, dosah len okolo čarodejníka
-crystalLight.shadow.mapSize.set(256, 256); crystalLight.shadow.camera.near = 0.15; crystalLight.shadow.camera.far = 9; crystalLight.shadow.bias = -0.004; crystalLight.shadow.radius = 2;
+crystalLight.shadow.mapSize.set(512, 512); crystalLight.shadow.camera.near = 0.15; crystalLight.shadow.camera.far = 9; crystalLight.shadow.bias = -0.004; crystalLight.shadow.radius = 2;
 // ohne pri táboroch (v noci viditeľné zďaleka), blikajú podľa šumu
 let fires = [];
 // len 2 svetlá (počet svetiel = cena každého materiálu), presúvajú sa k najbližším ohňom
@@ -1590,9 +1590,10 @@ const FR = POSE.map(P => {
 const SPR = { cw: 16, ch: 16, rows: 5 };
 { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 80; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', w: '#8c8089', c: '#fff6dc' };
   FR.forEach((f, i) => f.forEach((l, y) => [...l].forEach((ch, xx) => { if (PC[ch]) { x.fillStyle = PC[ch]; x.fillRect((i % 4) * 16 + xx, Math.floor(i / 4) * 16 + y, 1, 1); } })));
-  SPR.url = cv.toDataURL(); window.__spr = SPR.url; }
+  SPR.url = cv.toDataURL(); window.__spr = SPR.url; SPR.tex = new THREE.CanvasTexture(cv); SPR.tex.magFilter = SPR.tex.minFilter = THREE.NearestFilter; SPR.tex.generateMipmaps = false; SPR.mesh = addSprite(SPR.tex, 64, 80); }
+setLampLight(crystalLight);
 const sprEl = document.createElement('div'); sprEl.id = 'hero2d'; document.body.appendChild(sprEl);
-if (SPR) hero.traverse(o => { if (o.isMesh) { o.material.colorWrite = false; o.material.depthWrite = false; o.layers.disable(1); } });
+if (SPR) hero.traverse(o => { if (o.isMesh) { o.material.colorWrite = false; o.material.depthWrite = false; o.layers.disable(1); o.castShadow = false; } });
 let sprT = 0, sprFlip = false; const sprLast = new THREE.Vector3(), sprA = new THREE.Vector3(), sprB = new THREE.Vector3();
 const ghosts = Array.from({ length: 6 }, () => { const d = document.createElement('div'); d.className = 'hero2d-ghost'; document.body.appendChild(d); return d; }), trail = [];
 let sprView = 'side';
@@ -1611,7 +1612,12 @@ function drawHeroSprite(dt) {
   sprB.copy(hero.position).add(new THREE.Vector3(0, 1.6, 0)).project(camera); const hpx = Math.abs((1 - sprB.y) / 2 * innerHeight - fy);
   const k = Math.max(1, Math.round(hpx / 16)), w = SPR.cw * k, h = SPR.ch * k, ax = row >= 3 ? 6.5 : 4.5, flip = row >= 3 ? false : sprFlip;   // celé pixely – ostrá silueta
   const css = (x, y) => `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * SPR.rows * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform-origin:${ax * k}px 50%;transform:translate(${x - ax * k}px, ${y - h * 0.94}px) scaleX(${flip ? -1 : 1})`;
-  sprEl.style.cssText = css(fx, fy);
+  sprEl.style.display = 'none';
+  // postavička vo vrstve s hĺbkou (kresba.js addSprite): zakryjú ju predmety pred ňou
+  { const M = SPR.mesh, U2 = M.material.uniforms, x0 = fx - (flip ? SPR.cw - ax : ax) * k, y0 = fy - h * 0.94;
+    M.visible = !inside && !document.body.classList.contains('ovon'); M.position.set(x0 + w / 2, y0 + h / 2, 0); M.scale.set(w, -h, 1);
+    U2.uFrame.value.set(col / 4, 1 - (row + 1) / SPR.rows, 1 / 4, 1 / SPR.rows); U2.uFlip.value = flip ? 1 : 0;
+    sprB.copy(hero.position).add(new THREE.Vector3(0, 0.6, 0)).project(camera); U2.uDepth.value = sprB.z * 0.5 + 0.5; }
   // DASH je vidieť: za čarodejníkom ostávajú svetlé duchovia, ktorí doznejú
   if (G.dashing) trail.push({ x: fx, y: fy, t: 0, s: css(fx, fy) });
   for (const g of trail) g.t += dt; while (trail.length && (trail[0].t > 0.35 || trail.length > 6)) trail.shift();

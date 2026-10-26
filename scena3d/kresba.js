@@ -13,6 +13,7 @@ const cv = document.createElement('canvas'); cv.width = RAMP.length * 4; cv.heig
 const atlas = new THREE.CanvasTexture(cv); atlas.magFilter = atlas.minFilter = THREE.NearestFilter; atlas.generateMipmaps = false; atlas.flipY = false;
 
 const RT = () => new THREE.WebGLRenderTarget(16, 16, { depthTexture: new THREE.DepthTexture(16, 16) });
+const lampRT = new THREE.WebGLRenderTarget(16, 16);   // obraz LEN so svetlom palice (s tieňmi) – skutočné svetlo čarodejníka na predmetoch
 const fine = RT(), amb = new THREE.WebGLRenderTarget(16, 16), mask = new THREE.WebGLRenderTarget(16, 16), maskG = RT(), maskS = RT();
 const glyphRT = new THREE.WebGLRenderTarget(16, 16, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
 const VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -20,11 +21,11 @@ export const kresbaMat = new THREE.ShaderMaterial({
   uniforms: { tScene: { value: fine.texture }, tDepth: { value: fine.depthTexture }, tAmb: { value: amb.texture }, tMask: { value: mask.texture }, tGround: { value: maskG.texture }, tGDepth: { value: maskG.depthTexture },
     tSpellM: { value: maskS.texture }, tSpellD: { value: maskS.depthTexture }, tAtlas: { value: atlas }, uGlyphN: { value: RAMP.length }, uGlyph: { value: new THREE.Vector2(3, 5) }, uScale: { value: 1 },
     uRes: { value: new THREE.Vector2() }, uDepth: { value: new THREE.Vector2((20.9 - 9) / 199.9, (20.9 + 14) / 199.9) }, uSymCol: { value: 1 }, uAO: { value: 1 },
-    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.0) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uGrey: { value: 1 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
+    uSpellG: { value: 3 }, uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, uHurt: { value: 0 }, uFade: { value: 0 }, uDark: { value: 0 }, uLit: { value: new THREE.Vector2(1.0, 3.6) }, uOne: { value: 1 }, uDbg: { value: 0 }, uNight: { value: 0 }, uGlow: { value: new THREE.Vector4(0.5, 0.5, 0.1, 0) }, uGlowC: { value: new THREE.Color(0xc8923a) }, uInvVP: { value: new THREE.Matrix4() }, uHero: { value: new THREE.Vector3() }, uLamp: { value: new THREE.Vector3(4.5, 16, 0.0) }, uNightR: { value: new THREE.Vector2(5, 12) }, uOrbs: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) }, uOneBit: { value: 1 }, uGrey: { value: 1 }, tLamp: { value: lampRT.texture }, uLampK: { value: 0.28 }, uLsK: { value: 1.6 }, uLsR: { value: new THREE.Vector2(0.2, 0.42) } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tAmb; uniform sampler2D tMask; uniform sampler2D tGround; uniform sampler2D tGDepth;
     uniform sampler2D tSpellM; uniform sampler2D tSpellD; uniform sampler2D tAtlas; uniform float uGlyphN; uniform vec2 uGlyph; uniform float uScale;
-    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; uniform float uGrey; uniform float uLsK; uniform vec2 uLsR; varying vec2 vUv;
+    uniform vec2 uRes; uniform vec2 uDepth; uniform float uSymCol; uniform float uAO; uniform int uSpellG; uniform vec4 uFlash; uniform float uHurt; uniform float uFade; uniform float uDark; uniform vec2 uLit; uniform float uOne; uniform float uDbg; uniform float uNight; uniform vec4 uGlow; uniform vec3 uGlowC; uniform mat4 uInvVP; uniform vec3 uHero; uniform vec3 uLamp; uniform vec2 uNightR; uniform vec4 uOrbs[4]; uniform float uOneBit; uniform float uGrey; uniform sampler2D tLamp; uniform float uLampK; uniform float uLsK; uniform vec2 uLsR; varying vec2 vUv;
     float bayer(vec2 p){ vec2 q = mod(p, 4.0); int i = int(q.x) + int(q.y) * 4; float b = 0.0;
       if (i==0) b=0.; else if (i==1) b=8.; else if (i==2) b=2.; else if (i==3) b=10.; else if (i==4) b=12.; else if (i==5) b=4.; else if (i==6) b=14.; else if (i==7) b=6.;
       else if (i==8) b=3.; else if (i==9) b=11.; else if (i==10) b=1.; else if (i==11) b=9.; else if (i==12) b=15.; else if (i==13) b=7.; else if (i==14) b=13.; else b=5.;
@@ -165,11 +166,10 @@ export const kresbaMat = new THREE.ShaderMaterial({
           // ČARODEJNÍK STÁLE SVIETI (Lukáš 26. 10., predloha petitjus): svetlý kruh okolo neho cez deň aj v tme, okraj sa rozpadá ditherom
           if (dg < 0.9999) {
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
-            float pd = length(wpq.xz - uHero.xz), pool = 1.0 - smoothstep(uDark > 0.5 ? 2.0 : 2.5, uDark > 0.5 ? 6.5 : 7.5, pd);
+            // SKUTOČNÉ SVETLO PALICE: osobitný obraz len so svetlom palice (a kúziel) – svieti na stranu predmetov k čarodejníkovi, za nimi tieň
+            float irr = luma(texture2D(tLamp, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002) * uLampK;
+            float pool = smoothstep(0.015, 0.16, irr);
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, length(wpq.xz - uOrbs[o].xz)));   // kúzla svietia naplno
-            // TIENE OD SVETLA ČARODEJNÍKA: v tme svieti skutočné svetlo palice s tieňmi – kam nedosvieti (za stromom, stĺpom), ostane tma
-            float rr = luma(texture2D(tScene, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002);
-            pool *= mix(1.0, smoothstep(1.0, 1.18, rr), uDark);
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.75));
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
@@ -289,7 +289,8 @@ export function resizeKresba() {
   const dpr = Math.min(2, window.devicePixelRatio || 1, Math.sqrt(3.4e6 / (innerWidth * innerHeight)));   // strop ~3,4 mil. pixelov (veľké Retina okno inak spomalí)
   renderer.setPixelRatio(dpr); renderer.setSize(innerWidth, innerHeight, false);
   const W = Math.round(innerWidth * dpr), H = Math.round(innerHeight * dpr);
-  for (const t of [fine, amb, mask, maskG, maskS]) t.setSize(Math.ceil(innerWidth / 2), Math.ceil(innerHeight / 2));   // scéna v 1/2 rozlíšenia (Lukáš 26. 10.: viac detailu ako predloha)
+  sprCam.right = innerWidth; sprCam.bottom = innerHeight; sprCam.updateProjectionMatrix();
+  for (const t of [fine, amb, mask, maskG, maskS, lampRT]) t.setSize(Math.ceil(innerWidth / 2), Math.ceil(innerHeight / 2));   // scéna v 1/2 rozlíšenia (Lukáš 26. 10.: viac detailu ako predloha)
   glyphRT.setSize(W, H);
   kresbaMat.uniforms.uRes.value.set(W, H); blurMat.uniforms.uRes.value.set(W, H);
 }
@@ -307,6 +308,13 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
   const pi = points.map(l => l.intensity); points.forEach(l => { l.intensity = 0; });
   sun.intensity = 0; rim.intensity = 0; hemi.groundColor.set(0xffffff); renderer.setRenderTarget(amb); renderer.render(scene, camera);
   sun.intensity = si; rim.intensity = ri; hemi.groundColor.set(gc); points.forEach((l, i) => { l.intensity = pi[i]; });
+  if (lampLight) {   // PRECHOD LEN SO SVETLOM PALICE (tiene od predmetov), obloha a slnko vypnuté
+    const hi = hemi.intensity, li = lampLight.intensity, bg0 = scene.background.clone(), fg0 = scene.fog;
+    hemi.intensity = 0; sun.intensity = 0; rim.intensity = 0; lampLight.intensity = 6; scene.background.set(0x000000); scene.fog = null;
+    renderer.setRenderTarget(lampRT); renderer.render(scene, camera);
+    kresbaMat.uniforms.uLampK.value = hi / 6;
+    hemi.intensity = hi; sun.intensity = si; rim.intensity = ri; lampLight.intensity = li; scene.background.copy(bg0); scene.fog = fg0;
+  }
   const bg = scene.background.clone(), fog = scene.fog;
   scene.background.set(0x000000); scene.fog = null; scene.overrideMaterial = white;
   camera.layers.set(1); renderer.setRenderTarget(mask); renderer.render(scene, camera);
@@ -315,7 +323,35 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
   scene.background.copy(bg); scene.fog = fog; camera.layers.set(0);
   quad.material = kresbaMat; renderer.setRenderTarget(glyphRT); renderer.render(quadScene, quadCam);
   quad.material = blurMat; renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
+  if (sprScene.children.length) { renderer.autoClear = false; renderer.render(sprScene, sprCam); renderer.autoClear = true; }   // pixelové postavičky navrch, s hĺbkou
 }
 
 // svetlá kúzla (najviac 4): [{ x, z, r }] – volá suboj.js každý snímok
 export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r : 0); } }
+
+// ---------- SVETLO PALICE ----------
+let lampLight = null;
+export const setLampLight = l => { lampLight = l; };
+// ---------- VRSTVA PIXELOVÝCH POSTAVIČIEK: kreslí sa až po ditheri (ostré pixely), ale s hĺbkou sveta –
+// čo je pred postavičkou (strom, stĺp), ju zakryje; zakrytá časť = len jemný svetlý obrys (Lukáš 26. 10.)
+const sprScene = new THREE.Scene(), sprCam = new THREE.OrthographicCamera(0, 1, 0, 1, -1, 1);
+const sprFS = `uniform sampler2D tAtlas; uniform sampler2D tDep; uniform vec2 uRes; uniform vec4 uFrame; uniform float uFlip; uniform float uDepth; uniform vec2 uTex; uniform float uAlpha; varying vec2 vUv;
+  float al(vec2 p) { return texture2D(tAtlas, p).a; }
+  void main(){
+    vec2 f = vec2(uFlip > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y), uv = uFrame.xy + f * uFrame.zw;
+    vec4 c = texture2D(tAtlas, uv); if (c.a < 0.5) discard;
+    float sd = texture2D(tDep, gl_FragCoord.xy / uRes).r;
+    if (sd < uDepth - 0.0035) {   // za predmetom
+      vec2 t = 1.0 / uTex; float e = al(uv + vec2(t.x, 0.0)) + al(uv - vec2(t.x, 0.0)) + al(uv + vec2(0.0, t.y)) + al(uv - vec2(0.0, t.y));
+      if (e > 3.5) discard; gl_FragColor = vec4(0.95, 0.93, 0.86, 0.55 * uAlpha); return;
+    }
+    gl_FragColor = vec4(c.rgb, uAlpha);
+  }`;
+export function addSprite(tex, tw, th) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
+    uniforms: { tAtlas: { value: tex }, tDep: { value: fine.depthTexture }, uRes: { value: kresbaMat.uniforms.uRes.value }, uFrame: { value: new THREE.Vector4(0, 0, 1, 1) }, uFlip: { value: 0 }, uDepth: { value: 1 }, uTex: { value: new THREE.Vector2(tw, th) }, uAlpha: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: sprFS, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+  m.frustumCulled = false; sprScene.add(m); return m;
+}
+export const removeSprite = m => sprScene.remove(m);
