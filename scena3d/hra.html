@@ -139,6 +139,37 @@
   .wand .wr { margin-top:8px; font-size:13px; color:var(--grey); } .wand .wr b { color:var(--line); font-size:16px; } .wand .wr em { color:#e8443a; font-style:normal; }
   .bagz { display:flex; flex-wrap:wrap; gap:6px; min-height:50px; padding:6px; border:1.5px dashed var(--dim); }
   @media (max-height:500px) { .wm { min-width:56px; height:48px; } .wm .pix { height:16px; } .wand { padding:6px 8px; margin:6px 0; } }
+  /* PALICA ZBLÍZKA: rozmazaný svet, palica sa vysunie zospodu, kalkulačka s kameňmi ako klávesmi (1-bit + farebné len kamene) */
+  .ov.staffview { backdrop-filter:blur(7px) brightness(.55); -webkit-backdrop-filter:blur(7px) brightness(.55); background:rgba(8,8,10,.35); padding:0; overflow:hidden; }
+  .ov.staffview .box { max-width:none; width:100%; height:100%; border:0; background:none; padding:0; animation:none; position:relative; }
+  .ov.staffview .box > .ptag { display:none; }
+  .sv { position:absolute; inset:0; }
+  .svtabs { position:absolute; top:18px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:3; }
+  .svtabs .tab { font:inherit; font-size:13px; color:var(--grey); background:none; border:1.5px dashed var(--dim); padding:6px 18px; cursor:pointer; } .svtabs .tab.on { color:var(--line); border:1.5px solid var(--line); }
+  .svnav { position:absolute; top:50%; z-index:3; font:inherit; font-size:20px; color:var(--line); background:rgba(14,14,16,.6); border:1.5px solid var(--line); width:44px; height:64px; cursor:pointer; } .svnav.l { left:4vw; } .svnav.r { right:4vw; }
+  .svinfo { position:absolute; right:calc(4vw + 60px); top:22%; display:flex; flex-direction:column; gap:8px; text-align:left; max-width:240px; font-size:12px; color:var(--grey); z-index:2; } .svinfo b { font-size:20px; } .svinfo .rule { color:#ffd25a; }
+  .svwand { position:absolute; left:50%; top:13vh; width:min(400px, 60vw); transform:translateX(-50%) rotate(-4deg); transform-origin:50% 100%; animation:svrise .5s cubic-bezier(.2,1.15,.35,1) both; }
+  .svwand.fr { animation:svfr .3s cubic-bezier(.2,1,.35,1) both; } .svwand.fl { animation:svfl .3s cubic-bezier(.2,1,.35,1) both; }
+  @keyframes svrise { from { transform:translateX(-50%) translateY(95vh) rotate(8deg); } }
+  @keyframes svfr { from { transform:translateX(10%) rotate(6deg); opacity:0; } } @keyframes svfl { from { transform:translateX(-110%) rotate(-12deg); opacity:0; } }
+  .svdeco { position:absolute; left:-10%; width:120%; top:-14%; height:auto; overflow:visible; fill:none; stroke:var(--c); stroke-width:3; stroke-linecap:square; filter:drop-shadow(0 0 6px var(--c)); z-index:0; }
+  .k-tazka .svdeco, .k-dvojita .svdeco, .k-graficka .svdeco, .k-rychla .svdeco { fill:#141416; }
+  .svcalc { position:relative; z-index:1; margin:0 auto; padding:16px 16px 18px; border:3px solid var(--line); outline:3px solid #0e0e10; border-radius:14px 14px 22px 22px;
+    background:radial-gradient(circle, rgba(242,239,230,.22) 0.9px, transparent 1.3px) 0 0/5px 5px, radial-gradient(circle, rgba(242,239,230,.12) 0.9px, transparent 1.3px) 2.5px 2.5px/5px 5px, #1a1a1d; box-shadow:0 0 30px rgba(0,0,0,.6), inset 0 0 0 2px #0e0e10; }
+  .k-tazka .svcalc { border-width:5px; border-radius:6px; } .k-rychla .svcalc { border-radius:26px 26px 30px 30px; } .k-vedecka .svcalc { padding-top:20px; } .k-graficka .svcalc { border-radius:8px; }
+  .svlcd { background:#c9d6b8; color:#121410; border:3px solid #0e0e10; box-shadow:inset 0 0 0 2px #8a9a7a; padding:8px 10px; text-align:right; min-height:84px; }
+  .svlcd .f { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:6px; min-height:26px; } .svlcd .f i { display:inline-block; } .svlcd .f .pix { height:20px; fill:#121410; }
+  .svlcd .r { font-size:28px; line-height:1.1; margin-top:2px; } .svlcd .m { font-size:10px; opacity:.65; } .svlcd .blink { animation:blink 1s steps(2) infinite; font-size:22px; }
+  .svholes { display:flex; justify-content:center; gap:10px; margin:12px 0 10px; } .svholes u { width:16px; height:16px; border-radius:50%; border:2px solid var(--line); background:#0b0b0c; } .svholes u.on { background:var(--c); box-shadow:0 0 8px var(--c); }
+  .svkeys { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; } .svkeys .empty { grid-column:1 / -1; font-size:11px; color:var(--grey); text-align:center; padding:6px; }
+  .sk { position:relative; font:inherit; height:48px; border:2px solid var(--c, var(--line)); border-bottom-width:5px; border-radius:7px; background:#0e0e10; color:var(--c, var(--line)); cursor:pointer; display:grid; place-items:center; box-shadow:0 0 8px color-mix(in srgb, var(--c, #fff) 30%, transparent); transition:transform .06s; }
+  .sk .pix { height:16px; fill:currentColor; } .sk small { position:absolute; right:4px; top:2px; font-size:8px; color:var(--grey); }
+  .sk:hover { transform:translateY(-2px); } .sk:active { transform:translateY(2px); border-bottom-width:2px; } .sk.fn { --c:var(--grey); font-size:18px; } .sk.no { animation:shake .3s; }
+  .svshaft { width:46px; height:80vh; margin:-6px auto 0; border:3px solid var(--line); border-top:0; outline:3px solid #0e0e10; background:repeating-linear-gradient(135deg, #2a2926 0 4px, #4a4741 4px 7px); }
+  .k-zakladna .svshaft { background:repeating-linear-gradient(0deg, #3a2f24 0 6px, #4d3e2e 6px 9px); } .k-tazka .svshaft { width:60px; } .k-rychla .svshaft { width:34px; }
+  .svhint { position:absolute; bottom:10px; left:16px; font-size:10px; color:var(--grey); margin:0; }
+  @media (max-width:1150px) { .svinfo { left:16px; right:auto; top:70px; max-width:min(190px, 24vw); font-size:10px; } .svinfo b { font-size:15px; } .svwand { width:min(360px, 50vw); } }
+  @media (max-height:500px), (max-width:760px) { .svinfo { top:64px; left:12px; right:auto; max-width:min(170px, 22vw); font-size:10px; } .svinfo b { font-size:15px; } .svwand { width:min(300px, 52vw); } .svlcd { min-height:60px; } .svlcd .r { font-size:20px; } .sk { height:36px; } .svholes { margin:6px 0; } .svcalc { padding:10px; } .svnav.l { left:8px; } .svnav.r { right:8px; } }
   /* MAJSTER: život ako číslo + vylepšenia vľavo hore */
   #hearts.hpnum { display:flex; align-items:center; gap:5px; color:#e8443a; } #hearts.hpnum b { font-size:18px; color:var(--line); font-weight:500; } #hearts.hpnum span { font-size:11px; color:var(--grey); margin-left:-3px; }
   #hearts.hpnum i { display:block; width:84px; height:7px; border:1.5px solid var(--line); background:rgba(14,14,16,.6); position:relative; } #hearts.hpnum i u { position:absolute; inset:0 auto 0 0; background:#e8443a; text-decoration:none; transition:width .2s steps(4); }

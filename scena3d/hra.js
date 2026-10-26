@@ -520,7 +520,7 @@ function openWands() {
 }
 let lastRes = [], dropAt = null;
 function openPack() {
-  if (adv() && run.pack.wands) return openWands();
+  if (adv() && run.pack.wands) return openStaff();
   tutStep(1); tutTick(); $('bBook').classList.remove('pulse');
   const P = run.pack; packRow = Math.min(packRow, P.rows.length - 1);
   const SP = P.kind2 && packRow === P.bRow ? { ...P, kind: P.kind2 } : P;   // kalkulačka = palica, ku ktorej patrí riadok (A alebo B)
@@ -754,6 +754,7 @@ function press(k) {
 });
 addEventListener('keydown', e => {
   // Kniha kúziel otvorená: kalkulačka ide aj z klávesnice (čísla, + - * /, Backspace, Delete = C, Enter = =)
+  if (ovEl.classList.contains('show') && ovEl.classList.contains('staffview')) { if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { ovEl._flip(1); e.preventDefault(); return; } if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { ovEl._flip(-1); e.preventDefault(); return; } if (e.key === 'Backspace') { ovEl.querySelector('#svback').click(); return; } if (e.key === 'Escape') { ovEl.querySelector('.ovx').click(); return; } }
   if (ovEl.classList.contains('show') && ovEl.classList.contains('pack')) {
     const map = { '*': '×', 'x': '×', '/': '÷', 'Backspace': '⌫', 'Delete': 'C', 'Enter': '=', '?': '□', '(': '( )', ')': '( )', 'r': '√', 'v': '√', '^': 'x²', 'q': 'x²', 'c': 'x³', '!': '!' }, want = map[e.key] || e.key;
     const i = KEYS.findIndex(k => k[0] === want); if (i >= 0) { const b = ovEl.querySelector(`.ck[data-k="${i}"]`); if (b && !b.disabled) b.click(); e.preventDefault(); return; }
@@ -1135,6 +1136,59 @@ function gainWand(k) {
     <div class="acts"><button class="btn ghost" id="keep">Nechať si staré</button></div>`, 'small wandsbook');
   el.querySelectorAll('[data-j]').forEach(b => b.onclick = () => { replaceWand(P, +b.dataset.j, k); persist(); closeOverlay(); say(`Palica ${STAFF_MODELS[k].name}!`, 2500); });
   el.querySelector('#keep').onclick = () => { closeOverlay(); addCoins(10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); };
+}
+// ---------- PALICA ZBLÍZKA (Majster): obraz sa rozmaže, zospodu sa vysunie palica s kalkulačkou; kamene z ruksaku = klávesy ----------
+// koliesko / šípky / ◀ ▶ = ďalšia palica; ťuk na kláves = vloží kameň (číslo vymení základ); ⌫ = posledný späť do ruksaku; C = všetko späť
+let staffI = 0, staffDir = 0;
+const STAFF_DECO = {
+  zakladna: '<path d="M18 40 C6 30 4 14 14 6 M14 6 l-6 2 M14 6 l2 -6 M242 40 C254 30 256 14 246 6 M246 6 l6 2" />',
+  rychla: '<path d="M14 40 L-36 26 L-24 38 L-52 40 L-30 50 L-48 58 L-22 62 L-34 72 L14 70 Z M246 40 L296 26 L284 38 L312 40 L290 50 L308 58 L282 62 L294 72 L246 70 Z" />',
+  tazka: '<rect x="-10" y="-8" width="280" height="24" /><circle cx="6" cy="4" r="4" /><circle cx="254" cy="4" r="4" /><circle cx="130" cy="4" r="4" />',
+  dvojita: '<rect x="40" y="-34" width="64" height="30" /><rect x="156" y="-34" width="64" height="30" /><path d="M72 -4 v10 M188 -4 v10" />',
+  vedecka: '<path d="M60 -6 l14 -26 l14 26 M116 -6 l14 -34 l14 34 M172 -6 l14 -26 l14 26" /><circle cx="130" cy="-40" r="5" />',
+  graficka: '<rect x="-14" y="-60" width="288" height="56" /><polyline points="-6,-32 20,-50 46,-14 72,-52 98,-20 124,-44 150,-12 176,-48 202,-24 228,-46 254,-16" />',
+};
+function openStaff(dir = 0) {
+  tutStep(1); $('bBook').classList.remove('pulse');
+  const P = run.pack, N = P.wands.length; staffI = Math.max(0, Math.min(N - 1, staffI)); staffDir = dir;
+  const w = P.wands[staffI], kind = wandKind(P, staffI), S = staffStats({ ...P, kind }), M = manaStats(P), n = wandSlots(P, staffI);
+  const bs = boostSlots(P, w.slots), r = evalWand(bs), cost = wandCost(w.slots, P), col = RARITY[STAFF_RAR[kind] || 'b'].col;
+  const tok = m => `<i style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}">${pix(modLabel(m))}</i>`;
+  const lcd = !w.slots.length ? '<span class="blink">_</span>' : r ? `<i>${pix(r.text.replace(/-/g, '-'))}</i>` : w.slots.map(tok).join('');   // vzorec so zátvorkami (počíta sa zľava doprava)
+  const holes = Array.from({ length: n }, (_, j) => `<u class="${w.slots[j] ? 'on' : ''}" style="--c:${w.slots[j] ? (w.slots[j].t === 'num' ? 'var(--line)' : OPCOL2[w.slots[j].o]) : 'transparent'}"></u>`).join('');
+  const keys = P.bag.map((m, j) => `<button class="sk${m.t === 'num' ? ' num' : ''}" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>`).join('');
+  const html = `<div class="sv">
+    <div class="svtabs"><button class="tab" id="svbag">Ruksak · ${P.bag.length}</button><span class="tab on">Palica ${staffI + 1}/${N}</span></div>
+    ${N > 1 ? '<button class="svnav l" id="svl">◀</button><button class="svnav r" id="svr">▶</button>' : ''}
+    <div class="svinfo"><b style="color:${col}">Palica ${S.name}</b><span>${n} jamky · rýchlosť ×${+(1 / S.cd).toFixed(2)} · sila ×${S.dmg}</span><span class="rule">${ruleText(S.rule) || S.text}</span><span>mana ⚡${M.emax} · +${+M.regen.toFixed(1)}/s</span></div>
+    <div class="svwand k-${kind}${dir ? (dir > 0 ? ' fr' : ' fl') : ''}" style="--c:${col}">
+      <svg class="svdeco" viewBox="-40 -70 340 160">${STAFF_DECO[kind] || ''}</svg>
+      <div class="svcalc">
+        <div class="svlcd"><div class="f">${lcd}</div><div class="r">${r ? '= ' + shortNum(Math.round(r.value * 100) / 100) : '?'}</div><div class="m">${r ? wandSteps(bs) : 'najprv číslo'} · ⚡${cost}</div></div>
+        <div class="svholes">${holes}</div>
+        <div class="svkeys">${keys || '<span class="empty">ruksak je prázdny – kamene dostaneš pri úrovni a u obchodníka</span>'}<button class="sk fn" id="svback" title="posledný kameň späť do ruksaku">⌫</button><button class="sk fn" id="svclr" title="všetky kamene okrem čísla späť">C</button></div>
+      </div>
+      <div class="svshaft"></div>
+    </div>
+    <p class="svhint">ťukni kameň · ${N > 1 ? 'koliesko / ◀ ▶ = ďalšia palica · ' : ''}Esc zavrie</p>
+  </div>`;
+  const again = ovEl.classList.contains('staffview') && ovEl.classList.contains('show');
+  const el = again ? ovEl : overlay('Palica', html, 'staffview');
+  if (again) el.querySelector('.box').innerHTML = `<span class="ptag">Palica</span>${html}`;
+  else { addX(() => { closeOverlay(); if (fight.on) renderInput(); }); if (!el._wheelOn) el._wheelOn = 1, el.addEventListener('wheel', ev => { if (!el.classList.contains('staffview')) return; ev.preventDefault(); if (Math.abs(ev.deltaY) < 8 || performance.now() - (el._wt || 0) < 250) return; el._wt = performance.now(); el._flip(ev.deltaY > 0 ? 1 : -1); }, { passive: false }); }
+  const redo = () => { persist(); openStaff(); };
+  el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => {
+    const j = +b.dataset.b, m = P.bag[j];
+    if (m.t === 'num') { P.bag.splice(j, 1); if (w.slots[0]) P.bag.push(w.slots[0]); w.slots[0] = m; }
+    else { if (!w.slots.length) { say('Najprv číslo – palica začína číslom.', 1800); return; } if (w.slots.length >= n) { say(`Palica má len ${n} jamky – ⌫ uvoľní miesto.`, 1800); b.classList.add('no'); return; } P.bag.splice(j, 1); w.slots.push(m); }
+    efekt('minca', 0.4, 1.2 + w.slots.length * 0.08); redo();
+  });
+  el.querySelector('#svback').onclick = () => { if (w.slots.length > 1) { P.bag.push(w.slots.pop()); efekt('minca', 0.3, 0.9); redo(); } };
+  el.querySelector('#svclr').onclick = () => { if (w.slots.length > 1) { P.bag.push(...w.slots.splice(1)); efekt('minca', 0.3, 0.8); redo(); } };
+  el.querySelector('#svbag').onclick = () => { closeOverlay(); openWands(); };
+  const flip = d => { if (N < 2) return; staffI = (staffI + d + N) % N; efekt('minca', 0.25, 0.7); openStaff(d); };
+  if (el.querySelector('#svl')) { el.querySelector('#svl').onclick = () => flip(-1); el.querySelector('#svr').onclick = () => flip(1); }
+  el._flip = flip;
 }
 // DRUHÁ PALICA (ľavá ruka B): vlastný riadok v Knihe, vlastná energia; komba medzi palicami v suboj.js
 function giveSecondStaff() {
