@@ -12,7 +12,7 @@ import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
 import { manaStats } from './balance.js';
-import { WORLDS, themeProps, buildMagic } from './magia.js';
+import { WORLDS, themeProps, buildMagic, groundStrokes, pavement } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
@@ -148,6 +148,7 @@ function buildRoom() {
     placeModels(room, pA[i], R.height);
   });
   magic = adv() ? buildMagic(room, R, BIO, mulberry32(R.seed * 7 + R.zone)) : null;   // svietiace číslice a tvary sveta
+  if (adv()) { groundStrokes(room, R, BIO, mulberry32(R.seed * 13 + R.zone)); pavement(room, R, BIO, mulberry32(R.seed * 17 + R.zone)); }   // zem kreslená ťahmi, dlažba a chodníky
   place = { height: R.height, inside: R.inside, blockers: R.props.filter(p => p.col).map(p => ({ x: p.x, z: p.z, r: p.col * p.s })), ground };
   // bandy pri ohni (porazené už nie sú), vodca stojí v pevnosti
   for (const c of R.camps) {

@@ -133,7 +133,7 @@ export function loadProps() {
   const raw = (name, url) => loadGlb(url).then(g => { g.scene.traverse(o => { if (o.isMesh) { o.material = prepMat(o.material, false, false, 1.0); o.castShadow = true; o.receiveShadow = true; } }); RAW[name] = g.scene; }).catch(() => {});
   return Promise.all([
     // les a kríky sú tmavé (ako v prírode), skaly a stavby svetlé – jedna paleta pre celý svet
-    ...KENNEY.map(n => one(n, `modely/priroda/${n}.glb`, sc(n), 0.8)),   // všetky materiály rovnako – tmavosť určuje len svetlo (kresba.js uOne)
+    ...KENNEY.map(n => one(n, `modely/priroda/${n}.glb`, sc(n), n.startsWith('tree_') ? 0.32 : n.startsWith('plant_bush') ? 0.42 : 0.8)),   // stromy tmavé siluety (predloha petitjus)   // všetky materiály rovnako – tmavosť určuje len svetlo (kresba.js uOne)
     ...STAVBY.map(n => one(n, `modely/stavby/${n}.gltf`, n === 'building_tavern_blue' ? 4.6 : 3.6)),
     ...DUNGEON.map(n => one(n, `modely/dungeon/${n}.glb`, 0.75, 1.0)),
     raw('chest', 'modely/dungeon/chest.glb'), raw('key', 'modely/dungeon/key.glb'),

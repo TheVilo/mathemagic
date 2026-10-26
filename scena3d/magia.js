@@ -48,10 +48,9 @@ export function themeProps(R, b, rnd) {
     kruhy: m => m.startsWith('tree_') ? pk(['rock_tallA', 'rock_tallB', 'tree_thin']) : m.startsWith('plant_bush') ? pk(['rock_smallA', 'rock_smallB']) : m,
     hrad: m => m.startsWith('tree_') ? pk(['wall', 'wall_corner', 'statue_obelisk', 'statue_block']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['box_small', 'barrel_large', 'statue_block']) : m,
   }[b.id];
-  if (!MAP) return;
-  for (const p of R.props) p.m = MAP(p.m);
+  if (MAP) for (const p of R.props) p.m = MAP(p.m);
   R.flowers = b.id === 'haj' ? R.flowers : [];
-  R.grass = b.id === 'haj' || b.id === 'les' ? R.grass : R.grass.filter((_, i) => i % (b.id === 'hory' || b.id === 'ruiny' ? 4 : 99) === 0);
+  R.grass = R.grass.filter((_, i) => i % 6 === 0);   // Kenney tráva len ojedinele – zem kreslia ťahy (groundStrokes)
 }
 
 // postaví mágiu sveta do skupiny room; vráti update(t, dt)
@@ -106,4 +105,53 @@ export function buildMagic(room, R, b, rnd) {
       for (const m of spin) { m.quaternion.copy(q); m.position.y += Math.sin(t * 1.4 + m.position.x) * 0.002; }
     },
   };
+}
+
+// ŤAHY NA ZEMI (predloha petitjus): krátke šikmé tmavé čiarky ako tráva kreslená perom – zem má textúru, nie prázdny papier
+// v katakombách a hrade namiesto nich drobné kamienky (dlažbu robí textúra zeme)
+export function groundStrokes(room, R, b, rnd) {
+  const stone = b.id === 'dungeon' || b.id === 'hrad', n = Math.round(R.W * R.H * (stone ? 0.12 : b.id === 'sopka' ? 0.15 : 0.45));
+  const geo = stone ? new THREE.BoxGeometry(0.12, 0.05, 0.1) : new THREE.BoxGeometry(0.07, 0.05, 0.5);
+  const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: stone ? 0x2a2826 : 0x141312, roughness: 1 }), n);
+  const wind = -0.7, o = new THREE.Object3D(); let k = 0;
+  for (let i = 0; i < n * 3 && k < n; i++) {
+    const x = 1 + rnd() * (R.W - 2), z = 1 + rnd() * (R.H - 2); if (!R.inside(x, z)) continue;
+    // trsy: ťahy sa zhlukujú (2–4 vedľa seba), nie rovnomerný šum
+    const tuft = 1 + Math.floor(rnd() * 3);
+    for (let t = 0; t < tuft && k < n; t++) {
+      const px = x + (rnd() - 0.5) * 0.4, pz = z + (rnd() - 0.5) * 0.4;
+      o.position.set(px, R.height(px, pz) + 0.03, pz); o.rotation.set(stone ? 0 : 0.5 + rnd() * 0.3, wind + (rnd() - 0.5) * 0.6, 0);
+      o.scale.setScalar(0.7 + rnd() * 0.7); o.updateMatrix(); m.setMatrixAt(k++, o.matrix);
+    }
+  }
+  m.count = k; m.receiveShadow = true; room.add(m); return m;
+}
+
+// DLAŽBA A CHODNÍKY (skutočné kamene, dither ich vytieňuje): v kobke a hrade dlaždice po celej zemi, inde dláždené chodníky
+export function pavement(room, R, b, rnd) {
+  const tiles = b.id === 'dungeon' || b.id === 'hrad', o = new THREE.Object3D(), list = [];
+  if (tiles) {
+    for (let x = 0.5; x < R.W; x += 1) for (let z = 0.5; z < R.H; z += 1) {
+      if (!R.inside(x, z) || rnd() < 0.07) continue;   // občas chýba dlaždica
+      list.push([x + (rnd() - 0.5) * 0.04, z + (rnd() - 0.5) * 0.04, 0.9, 0.9, (rnd() - 0.5) * 0.05, rnd() < 0.15 ? -0.05 : 0]);
+    }
+  } else {
+    // CHODNÍKY: 3 kľukaté cesty naprieč svetom (krok 0,4 m, šírka ~1,4 m), kamene vedľa seba ako dlážená cesta
+    for (let p = 0; p < 3; p++) {
+      let x = rnd() * R.W, z = p % 2 ? 2 : R.H - 2, a = p % 2 ? 1.57 : -1.57, wob = rnd() * 6;
+      if (p === 2) { x = 2; z = rnd() * R.H; a = 0; }
+      for (let st = 0; st < 600; st++) {
+        a += Math.sin(st * 0.05 + wob) * 0.035; x += Math.cos(a) * 0.4; z += Math.sin(a) * 0.4;
+        if (x < 1 || z < 1 || x > R.W - 1 || z > R.H - 1) break;
+        for (let w = -1; w <= 1; w++) {
+          const px = x - Math.sin(a) * w * 0.42 + (rnd() - 0.5) * 0.12, pz = z + Math.cos(a) * w * 0.42 + (rnd() - 0.5) * 0.12;
+          if (!R.inside(px, pz) || rnd() < (w ? 0.3 : 0.08)) continue;   // okraje cesty rozbité
+          list.push([px, pz, 0.26 + rnd() * 0.14, 0.22 + rnd() * 0.12, a + (rnd() - 0.5) * 0.6, 0]);
+        }
+      }
+    }
+  }
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.1, 1), new THREE.MeshStandardMaterial({ color: tiles ? 0x8f8a80 : 0xa39e94, roughness: 1, flatShading: true }), list.length);
+  list.forEach(([x, z, sx, sz, r, dy], i) => { o.position.set(x, R.height(x, z) + 0.03 + dy, z); o.rotation.set((rnd() - 0.5) * 0.06, r, (rnd() - 0.5) * 0.06); o.scale.set(sx, 0.6 + rnd() * 0.6, sz); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
+  m.receiveShadow = true; m.castShadow = false; room.add(m); return m;
 }
