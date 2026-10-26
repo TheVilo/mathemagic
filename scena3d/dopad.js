@@ -13,8 +13,8 @@ const rnd = s => { let a = s * 9301 + 49297; return () => ((a = (a * 9301 + 4929
 export function drawImpacts(ctx, P, dt) {
   // DITHER (Lukáš 26. 10.): žiadna priehľadnosť – slabnutie = redšie body podľa Bayerovej mriežky, ako svet
   let DENS = 1; const BAY = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
-  const px = (x, y, c, s = 3) => { const X = Math.round(x / 3), Y = Math.round(y / 3); if (BAY[Y & 3][X & 3] / 16 >= DENS) return; ctx.fillStyle = c; ctx.fillRect(X * 3, Y * 3, s, s); };
-  const seg = (a, b, c, s = 3) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 3)); for (let i = 0; i <= n; i++) px(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n, c, s); };
+  const px = (x, y, c, s = 3) => { const X = Math.round(x), Y = Math.round(y); if (BAY[Y & 3][X & 3] / 16 >= DENS) return; const d = Math.max(1, Math.round(s * 0.67)); ctx.fillStyle = c; ctx.fillRect(X, Y, d, d); };   // bod = 1 px plátna = 2 px obrazovky, rovnako ako dither sveta
+  const seg = (a, b, c, s = 3) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]))); for (let i = 0; i <= n; i++) px(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n, c, s); };
   const W = (g, dx, dz) => P(g.x + dx, g.z + dz);
   // STOPY na zemi (pod efektmi)
   for (let i = MARKS.length - 1; i >= 0; i--) {
@@ -33,7 +33,7 @@ export function drawImpacts(ctx, P, dt) {
   for (let i = FX.length - 1; i >= 0; i--) {
     const f = FX[i]; f.t += dt; const D = f.op === '-' ? 0.75 : f.op === 'π' || f.op === 'φ' ? 0.7 : 0.55; if (f.t > D) { FX.splice(i, 1); continue; }
     const k = f.t / D, R = rnd(f.seed), c = f.c, s = 1 + f.pw * 0.4, o = W(f, 0, 0);
-    if (f.t < 0.14) { const r = 22 * s * (1 - f.t / 0.14); for (let y = -r; y <= r; y += 3) for (let x = -r; x <= r; x += 3) { const d = Math.sqrt(x * x + y * y * 2) / r; if (d < 1) { DENS = 1.15 - d; px(o[0] + x, o[1] + y, d < 0.5 ? CREAM : c); } } }   // záblesk: plný stred, ditherom do strán
+    if (f.t < 0.14) { const r = 22 * s * (1 - f.t / 0.14); for (let y = -r; y <= r; y += 1) for (let x = -r; x <= r; x += 1) { const d = Math.sqrt(x * x + y * y * 2) / r; if (d < 1) { DENS = 1.15 - d; px(o[0] + x, o[1] + y, d < 0.5 ? CREAM : c); } } }   // záblesk: plný stred, ditherom do strán
     DENS = 1 - Math.max(0, (k - 0.5) / 0.5);
     switch (f.op) {
       case '+': for (let a = 0; a < 4; a++) { const an = a * 1.57 + 0.78; seg(o, W(f, Math.cos(an) * 1.6 * s * Math.min(1, k * 3), Math.sin(an) * 1.6 * s * Math.min(1, k * 3)), c, 3); }

@@ -3,10 +3,10 @@ import { THREE } from './svet.js';
 export const GEMCUT_S = { num: 4, '+': 0, '-': 3, '×': 7, '÷': 5, '√': 2, '²': 1, '³': 1, '!': 1, 'π': 6, 'e': 6, 'φ': 6 };
 const GEMIMG = [0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = new Image(), m = new Image(); a.src = `palice/gem-${i}.png`; m.src = `palice/gem-${i}-m.png`; return { a, m }; });
 const GEMURL = {};
-export function gemURL(cut, color) {
-  const key = cut + '|' + color; if (GEMURL[key]) return GEMURL[key];
+export function gemURL(cut, color, N = 48) {
+  const key = cut + '|' + color + '|' + N; if (GEMURL[key]) return GEMURL[key];
   const G2 = GEMIMG[cut]; if (!G2.a.complete || !G2.m.complete || !G2.a.naturalWidth) return '';
-  const N = 48, cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+  const cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
   const read = img => { x.clearRect(0, 0, N, N); x.drawImage(img, 0, 0, N, N); return x.getImageData(0, 0, N, N).data; };
   const M = read(G2.m), A = read(G2.a), out = x.createImageData(N, N), c = new THREE.Color(color), CR = new THREE.Color(0xfff6dc);
   const tones = [c.clone().multiplyScalar(0.45), c.clone(), c.clone().lerp(CR, 0.6)].map(t => [t.r * 255, t.g * 255, t.b * 255]);
@@ -16,3 +16,16 @@ export function gemURL(cut, color) {
     out.data[i] = col[0]; out.data[i + 1] = col[1]; out.data[i + 2] = col[2]; out.data[i + 3] = 255; }
   x.putImageData(out, 0, 0); return (GEMURL[key] = cv.toDataURL());
 }
+
+// ROVNAKÝ BOD DITHERU AKO SVET (Lukáš 26. 10.): drahokam sa vyrobí presne v pixeloch, v ktorých sa zobrazí (1 bod = 2 px obrazovky)
+function ditherGems() {
+  for (const el of document.querySelectorAll('.gemart[data-cut]:not(.gd)')) {
+    const w = el.getBoundingClientRect().width; if (w < 4) continue;
+    const u = gemURL(+el.dataset.cut, el.dataset.c, Math.max(12, Math.round(w * (devicePixelRatio || 1) / 2))); if (!u) continue;
+    el.style.backgroundImage = `url(${u})`; el.classList.add('gd');
+  }
+}
+let gq = 0; const later = () => { if (!gq) gq = requestAnimationFrame(() => { gq = 0; ditherGems(); }); };
+new MutationObserver(later).observe(document.body, { childList: true, subtree: true });
+addEventListener('resize', () => { document.querySelectorAll('.gemart.gd').forEach(e => e.classList.remove('gd')); later(); });
+GEMIMG.forEach(g => { g.a.onload = g.m.onload = later; });

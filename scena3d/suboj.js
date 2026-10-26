@@ -251,22 +251,22 @@ export function drawTele(cam) {
   const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
   const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
   // PIXELOVÝ ŠTÝL (Lukáš 26. 10.: červené čiary a plochy „od veci“): všetko po 3 px, dither ako svet, varovania ležia na zemi (fxCv → kresba)
-  const PX = 3, dot = (c, x, y, s = PX) => { c.fillRect(Math.round(x / PX) * PX, Math.round(y / PX) * PX, s, s); };
+  const PX = 1, dot = (c, x, y, s = 2) => { c.fillRect(Math.round(x / PX) * PX, Math.round(y / PX) * PX, s, s); };
   const pline = (c, a, b, step = 1) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / PX)); for (let i = 0; i <= n; i += step) dot(c, a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n); };
   // výplň mnohouholníka ditherom: hustota 0..1 (riedke bodky → šachovnica → plná)
   const pfill = (c, pts, dens) => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     const inside = (x, y) => { let r = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi) r = !r; } return r; };
     for (let y = Math.floor(y0 / PX) * PX; y <= y1; y += PX) for (let x = Math.floor(x0 / PX) * PX; x <= x1; x += PX) { const cx = x / PX, cy = y / PX, bay = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]][cy & 3][cx & 3] / 16;
-      if (bay < dens && inside(x + 1.5, y + 1.5)) c.fillRect(x, y, PX, PX); } };
+      if (bay < dens && inside(x + 0.5, y + 0.5)) c.fillRect(x, y, PX, PX); } };
   for (let i = fight.rings.length - 1; i >= 0; i--) {   // kruh π: rozbehne sa z čarodejníka na polomer π
     const g = fight.rings[i]; g.t += 1 / 60; if (g.t > 0.6) { fight.rings.splice(i, 1); continue; }
     const k = Math.min(1, g.t / 0.25); fctx.globalAlpha = 1 - Math.max(0, (g.t - 0.25) / 0.35); fctx.fillStyle = g.c;
-    for (let j = 0; j < 60; j++) { const a = j / 60 * 6.283, [x, y] = P(g.x + Math.cos(a) * g.r * k, g.z + Math.sin(a) * g.r * k); dot(fctx, x, y, 4); } fctx.globalAlpha = 1;
+    for (let j = 0; j < 60; j++) { const a = j / 60 * 6.283, [x, y] = P(g.x + Math.cos(a) * g.r * k, g.z + Math.sin(a) * g.r * k); dot(fctx, x, y, 3); } fctx.globalAlpha = 1;
   }
   // STRELY NEPRIATEĽOV = pixelové číslice (5×7 bodov), tmavý obrys, tieň na zemi
   for (const b of fight.bolts) if (b.adv) {
     const p = b.mesh.position, [gx, gy] = P(p.x, p.z);
-    fctx.fillStyle = 'rgba(30,24,30,.5)'; for (let dx = -3; dx <= 3; dx++) dot(fctx, gx + dx * PX, gy + (Math.abs(dx) > 2 ? 0 : 0));   // tieň = čiarka bodov na zemi
+    fctx.fillStyle = 'rgba(30,24,30,.5)'; for (let dx = -8; dx <= 8; dx++) dot(fctx, gx + dx, gy);   // tieň = čiarka bodov na zemi
     _v.copy(p).project(cam); const x = (_v.x + 1) / 2 * W, y = (1 - _v.y) / 2 * H, s = b.digit === 0 ? 5 : 4;
     let ch = String(b.digit), flipX = 1;
     if (b.wave && Math.floor(b.t * 9 / Math.PI) % 2) ch = b.digit === 6 ? '9' : '6';
@@ -283,15 +283,15 @@ export function drawTele(cam) {
     fctx.fillStyle = TC;
     if (t.kind === 'disc') {
       const ring = k => Array.from({ length: 28 }, (_, i) => { const a = i / 28 * 6.283; return P(t.x + Math.cos(a) * t.r * k, t.z + Math.sin(a) * t.r * k); });
-      const r1 = ring(1); pfill(fctx, r1, 0.12); for (let i = 0; i < r1.length; i++) pline(fctx, r1[i], r1[(i + 1) % r1.length], 2);
+      const r1 = ring(1); pfill(fctx, r1, 0.12); for (let i = 0; i < r1.length; i++) pline(fctx, r1[i], r1[(i + 1) % r1.length], 4);
       pfill(fctx, ring(Math.max(0.02, t.fill)), t.fill >= 1 ? 1 : 0.5);
       continue;
     }
     for (const da of t.fan ? [-t.fan, 0, t.fan] : [0]) {
       const a = t.angle + da, dx = Math.sin(a), dz = Math.cos(a), px = Math.cos(a), pz = -Math.sin(a), hw = Math.max(0.07, t.w / 2);
       const quad = (l0, l1, w) => [P(t.x + dx * l0 + px * w, t.z + dz * l0 + pz * w), P(t.x + dx * l1 + px * w, t.z + dz * l1 + pz * w), P(t.x + dx * l1 - px * w, t.z + dz * l1 - pz * w), P(t.x + dx * l0 - px * w, t.z + dz * l0 - pz * w)];
-      if (t.w > 0.4) { const q = quad(0, t.len, hw); pfill(fctx, q, 0.12); for (let i = 0; i < 4; i++) pline(fctx, q[i], q[(i + 1) % 4], 2); pfill(fctx, quad(0, t.len * t.fill, hw), t.fill >= 1 ? 1 : 0.5); }
-      else { pline(fctx, P(t.x, t.z), P(t.x + dx * t.len, t.z + dz * t.len), 3); pfill(fctx, quad(0, t.len * t.fill, 0.14), t.fill >= 1 ? 1 : 0.6); }
+      if (t.w > 0.4) { const q = quad(0, t.len, hw); pfill(fctx, q, 0.12); for (let i = 0; i < 4; i++) pline(fctx, q[i], q[(i + 1) % 4], 4); pfill(fctx, quad(0, t.len * t.fill, hw), t.fill >= 1 ? 1 : 0.5); }
+      else { pline(fctx, P(t.x, t.z), P(t.x + dx * t.len, t.z + dz * t.len), 6); pfill(fctx, quad(0, t.len * t.fill, 0.14), t.fill >= 1 ? 1 : 0.6); }
     }
   }
   fxTex.needsUpdate = true;
