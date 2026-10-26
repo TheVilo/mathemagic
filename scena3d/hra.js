@@ -4,6 +4,7 @@
 import { THREE, scene, camera, U, sun, hemi, PAPER, MAT, GRASS, FLOWER, RAW, std, inst, placeModels, loadProps, spark, burst, updateParticles, ditherMat, blurMat, resize, setView, render, pix, icon, digitTexture, shortNum } from './svet.js';
 import { hero, loadHero, heroPlay, updateHero, heroLocked, loadFighters, makeFighter, crystalLight, crystal, lamp, aim } from './postavy.js';
 import { initFight, fight, startFight, joinFight, fightPress, updateFight, drawTags, drawTele, renderInput, endFight, aimPoint, fireAt, fireAtScreen, elementShape, animShape, curRow } from './suboj.js';
+import { ITEMS, itemN, addItem, itemOffers, boostSlots } from './vylepsenia.js';
 import { newWand, evalWand, wandCost, wandSlots, acquireMod, modLabel, modCost, modRar, MOD, wandOffers } from './wand.js';
 import { newPack, migratePack, tokOf, spellOk, spellWorks, rollSpell, strength, lootToken, addToken, slotPrice, MAX_SLOTS, MAX_ROWS, MAX_STAFF, rowPrice, staffPrice, allIds, workingRows, rowCost } from './ruksak.js';
 import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
@@ -23,7 +24,7 @@ function newRun(mode = 'zaklad') {
   const pack = newPack(); const done = typeof meta !== 'undefined' && meta.tutDone;
   if (mode === 'pokrocily') { pack.wands = [newWand()]; pack.bag = []; }
   pack.unlock = {};   // funkcie ( ) √ x² x³ ! sa odomykajú v každom behu nanovo (vodcovia zón, vzácne pri úrovni)
-  return { seed, zone: 1, hearts: 3, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
+  return { seed, zone: 1, hearts: mode === 'pokrocily' ? 20 : 3, hpNum: 1, coins: 0, cards: [], ops: ['+'], range: 5, w: newWorldState(), mode, pack, tut: 99, st: { dmg: 0, kills: 0, hordes: 0, hit: 0 } };
 }
 // postup v otvorenom svete zóny: porazené bandy, kľúče, otvorené truhlice a brány, objavené oblasti
 function newWorldState() { return { keys: 0, camps: [], chests: [], bushes: [], gates: [], runes: [], seen: [], nums: [] }; }
@@ -37,15 +38,20 @@ run.mode = run.mode || 'zaklad'; run.pack = migratePack(run.pack || newPack());
 if (run.mode === 'pokrocily' && !run.pack.wands) { run.pack.wands = [newWand()]; run.pack.bag = []; if (run.pack.kind2) { run.pack.wands.push(newWand()); run.pack.bRow = 1; } }   // PALICA SO SLOTMI run.tut = run.tut ?? 99; run.st = run.st || { dmg: 0, kills: 0, hordes: 0, hit: 0 };
 run.pack.unlock = run.pack.unlock || {};
 const adv = () => run.mode === 'pokrocily';
+if (adv() && !run.hpNum) { run.hpNum = 1; run.hearts = 20 + 5 * (run.maxH || 0); }   // starý beh so srdciami → život ako číslo
 { const v = document.getElementById('veil'); if (v && run.mode !== 'pokrocily') v.classList.add('day'); }
 const persist = () => { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bez ukladania */ } };
-const maxHearts = () => 3 + lvl(run, 'srdce') + (run.maxH || 0);
+// Majster: ŽIVOT JE ČÍSLO (20 + 5 za každé vylepšenie Život / srdce); Učeň: 3 srdcia
+const maxHearts = () => adv() ? 20 + 5 * (lvl(run, 'srdce') + (run.maxH || 0) + itemN(run.pack, 'zivot')) : 3 + lvl(run, 'srdce') + (run.maxH || 0);
+const HEALK = () => adv() ? 5 : 1;   // jedno „srdce“ v Majstrovi = 5 života
 
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
 const heartsEl = $('hearts'), coinsEl = $('coins'), goalEl = $('goal'), msgEl = $('msg'), padEl = $('pad'), inpEl = $('inp'), bottomEl = $('bottom'), ovEl = $('ov'), streakEl = $('streak'), labelsEl = $('labels');
-function renderHearts(lost) { heartsEl.innerHTML = Array.from({ length: maxHearts() }, (_, i) => icon('heart', 'currentColor', `${i < run.hearts ? '' : 'off'} ${lost && i === run.hearts ? 'pop' : ''}`)).join(''); }
-function renderSlots() { $('slots').innerHTML = Array.from({ length: SLOTS }, (_, i) => slot(run.cards[i] && run.cards[i].id)).join(''); }
+function renderHearts(lost) { if (adv()) { const m = maxHearts(), h = Math.max(0, Math.round(run.hearts)); heartsEl.classList.add('hpnum'); heartsEl.innerHTML = `${icon('heart', 'currentColor', lost ? 'pop' : '')}<b>${h}</b><span>/${m}</span><i><u style="width:${Math.min(100, h / m * 100)}%"></u></i>`; return; } heartsEl.innerHTML = Array.from({ length: maxHearts() }, (_, i) => icon('heart', 'currentColor', `${i < run.hearts ? '' : 'off'} ${lost && i === run.hearts ? 'pop' : ''}`)).join(''); }
+// Majster: vľavo hore malé ikonky vylepšení (matematický zápis + počet kusov) namiesto 4 miest na karty
+function renderItems() { if (!adv()) return; const it = Object.entries(run.pack.items || {}); $('slots').classList.add('items'); $('slots').innerHTML = it.map(([id, n]) => ITEMS[id] ? `<i class="itc r-${ITEMS[id].rar}" title="${ITEMS[id].name}: ${ITEMS[id].text(n)}">${ITEMS[id].icon}${n > 1 ? `<sub>${n}</sub>` : ''}</i>` : '').join(''); }
+function renderSlots() { if (adv()) return renderItems(); $('slots').innerHTML = Array.from({ length: SLOTS }, (_, i) => slot(run.cards[i] && run.cards[i].id)).join(''); }
 function renderCoins(pop) { coinsEl.innerHTML = icon('coin', 'currentColor') + `<b>${run.coins}</b>`; if (pop) { coinsEl.classList.remove('pop'); void coinsEl.offsetWidth; coinsEl.classList.add('pop'); } }
 function renderStreak() { streakEl.innerHTML = '<span>Blesk</span>' + [0, 1, 2, 3, 4].map(i => `<i class="${i < fight.streak ? 'on' : ''}"></i>`).join(''); }
 let msgT = 0;
@@ -62,10 +68,10 @@ let shakeV = 0, hurtV = 0;
 const G = {
   get run() { return run; }, now: 0, over: false, danger: false, room: null, stats: { ok: 0, bad: 0 },
   tagsEl: $('tags'), inpEl, height: (x, z) => place.height(x, z),
-  say, floatText, renderStreak, addCoins, heal: n => { run.hearts = Math.min(maxHearts(), run.hearts + n); renderHearts(); persist(); }, shake: v => { shakeV = Math.max(shakeV, v); },
-  hurt() {
+  say, floatText, renderStreak, addCoins, heal: (n, raw) => { run.hearts = Math.min(maxHearts(), run.hearts + (raw ? n : n * HEALK())); renderHearts(); persist(); }, shake: v => { shakeV = Math.max(shakeV, v); },
+  hurt(n = 1) {
     if (G.over) return;
-    run.hearts--; renderHearts(true); shakeV = 0.5; hurtV = 1; persist();
+    run.hearts = Math.max(0, run.hearts - n); renderHearts(true); shakeV = 0.5; hurtV = 1; persist();
     if (run.hearts <= 0) gameOver();
   },
   onWin: opts => winFight(opts),
@@ -75,12 +81,14 @@ const G = {
   // prvočíslo = zlatý kryštál (3× skúsenosti), násobok 5 = minca
   onKill: (e, info = {}) => {
     if (adv()) rollPickup(e);
+    if (adv() && (e.hb || e.zb)) wandQ++;   // vodca dá výber z 2 palíc
+    if (adv() && e.hid && hordeLeft[e.hid] > 0 && --hordeLeft[e.hid] === 0) hordeCleared(e.hid);
     const raw = Math.round(info.raw ?? 0), prime = raw > 1 && isPrimeN(raw), five = raw > 0 && raw % 5 === 0;
     dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1) * (prime ? 3 : 1), prime);
     if (info.extra) return;
     if (prime) floatText(`<span style="color:#ffd25a">${pix(String(raw))} prvočíslo</span>`, e);
-    if (five && Math.random() < 0.35) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // násobok 5: občas minca
-    else if (Math.random() < 0.06) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // inak vzácne
+    if (five) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // násobok 5: vždy minca
+    else if (Math.random() < 0.15) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // inak vzácne
   },   // z nepriateľov padajú len kryštály (Lukáš 21. 10.)
 };
 initFight(G);
@@ -365,7 +373,7 @@ function addCard(id, after) {
   if (have) { have.l = 2; say(`${CARDS[id].name}: úroveň 2!`); }
   else if (run.cards.length < SLOTS) { run.cards.push({ id, l: 1 }); say(`Nové kúzlo: ${CARDS[id].name}`); }
   else return openBook({ replace: id, after });
-  if (id === 'srdce') run.hearts = Math.min(maxHearts(), run.hearts + 1);
+  if (id === 'srdce') run.hearts = Math.min(maxHearts(), run.hearts + HEALK());
   renderHearts(); renderSlots(); persist(); after && after();
 }
 function openBook(opts = {}) {
@@ -449,11 +457,11 @@ function openWands() {
     const on = wSel && wSel.w === loc.w && wSel.j === loc.j && (wSel.w != null || loc.w == null) ? ' sel' : '';
     return `<button class="gem${on}${extra}${m.t === 'num' ? ' base' : ''}" data-loc='${JSON.stringify(loc)}' style="--c:${c}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>`; };
   // KOMPAKTNE ako Magicraft: hore ruksak, pod ním palice (veľký obrázok palice + jamky + výsledok); kamene sa ŤAHAJÚ (drag and drop)
-  const wandHtml = (w, i) => { const n = wandSlots(P, i), kind = i === 1 ? P.kind2 : P.kind, S = staffStats({ ...P, kind }), r = evalWand(w.slots), cost = wandCost(w.slots);
+  const wandHtml = (w, i) => { const n = wandSlots(P, i), kind = i === 1 ? P.kind2 : P.kind, S = staffStats({ ...P, kind }), bs = boostSlots(P, w.slots), r = evalWand(bs), cost = wandCost(w.slots, P);
     const cells = Array.from({ length: n }, (_, j) => w.slots[j] ? gem(w.slots[j], { w: i, j }) : `<button class="gem empty${j === 0 ? ' base' : ''}" data-loc='${JSON.stringify({ w: i, j: w.slots.length })}'></button>`).join('');
     const val = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
     return `<div class="krow wrow"><img class="kimg" src="../zdroj/karty/palica-${kind || 'zakladna'}.jpg" alt="" title="Palica ${S.name} · ⚡${S.emax} · +${+S.regen.toFixed(1)}/s"><div class="kbar">${cells}</div>
-      <span class="kres" title="${r ? wandSteps(w.slots) : ''}"><b class="${lastRes[i] != null && lastRes[i] !== val ? 'pop' : ''}">${val}</b><small${cost > S.emax ? ' class="over"' : ''}>⚡${cost}/${S.emax}</small></span></div>`; };
+      <span class="kres" title="${r ? wandSteps(bs) : ''}"><b class="${lastRes[i] != null && lastRes[i] !== val ? 'pop' : ''}">${val}</b><small${cost > S.emax ? ' class="over"' : ''}>⚡${cost}/${S.emax}</small></span></div>`; };
   const bagN = Math.max(6, P.bag.length + 1);
   const bag = Array.from({ length: bagN }, (_, j) => P.bag[j] ? gem(P.bag[j], { j }) : `<i class="gem empty" data-loc='{"bag":1}'></i>`).join('');
   const html = `<div class="krow bagrow" data-loc='{"bag":1}'><b class="kn">${icon('star')}</b><div class="kbar">${bag}</div></div>${P.wands.map(wandHtml).join('')}`;
@@ -461,7 +469,7 @@ function openWands() {
   let el;
   if (again) { el = ovEl; el.querySelector('.box').innerHTML = `<span class="ptag">Kniha kúziel</span>${html}`; }   // prekreslenie bez „vyskočenia“ okna
   else { el = overlay('Kniha kúziel', html, 'pack wandsbook'); addX(() => { closeOverlay(); if (fight.on) renderInput(); }); }
-  P.wands.forEach((w, i) => { const r = evalWand(w.slots); lastRes[i] = r ? shortNum(Math.round(r.value * 100) / 100) : '?'; });
+  P.wands.forEach((w, i) => { const r = evalWand(boostSlots(P, w.slots)); lastRes[i] = r ? shortNum(Math.round(r.value * 100) / 100) : '?'; });
   el.querySelectorAll('.gem:not(.empty)').forEach((g, k) => g.style.setProperty('--d', (k * 0.37 % 2.2).toFixed(2) + 's'));   // každý kameň sa vznáša inak
   const move = (from, to) => {
     const m = at(from); if (!m) return;
@@ -680,6 +688,8 @@ function winFight(opts) {
   // Majster: z boja nepadajú čísla (tie sú len na mape) – boj dáva skúsenosti a mince
   persist();
   if (opts.horde) run.st.hordes += opts.horde;
+  // OBCHOD PO KAŽDEJ HORDE (ako Brotato): keď vyčistíš hordu, príde obchodník; odmena = číslo hordy v mincích
+  // (obchod po každej horde: hordeCleared – každá horda sa sleduje zvlášť, lebo sa prekrývajú)
   if (opts.hb) { addCoins(8 + run.zone * 2, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); setTimeout(() => say('Vodca hordy porazený! Prišiel obchodník.', 3000), 600); spawnMerchant(25); }   // funkcie dáva len vodca zóny (sim-energia.mjs)
   if (opts.zb) { // vodca zóny porazený: znamienko + špeciálna funkcia, obchodník, ďalšia zóna (po 8. výhra)
     const newOp = ['-', '×', '÷'].find(o => !run.ops.includes(o)); if (newOp) { run.ops.push(newOp); addToken(run.pack, { t: 'o', v: newOp }); }
@@ -840,6 +850,7 @@ function update(dt, t) {
   if (dir.lengthSq()) lastDir.copy(dir);
   vel.lerp(dir.multiplyScalar(3.4), 1 - Math.exp(-dt * 8));
   dashCd = Math.max(0, dashCd - dt);
+  if (adv() && itemN(run.pack, 'hojenie') && !G.over && !paused) { run.hregT = (run.hregT || 0) + dt; const per = 12 / itemN(run.pack, 'hojenie'); if (run.hregT >= per) { run.hregT -= per; if (run.hearts < maxHearts()) G.heal(1, true); } }   // vylepšenie Hojenie
   if (dashT > 0) { dashT -= dt; vel.copy(dashV); G.dashing = dashT > 0; if (Math.random() < 0.8) spark(hero.position.clone().add(new THREE.Vector3(0, 0.6, 0)), -dashV.x * 0.1, 0.4, -dashV.z * 0.1, 0.35, 0x7fd6ff); }
   const nx = hero.position.x + vel.x * dt, nz = hero.position.z + vel.z * dt;
   // OBCHÁDZANIE: do skaly/stromu sa nevojde, ale po jeho okraji sa skĺzne (vytlačenie z kruhu po normále), takže sa dá prejsť okolo
@@ -864,6 +875,7 @@ function update(dt, t) {
   if (!paused && (fight.on || fight.enemies.length || adv())) updateFight(dt);
   if (R && !scrOn) { updateHordes(dt); if (adv() && !inside && !G.over && !paused) updateSpawns(dt); }
   if (adv() && lvlQueue > 0 && !paused && !scrOn && !G.over) openLevelUp();
+  else if (adv() && wandQ > 0 && !paused && !scrOn && !G.over) openWandChoice();
   if (adv() && R && !paused && !G.over) { updateGems(dt); updateDrops(dt); updateMerchant(dt); }
   hudba(scrOn ? 'uvod' : fight.on ? ((act && act.camp.boss) || fight.hb ? 'boss' : 'suboj') : 'svet');   // hudba podľa situácie (prelína sa)   // Majster: kúzla letia aj mimo súboja
   if (!fight.on) for (const f of band) if (f.state !== 'dead' && !fight.enemies.includes(f)) f.mixer.update(dt);
@@ -978,12 +990,18 @@ function updateHordes(dt) {
   const gap = hordeT * 0.6 / Math.max(1, n);
   for (let i = 0; i < n; i++) {
     const hb = boss && i === 0;
-    spawnQ.push({ t: hb ? 0 : boss ? 0.6 : gap * i, ring: boss && !hb ? i / n : null, kind: hb ? 'barbarian' : roll(), size: hb ? (zoneBoss ? 1.8 : 1.5) : 1, hb, zb: hb && zoneBoss, opts: { horde: i === 0 ? 1 : 0, hb: hb && !zoneBoss ? 1 : 0, zb: hb && zoneBoss ? 1 : 0 } });
+    spawnQ.push({ hid: hordeN, t: hb ? 0 : boss ? 0.6 : gap * i, ring: boss && !hb ? i / n : null, kind: hb ? 'barbarian' : roll(), size: hb ? (zoneBoss ? 1.8 : 1.5) : 1, hb, zb: hb && zoneBoss, opts: { horde: i === 0 ? 1 : 0, hb: hb && !zoneBoss ? 1 : 0, zb: hb && zoneBoss ? 1 : 0 } });
   }
+  hordeLeft[hordeN] = n;
   if (zoneBoss) say('VODCA ZÓNY prichádza – obkľúčili ťa!', 3000); else if (boss) say('VODCA HORDY – obkľúčili ťa!', 2600);
   renderGoal();
 }
-const spawnQ = [];
+const spawnQ = [], hordeLeft = {};
+// OBCHOD PO KAŽDEJ HORDE (ako Brotato): keď padne posledný z hordy, odmena = číslo hordy v mincích a príde obchodník
+function hordeCleared(hid) {
+  const wz = (hid - 1) % HPZ + 1; if (wz === 5 || wz === HPZ) return;   // vodcovia majú vlastnú odmenu
+  addCoins(wz, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); say(`Horda ${wz} vyčistená → +${wz} ${wz === 1 ? 'minca' : wz < 5 ? 'mince' : 'mincí'}. Prišiel obchodník.`, 3000); spawnMerchant(18);
+}
 function updateSpawns(dt) {
   for (let i = spawnQ.length - 1; i >= 0; i--) {
     const q = spawnQ[i]; q.t -= dt; if (q.t > 0) continue;
@@ -993,7 +1011,7 @@ function updateSpawns(dt) {
     for (let k = 0; k < 40 && !at; k++) { const a = Math.random() * 6.28, r = 15 + Math.random() * 3, x = hero.position.x + Math.cos(a) * r, z = hero.position.z + Math.sin(a) * r; if (R.inside(x, z) && R.areaAt(x, z).id !== R.bossArea) at = [x, z]; }
     if (!at) { q.t = 0.3; continue; }
     spawnQ.splice(i, 1);
-    const f = makeFighter(q.kind, q.size, room); f.hb = q.hb;
+    const f = makeFighter(q.kind, q.size, room); f.hb = q.hb; f.hid = q.hid;
     if (q.zb) { f.trait = bossOf(run.zone, run.seed); f.zb = true; say(`VODCA ZÓNY: ${BOSSES[f.trait].name} – ${BOSSES[f.trait].hint}`, 5000); }
     f.g.position.set(at[0], R.height(at[0], at[1]), at[1]); f.play(f.d.walk); band.push(f);
     joinFight([f], q.opts); bottomEl.classList.remove('hidden', 'lockmode');
@@ -1019,7 +1037,7 @@ function dropPickup(p, kind) {
   gems.push({ m, xp: 0, t: 0, kind, near: 0.9 });
 }
 function pickUp(kind) {
-  if (kind === 'heart') { run.hearts = Math.min(maxHearts(), run.hearts + 1); renderHearts(); floatText('<span style="color:#e8443a">+1 srdce</span>', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); efekt('objav', 0.5, 1.4); }
+  if (kind === 'heart') { run.hearts = Math.min(maxHearts(), run.hearts + HEALK()); renderHearts(); floatText(`<span style="color:#e8443a">+${HEALK()} ${adv() ? 'života' : 'srdce'}</span>`, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); efekt('objav', 0.5, 1.4); }
   else { for (const g of gems) if (!g.kind) g.pull = true; floatText('<span style="color:#7fd6ff">Magnet!</span>', hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); efekt('objav', 0.6, 1.1); }
   persist();
 }
@@ -1059,13 +1077,14 @@ function openLevelUp() {
   document.body.classList.remove('lvflash'); void document.body.offsetWidth; document.body.classList.add('lvflash');
   // ponuka: 3 veci do kalkulačky ALEBO 3 karty (balance.js levelOffers – vzácnosť silných vecí podľa úrovne)
   const cards = offer(run, Math.random, 6).map(id => ({ id, name: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1) }));
-  const pack = levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
+  // Majster: mix modulov na palicu a VYLEPŠENÍ (pravidlá na čísla), každé miesto 55 % vylepšenie
+  const pack = adv() && run.pack.wands ? (() => { const mods = wandOffers(run.lvl, run, Math.random, 3), its = itemOffers(run.lvl, run.pack, Math.random, 3), out = []; for (let k = 0; k < 3; k++) { const src = (Math.random() < 0.55 && its.length) || !mods.length ? its : mods; out.push(src.shift()); } out.forEach(o => { if (o.give.t === 'wmod') o.rar = modRar(o.give.m); }); return { items: out }; })() : levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
   // obrázok: karta → zdroj/karty/<id>.jpg, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
   const KEYLAB = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' };
-  const art = o => { const g = o.give; if (g.t === 'wmod') return `<div class="lvart key">${pix(modLabel(g.m))}</div>`; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.jpg" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
+  const art = o => { const g = o.give; if (g.t === 'item') return `<div class="lvart key itm">${o.icon}</div>`; if (g.t === 'wmod') return `<div class="lvart key">${pix(modLabel(g.m))}</div>`; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.jpg" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.jpg" alt="" onerror="this.remove()"></div>`;
     const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.jpg" alt="" onerror="this.remove()"></div>`; };
   const LV = run.lvl - lvlQueue;
-  const el = overlay(`Úroveň ${LV}`, `<div class="lvhead">${pix(`${LV - 1}+1=${LV}`)}</div><div class="lvsigns">${['+', '-', '×', '÷'].map((o, i) => `<i style="--i:${i}">${pix(o)}</i>`).join('')}</div><p class="sub">Vyber si kartu alebo kláves do kalkulačky.</p>
+  const el = overlay(`Úroveň ${LV}`, `<div class="lvhead">${pix(`${LV - 1}+1=${LV}`)}</div><div class="lvsigns">${['+', '-', '×', '÷'].map((o, i) => `<i style="--i:${i}">${pix(o)}</i>`).join('')}</div><p class="sub">${adv() ? 'Vyber si vylepšenie alebo kameň na palicu.' : 'Vyber si kartu alebo kláves do kalkulačky.'}</p>
     <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel r-${o.rar}" data-i="${i}" style="--rc:${RARITY[o.rar].col};--i:${i}"><em class="rar">${RARITY[o.rar].name}</em>${art(o)}<b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
   offers.forEach((o, i) => setTimeout(() => efekt('minca', 0.35, o.rar === 'l' ? 1.6 : o.rar === 'e' ? 1.35 : 1.1), 180 + i * 140));   // každá karta pri odkrytí cinkne, vzácnejšia vyššie
   if (offers.some(o => o.rar === 'l')) setTimeout(() => efekt('objav', 0.7, 1.6), 600);
@@ -1076,13 +1095,29 @@ function openLevelUp() {
     else if (g.t === 'pal') { run.pack.kind = g.k; run.energy = staffStats(run.pack).emax; }
     else if (g.t === 'star') { run.pack.stars = run.pack.stars || {}; run.pack.stars[g.v] = (run.pack.stars[g.v] || 0) + 1; }
     else if (g.t === 'magnet') run.magnet = (run.magnet || 0) + 1;
-    else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts++; renderHearts(); }
+    else if (g.t === 'heart') { run.maxH = (run.maxH || 0) + 1; run.hearts += HEALK(); renderHearts(); }
+    else if (g.t === 'item') { addItem(run.pack, g.id); if (g.id === 'zivot') run.hearts += 5; if (g.id === 'bateria') run.energy = (run.energy || 0) + 4; renderHearts(); renderItems(); }
     else if (g.t === 'spec') { specAdd(run.pack.unlock, g.k); meta.unlock[g.k] = true; }
     else if (g.t === 'card') { closeOverlay(); addCard(g.id); return; }
     else { for (let k = 0; k < (o.n || 1); k++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); }
     persist(); closeOverlay(); if (['n', 'o', 'spec'].includes(g.t)) $('bBook').classList.add('pulse'); else say(`${o.title}!`, 1500);
     // prvý nový kláves v behu: rovno otvor Knihu, nech ho hráč vloží do vzorca (potom už len vylepšuje)
   });
+}
+// PALICA OD VODCU (Majster): výber 1 z 2 palíc, ktoré ešte nemáš; každá má viac jamiek a vlastné pravidlá na čísla
+let wandQ = 0;
+const ruleText = rule => Object.entries(rule || {}).map(([id, n]) => ITEMS[id] ? ITEMS[id].text(n) : '').filter(Boolean).join(' · ');
+function openWandChoice() {
+  wandQ--; efekt('objav', 0.8, 1.3);
+  const P = run.pack, own = new Set([P.kind || 'zakladna', P.kind2].filter(Boolean));
+  const cur = (STAFF_MODELS[P.kind] || STAFF_MODELS.zakladna).price, left = Object.entries(STAFF_MODELS).filter(([k, m]) => !own.has(k) && m.price > cur).sort((a, b) => a[1].price - b[1].price);
+  if (!left.length) { addCoins(15, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); return; }
+  const pick = left.slice(0, 3).sort(() => Math.random() - 0.5).slice(0, 2);   // z najbližších lepších
+  const el = overlay('Palica od vodcu', `<p class="sub">Vodca pustil palice. Vyber si jednu – moduly ostanú na nej.</p>
+    <div class="lvopts wchoice">${pick.map(([k, m], i) => `<button class="lvo panel r-${STAFF_RAR[k]}" data-k="${k}" style="--rc:${RARITY[STAFF_RAR[k]].col};--i:${i}"><em class="rar">${RARITY[STAFF_RAR[k]].name}</em><div class="lvart"><img src="../zdroj/karty/palica-${k}.jpg" alt=""></div><b>Palica ${m.name}</b><i class="dots">${'<u></u>'.repeat(wandSlots({ ...P, kind: k }, 0))}</i><span>${wandSlots({ ...P, kind: k }, 0)} jamky · ⚡${m.emax} · +${m.regen}/s${m.shots > 1 ? ' · 2 ciele' : ''}</span><span class="rule">${ruleText(m.rule) || m.text}</span></button>`).join('')}</div>
+    <div class="acts"><button class="btn ghost" id="skip">${icon('coin')} Radšej 10 mincí</button></div>`, 'small lvup');
+  el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k; P.kind = k; run.energy = staffStats(P).emax; persist(); closeOverlay(); say(`Palica ${STAFF_MODELS[k].name}! Viac jamiek – doplň ju v Knihe.`, 3000); $('bBook').classList.add('pulse'); });
+  el.querySelector('#skip').onclick = () => { closeOverlay(); addCoins(10, hero.position.clone().add(new THREE.Vector3(0, 2.6, 0))); persist(); };
 }
 // DRUHÁ PALICA (ľavá ruka B): vlastný riadok v Knihe, vlastná energia; komba medzi palicami v suboj.js
 function giveSecondStaff() {
@@ -1101,7 +1136,8 @@ function priceExpr(p, rng) {
 }
 function shopItems(rng) {
   const L = run.lvl || 1, items = [];
-  const id = offer(run, rng, 1)[0];
+  const id = run.pack.wands ? null : offer(run, rng, 1)[0];   // Majster: namiesto kariet vylepšenia (pravidlá na čísla)
+  if (run.pack.wands) for (const o of itemOffers(L, run.pack, rng, 2)) items.push({ kind: 'item', give: o.give, title: o.title, text: o.text, rar: o.rar, art: o.icon });
   if (id) items.push({ kind: 'card', id, title: CARDS[id].name, text: CARDS[id].text(lvl(run, id) + 1), rar: CARD_RAR[id] || 'v', art: `<img src="../zdroj/karty/${id}.jpg" alt="">` });
   const k = (run.pack.wands ? wandOffers(L, run, rng, 1) : calcOffers(L, run, rng, 1))[0];
   if (k && k.give.t === 'wmod') items.push({ kind: 'key', give: k.give, n: 1, title: k.title, text: k.text, rar: modRar(k.give.m), art: pix(modLabel(k.give.m)) });
@@ -1119,7 +1155,8 @@ function shopItems(rng) {
 }
 function openMerchant(view = 'shop') {
   const S = run.shop = run.shop || { items: shopItems(Math.random), rr: 0 };
-  const rrCost = 2 + S.rr, erCost = 5 + 3 * (run.erased || 0);
+  const rrCost = [2, 3, 5, 7, 11, 13, 17, 19, 23][Math.min(8, S.rr)],   // zamiešať stojí prvočísla 2, 3, 5, 7…
+     erCost = 5 + 3 * (run.erased || 0);
   const coinChip = `<span class="chip">${icon('coin')} <b>${run.coins}</b></span>`;
   if (view === 'erase') {
     if (run.pack.wands) {   // GUMOVANIE MODULOV: z palice (okrem základu) aj z ruksaku
@@ -1139,7 +1176,7 @@ function openMerchant(view = 'shop') {
   }
   const el = overlay('Obchod', `<div class="shophead">${dia('crown', 'big')}<div><b>Obchodník</b><p class="sub">„Cenu si musíš vyrátať sám.“</p></div>${coinChip}</div>
     <div class="shgrid">${S.items.map((it, i) => { const can = run.coins >= it.price && !it.sold;
-      return `<div class="shi r-${it.rar}${it.sold ? ' sold' : ''}" style="--rc:${RARITY[it.rar].col}"><em class="rar">${it.kind === 'svc' ? 'Služba' : RARITY[it.rar].name}</em><div class="lvart${it.kind === 'key' ? ' key' : ''}">${it.art}</div><b>${it.title}</b><span>${it.text}</span>
+      return `<div class="shi r-${it.rar}${it.sold ? ' sold' : ''}" style="--rc:${RARITY[it.rar].col}"><em class="rar">${it.kind === 'svc' ? 'Služba' : RARITY[it.rar].name}</em><div class="lvart${it.kind === 'key' ? ' key' : it.kind === 'item' ? ' key itm' : ''}">${it.art}</div><b>${it.title}</b><span>${it.text}</span>
         <button class="btn buy" data-buy="${i}" ${can ? '' : 'disabled'}>${it.sold ? 'predané' : `${icon('coin')} ${pix(it.expr)}`}</button>${it.kind !== 'svc' && !it.sold ? `<button class="lock${it.locked ? ' on' : ''}" data-lock="${i}" title="podržať na ďalšiu návštevu">${icon('lock')}</button>` : ''}</div>`; }).join('')}</div>
     <div class="acts"><button class="btn" id="rr" ${run.coins >= rrCost ? '' : 'disabled'}>Zamiešať · ${icon('coin')} ${rrCost}</button><button class="btn" id="er" ${run.coins >= erCost ? '' : 'disabled'}>Gumovanie · ${icon('coin')} ${erCost}</button><button class="btn ghost" id="close">Odísť${run.coins >= 10 ? ` · úrok +${Math.min(5, Math.floor(run.coins / 10))}` : ''}</button></div>`, 'offer shopscr');
   el.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => {
@@ -1148,8 +1185,9 @@ function openMerchant(view = 'shop') {
     if (it.kind === 'card') { persist(); closeOverlay(); return addCard(it.id, () => openMerchant()); }
     if (it.kind === 'key' && it.give.t === 'wmod') acquireMod(run.pack, it.give.m);
     else if (it.kind === 'key') { const g = it.give; if (g.t === 'spec') { specAdd(run.pack.unlock, g.k); meta.unlock[g.k] = true; } else { for (let q = 0; q < it.n; q++) addToken(run.pack, g); if (g.t === 'n') mergeNumbers(g.v); } }
+    if (it.kind === 'item') { addItem(run.pack, it.give.id); if (it.give.id === 'zivot') run.hearts += 5; renderHearts(); renderItems(); }
     if (it.kind === 'pal') { run.pack.kind = it.k; run.energy = staffStats(run.pack).emax; }
-    if (it.kind === 'svc') { if (it.s === 'hand2') { closeOverlay(); giveSecondStaff(); return; } else if (it.s === 'heal') { run.hearts++; renderHearts(); } else if (it.s === 'slot') run.pack.slots += 2; else if (it.s === 'row') run.pack.rows.push([]); else run.pack.staff++; }
+    if (it.kind === 'svc') { if (it.s === 'hand2') { closeOverlay(); giveSecondStaff(); return; } else if (it.s === 'heal') { run.hearts = Math.min(maxHearts(), run.hearts + HEALK()); renderHearts(); } else if (it.s === 'slot') run.pack.slots += 2; else if (it.s === 'row') run.pack.rows.push([]); else run.pack.staff++; }
     persist(); say(`${it.title}!`); openMerchant();
   });
   el.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => { const it = S.items[+b.dataset.lock]; const on = !it.locked; S.items.forEach(x => x.locked = false); it.locked = on; run.shopLock = on ? (({ sold, locked, ...x }) => x)(it) : null; persist(); openMerchant(); });
@@ -1418,5 +1456,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), dropPickup: k => dropPickup(hero.position, k), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); },
+  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), dropPickup: k => dropPickup(hero.position, k), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); }, wandChoice() { wandQ++; }, get hordeLeft() { return hordeLeft; },
 };

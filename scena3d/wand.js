@@ -1,3 +1,4 @@
+import { itemN } from './vylepsenia.js';
 // PALICA SO SLOTMI (Majster, podľa Magicraftu): 1. slot = základné číslo, ďalšie sloty = operácie (moduly) ako karty.
 // Kalkulačka počíta ZĽAVA DOPRAVA, krok za krokom: 3 → +4 → ×2 = 14, ale 3 → ×2 → +4 = 10 → poradie je hádanka.
 // Každý modul má číslo aj živel a stojí energiu. Dva rovnaké moduly sa spoja (+3 a +3 → +6, ×2 a ×2 → ×3).
@@ -47,7 +48,8 @@ export function evalWand(slots, cap = 7) {
   }
   return { value: v, text, ops, div, sub: Math.max(0, sub), mul };
 }
-export const wandCost = slots => (slots || []).filter(Boolean).reduce((a, m) => a + modCost(m), 0);
+// cena výstrelu; vylepšenie Lacné krát zníži cenu každého × (najmenej 1)
+export const wandCost = (slots, pack) => { const k = itemN(pack, 'krat'); return (slots || []).filter(Boolean).reduce((a, m) => a + (k && m.o === '×' ? Math.max(1, modCost(m) - k) : modCost(m)), 0); };
 
 // ZÍSKANIE MODULU: rovnaký už máš → spoja sa; inak do prvého voľného slotu palice A (B), inak do ruksaku
 export function acquireMod(pack, m) {

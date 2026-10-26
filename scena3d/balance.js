@@ -153,15 +153,16 @@ export const KEY_COST = { n: 1, d: 1, '+': 1, '-': 1, '×': 2, '÷': 2, '(': 1, 
 export const SHOT_MIN = 0.8;   // začiatok ≈ 1 výstrel za sekundu (Lukáš 26. 10.: strieľal priveľmi rýchlo); rýchlosť sa zbiera palicami a vylepšeniami
 export const STAFF_MODELS = {
   zakladna: { name: 'Základná', text: 'vyvážená', price: 0, disp: 3, emax: 8, regen: 4, cd: 1, dmg: 1, shots: 1 },
-  rychla:   { name: 'Rýchla', text: 'rýchle dobíjanie, menší damage', price: 30, disp: 3, emax: 8, regen: 7, cd: 0.6, dmg: 0.8, shots: 1 },
-  tazka:    { name: 'Ťažká', text: 'veľká batéria, pomalšia', price: 35, disp: 5, emax: 24, regen: 4.5, cd: 1.4, dmg: 1.3, shots: 1 },
-  dvojita:  { name: 'Dvojitá', text: 'zasiahne 2 nepriateľov', price: 45, disp: 4, emax: 14, regen: 5, cd: 1.1, dmg: 0.75, shots: 2 },
-  vedecka:  { name: 'Vedecká', text: 'dlhý displej, veľká energia', price: 70, disp: 7, emax: 30, regen: 7, cd: 1, dmg: 1, shots: 1 },
-  graficka: { name: 'Grafická', text: 'najväčšia batéria – na faktoriály', price: 120, disp: 9, emax: 50, regen: 10, cd: 1, dmg: 1, shots: 1 },
+  rychla:   { name: 'Rýchla', text: 'rýchle dobíjanie, menší damage', price: 30, disp: 3, emax: 8, regen: 7, cd: 0.6, dmg: 0.8, shots: 1, rule: { male: 2 } },
+  tazka:    { name: 'Ťažká', text: 'veľká batéria, pomalšia', price: 35, disp: 5, emax: 24, regen: 4.5, cd: 1.4, dmg: 1.3, shots: 1, rule: { dvojcif: 2 } },
+  dvojita:  { name: 'Dvojitá', text: 'zasiahne 2 nepriateľov', price: 45, disp: 4, emax: 14, regen: 5, cd: 1.1, dmg: 0.75, shots: 2, rule: { parne: 1 } },
+  vedecka:  { name: 'Vedecká', text: 'dlhý displej, veľká energia', price: 70, disp: 7, emax: 30, regen: 7, cd: 1, dmg: 1, shots: 1, rule: { stvorec: 1, dvojcif: 1 } },
+  graficka: { name: 'Grafická', text: 'najväčšia batéria – na faktoriály', price: 120, disp: 9, emax: 50, regen: 10, cd: 1, dmg: 1, shots: 1, rule: { prvo: 2, okruhle: 1 } },
+  // rule = vstavané pravidlá na čísla (rovnaké ako vylepšenia, vylepsenia.js) – každá palica má vlastnú matematiku
 };
 export function staffStats(pack) {
   const m = STAFF_MODELS[pack.kind] || STAFF_MODELS.zakladna, lv = pack.staff || 0, k = 1 + 0.15 * lv;
-  return { ...m, disp: m.disp + Math.max(0, (pack.slots || 3) - 3), emax: Math.round(m.emax * k), regen: m.regen * k, dmg: m.dmg * (1 + 0.25 * lv) };
+  return { ...m, disp: m.disp + Math.max(0, (pack.slots || 3) - 3), emax: Math.round(m.emax * k) + 4 * ((pack.items && pack.items.bateria) || 0), regen: m.regen * k, dmg: m.dmg * (1 + 0.25 * lv) };
 }
 // cena vzorca zo zoznamu tokenov ({ t, v })
 // číslo: väčšie = drahšie (1–4 → 1, 5–7 → 2, 8–9 → 3) – výber čísla je obchod medzi silou a energiou

@@ -139,6 +139,14 @@
   .wand .wr { margin-top:8px; font-size:13px; color:var(--grey); } .wand .wr b { color:var(--line); font-size:16px; } .wand .wr em { color:#e8443a; font-style:normal; }
   .bagz { display:flex; flex-wrap:wrap; gap:6px; min-height:50px; padding:6px; border:1.5px dashed var(--dim); }
   @media (max-height:500px) { .wm { min-width:56px; height:48px; } .wm .pix { height:16px; } .wand { padding:6px 8px; margin:6px 0; } }
+  /* MAJSTER: život ako číslo + vylepšenia vľavo hore */
+  #hearts.hpnum { display:flex; align-items:center; gap:5px; color:#e8443a; } #hearts.hpnum b { font-size:18px; color:var(--line); font-weight:500; } #hearts.hpnum span { font-size:11px; color:var(--grey); margin-left:-3px; }
+  #hearts.hpnum i { display:block; width:84px; height:7px; border:1.5px solid var(--line); background:rgba(14,14,16,.6); position:relative; } #hearts.hpnum i u { position:absolute; inset:0 auto 0 0; background:#e8443a; text-decoration:none; transition:width .2s steps(4); }
+  #slots.items { flex-wrap:wrap; max-width:220px; } #slots.items .itc { position:relative; font-style:normal; min-width:28px; height:24px; padding:0 4px; display:grid; place-items:center; font-size:11px; color:var(--line); background:rgba(14,14,16,.75); border:1.5px solid var(--rc, var(--dim)); }
+  #slots.items .itc.r-b { --rc:#b8b8b8; } #slots.items .itc.r-v { --rc:#5aa6ff; } #slots.items .itc.r-e { --rc:#b07ad8; } #slots.items .itc.r-l { --rc:#f0c040; }
+  #slots.items .itc sub { position:absolute; right:-5px; bottom:-6px; font-size:9px; background:var(--ink); border:1px solid var(--line); padding:0 2px; line-height:1.2; }
+  .wchoice .lvo .dots { display:flex; gap:4px; justify-content:center; } .wchoice .lvo .dots u { width:10px; height:10px; border-radius:50%; border:2px solid var(--rc); text-decoration:none; } .wchoice .lvo .rule { color:#ffd25a !important; opacity:1 !important; font-size:13px !important; }
+  .lvart.itm { font-size:46px; color:var(--rc, var(--line)); display:grid; place-items:center; letter-spacing:1px; }
   /* KNIHA KOMPAKTNE (ako Magicraft): ruksak + palice, kamene sa ťahajú */
   .ov.wandsbook .box { width:auto; max-width:min(470px, 96vw); padding:22px 12px 12px; }
   .krow { display:flex; align-items:center; gap:8px; margin:8px 0; } .krow .kn { width:16px; flex:none; text-align:center; } .krow .kn svg { width:14px; height:14px; fill:#c8923a; }

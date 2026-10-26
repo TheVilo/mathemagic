@@ -4,6 +4,7 @@
 
 import { FACT_CAP, FACT_CAP_ENDLESS, FINAL_ZONE, spellCost } from './balance.js';
 import { evalWand, wandCost } from './wand.js';
+import { boostSlots } from './vylepsenia.js';
 // MAJSTER s palicami so slotmi (pack.wands): riadok r = palica r (0 = A, 1 = B); výpočet zľava doprava vo wand.js
 
 // začiatok: 1 + 1 z pevných čísel; lepšie čísla, rozšírenie ruksaku a kocky □ sa nachádzajú, nové znamienko dá vodca
@@ -64,7 +65,7 @@ export function spellOk(pack, r = 0) {
 }
 // hod: kocky □ padnú náhodne (1 … max podľa rozsahu); damage = výsledok zaokrúhlený, nie menej ako 0 (≈ pri odmocnine a delení)
 function tryRoll(run, rng, r) {
-  if (run.pack.wands) { const res = evalWand(run.pack.wands[r].slots, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
+  if (run.pack.wands) { const res = evalWand(boostSlots(run.pack, run.pack.wands[r].slots), run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
     return { text: res.text, answer: Math.max(0, Math.round(res.value)), value: res.value, div: res.div, sub: res.sub, mul: res.mul, exact: true, ops: res.ops }; }
   const pack = run.pack, t = used(pack.rows[r] || []).map(id => tok(pack, id)), M = dieMax(run);
   const res = evalSpell(t, () => 1 + Math.floor(rng() * M), pack.stars, run.zone > FINAL_ZONE ? FACT_CAP_ENDLESS : FACT_CAP); if (!res) return null;
@@ -110,6 +111,6 @@ export const slotPrice = pack => 4 + pack.slots * 3;
 export const rowPrice = pack => 6 + pack.rows.length * 8;      // ďalšie kúzlo (riadok)
 export const staffPrice = pack => 8 + pack.staff * 7;          // lepšia palica: kratšie nabíjanie, väčšie svetlo
 // energia kúzla = súčet cien klávesov (balance.js KEY_COST)
-export const rowCost = (pack, r) => pack.wands ? wandCost((pack.wands[r] || {}).slots) : spellCost(used(pack.rows[r] || []).map(id => tok(pack, id)));
+export const rowCost = (pack, r) => pack.wands ? wandCost((pack.wands[r] || {}).slots, pack) : spellCost(used(pack.rows[r] || []).map(id => tok(pack, id)));
 export const cooldown = (pack, row) => (0.35 + used(pack.rows[row] || []).filter(x => x != null).length * 0.12) * (1 - pack.staff * 0.15);
 export const MAX_SLOTS = 9;
