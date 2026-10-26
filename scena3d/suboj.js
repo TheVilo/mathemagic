@@ -118,7 +118,7 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
   }
   // karty: Násobič ×1,5 / ×2; Kritický zásah: šanca 8 % (+10 / +22 % s kartou) na ×2 a väčšie znamienka
   let v = Math.round(r.answer * [1, 1.5, 2][lvl(G.run, 'krat')] * SK.dmg);   // palica: model × úroveň (+25 % za úroveň)
-  const crit = Math.random() < 0.08 + [0, 0.1, 0.22][lvl(G.run, 'krit')]; if (crit) v *= 2;
+  const crit = Math.random() < [0, 0.18, 0.3][lvl(G.run, 'krit')];   // kritický len s kartou if (crit) v *= 2;
   // ÷ ROZDELENIE: 12 ÷ 3 = 3 strely po 4 na troch najbližších (spolu ako delenec) – delí sa len bezo zvyšku, najviac 6 striel
   if (r.div >= 2 && !t.fake) {
     const n = Math.min(8, Math.min(6, r.div) + [0, 1, 2][lvl(G.run, 'dazd')]), near = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position)).slice(0, n - 1);
@@ -129,7 +129,7 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
   cast(t, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, cost, hand, crit, burn: Math.round((r.sub || 0) * fireK), mul: r.mul || 0, plus: r.ops.filter(o => o === '+').length, power: Math.min(1.6, Math.max(0.15, v / 12)) });
   // Dvojitá palica: druhé kúzlo na ďalšieho najbližšieho
   if (SK.shots > 1 && !t.fake) { const t2 = fight.enemies.filter(o => o !== t && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(t.g.position) - b.g.position.distanceTo(t.g.position))[0]; if (t2) cast(t2, { v, raw: r.answer, op: r.ops[0] || null, ops: r.ops, text: r.text, extra: true, delay: 0.12, power: Math.min(1.6, Math.max(0.15, v / 12)) }); }
-  if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; if (fight.streak >= 6) { fight.streak = 0; setTimeout(chainLightning, 450); } G.renderStreak(); }
+  if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; G.renderStreak(); }   // Majster: žiadny blesk zadarmo – na začiatku len strieľaš a veci zbieraš
   renderInput(); return true;
 }
 // klik na obrazovku: nepriateľ do 90 px od kurzora = zásah, inak kúzlo letí na zem pod kurzorom
@@ -508,7 +508,6 @@ function advHit(e, info) {
       else if (a > 1 && b > 1 && (a % b === 0 || b % a === 0)) { comboHit = true; v = Math.round(v * 1.5); G.floatText(`Násobok ${Math.max(a, b)} ÷ ${Math.min(a, b)} · ×1,5`, e); burst(targetPos(e), 90, 3, 0x7fd6ff, 0.9); }
     }
     if (info.hand) e.lastHand = { h: info.hand, raw: info.raw ?? 0, t: G.now };
-    if (fight.combo > 1) { v = Math.round(v * (1 + 0.15 * (fight.combo - 1))); G.floatText(`Kombo ×${fight.combo}`, hero.position.clone().add(new THREE.Vector3(0, 2.8, 0))); }
   }
   if (e.shield) { e.shield = false; if ((info.ops || []).includes('√')) G.floatText('√ prerazila štít!', e); else { v = Math.floor(v / 2); G.floatText('Štít rozbitý!', e); } }   // odmocnina ide cez štít
   if (e.trait && !info.extra) {   // vodca zóny: matematická vlastnosť

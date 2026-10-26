@@ -150,7 +150,7 @@ export function levelOffers(L, run, rng = Math.random, cards = []) {
 //   cena:   číslo 1 · + − 1 · × ÷ 2 · ( ) 1+1 · √ 3 · x² 4 · x³ 6 · ! 8
 //   displej = model palice + 2 za každé „+2 políčka“; úroveň palice (karta/obchod): damage +25 %, energia a dobíjanie +15 %
 export const KEY_COST = { n: 1, d: 1, '+': 1, '-': 1, '×': 2, '÷': 2, '(': 1, ')': 1, '√': 3, '²': 4, '³': 6, '!': 8 };
-export const SHOT_MIN = 0.35;
+export const SHOT_MIN = 0.8;   // začiatok ≈ 1 výstrel za sekundu (Lukáš 26. 10.: strieľal priveľmi rýchlo); rýchlosť sa zbiera palicami a vylepšeniami
 export const STAFF_MODELS = {
   zakladna: { name: 'Základná', text: 'vyvážená', price: 0, disp: 3, emax: 8, regen: 4, cd: 1, dmg: 1, shots: 1 },
   rychla:   { name: 'Rýchla', text: 'rýchle dobíjanie, menší damage', price: 30, disp: 3, emax: 8, regen: 7, cd: 0.6, dmg: 0.8, shots: 1 },
