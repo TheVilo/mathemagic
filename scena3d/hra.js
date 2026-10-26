@@ -1561,41 +1561,61 @@ await Promise.all([loadProps(), loadFighters(), loadHero()]);
 const BODY = ['...kk.......', '....kk......', '....kkk.....', '...kkkkk....', '.kkkkkkkk...', '...kkgkk....', '...kkkkkk...', '..kkkkkkk...', '..kkkkkkk...', '.kkkkkkkk...', '.gkkkkkkk...', 'ggkkkkkkk...', '.kkkkkkkk...', '..kk..kk....', '..k....k....', '............'];
 const LEGS = [['..kk..kk....', '..k....k....'], ['...kk.kk....', '...k...k....'], ['..kk..kk....', '.k.....k....'], ['..kkkk......', '..k..k......']];
 // uhol palice od zvislice (° – kladný = špička dopredu), posun ruky, záblesk kryštálu
+// spredu (ide dolu) a zozadu (ide hore) – 8 smerov: hore/dolu tieto, šikmo a bokom bočný pohľad (zrkadlený doľava)
+const BODY_F = ['......kk........', '.....kkk........', '.....kkkk.......', '....kkkkkk......', '..kkkkkkkkkk....', '....kgkkgk......', '....kkkkkk......', '...kkkkkkkk.....', '...kkkkkkkk.....', '..kkkkkkkkkk....', '..kgkkkkkkgk....', '..kkkkkkkkkk....', '...kkkkkkkk.....', '....kk..kk......', '....k....k......', '................'];
+const BODY_B = BODY_F.map((l, y) => y === 5 ? '....kkkkkk......' : y >= 7 && y <= 11 ? l.slice(0, 6) + 'gg' + l.slice(8) : l);
+const LEGS_F = [['....kk..kk......', '....k....k......'], ['....kk..kk......', '.........k......'], ['....kk..kk......', '....k....k......'], ['....kk..kk......', '....k...........']];
+// palica sa výrazne hýbe LEN pri výstrele (Lukáš 26. 10.); pri chôdzi a státí ju drží pokojne šikmo, pohupuje sa len s krokom
 const POSE = [
-  ...[[48, 0], [38, -1], [48, 0], [58, -1]].map(([a, dy], i) => ({ row: 0, i, a, dy })),               // chôdza: šikmo dopredu, kýve sa s krokom
-  ...[[24, 0], [20, -1], [24, 0], [28, 0]].map(([a, dy], i) => ({ row: 1, i, a, dy })),                 // státie: šikmo dopredu, jemne sa pohupuje
-  ...[[-40, -1, 0], [25, -2, 1], [70, -1, 1], [90, 0, 2]].map(([a, dy, fl], i) => ({ row: 2, i, a, dy, fl })),   // kúzlo: rozmach dozadu → výpad dopredu → záblesk
+  ...[[42, 0], [42, -1], [42, 0], [42, -1]].map(([a, dy], i) => ({ row: 0, i, a, dy })),               // chôdza bokom
+  ...[[30, 0], [30, -1], [30, 0], [30, 0]].map(([a, dy], i) => ({ row: 1, i, a, dy })),                 // státie bokom
+  ...[[-40, -1, 0], [25, -2, 1], [70, -1, 1], [90, 0, 2]].map(([a, dy, fl], i) => ({ row: 2, i, a, dy, fl })),   // kúzlo: rozmach → výpad → záblesk
+  ...[0, 1, 2, 3].map(i => ({ row: 3, i, a: 18, dy: i % 2 ? -1 : 0, front: 1 })),                     // chôdza dolu (spredu)
+  ...[0, 1, 2, 3].map(i => ({ row: 4, i, a: -18, dy: i % 2 ? -1 : 0, back: 1 })),                     // chôdza hore (zozadu)
 ];
 const FR = POSE.map(P => {
-  const g = Array.from({ length: 16 }, (_, y) => (BODY[y] + '....').split(''));
+  const B = P.front ? BODY_F : P.back ? BODY_B : BODY;
+  const g = Array.from({ length: 16 }, (_, y) => (B[y] + '................').slice(0, 16).split(''));
   if (P.row === 0) { g[13] = (LEGS[P.i][0] + '....').split(''); g[14] = (LEGS[P.i][1] + '....').split(''); g[10][0] = P.i % 2 ? '.' : 'g'; }
   if (P.row === 1) { g[11][0] = P.i === 2 ? '.' : 'g'; g[10][0] = P.i === 2 ? 'g' : '.'; if (P.i === 2) g[0][3] = 'k'; }
-  const hx = 7.5, hy = 8 + P.dy, rad = P.a * Math.PI / 180, L = 8, put = (x, y, ch) => { x = Math.round(x); y = Math.round(y); if (y >= 0 && y < 16 && x >= 0 && x < 16 && (ch !== 'k' || g[y][x] === '.')) g[y][x] = ch; };   // palica (w) aj cez telo – vidno ju vždy
+  if (P.front || P.back) { g[13] = LEGS_F[P.i][0].split(''); g[14] = LEGS_F[P.i][1].split(''); }
+  const hx = P.front || P.back ? 10.5 : 7.5, hy = 8 + P.dy, rad = P.a * Math.PI / 180, L = P.front || P.back ? 7 : 8, put = (x, y, ch) => { x = Math.round(x); y = Math.round(y); if (y >= 0 && y < 16 && x >= 0 && x < 16 && (ch !== 'k' || g[y][x] === '.')) g[y][x] = ch; };   // palica (w) aj cez telo – vidno ju vždy
   for (let t = 0.5; t <= L; t += 0.5) put(hx + Math.sin(rad) * t, hy - Math.cos(rad) * t, 'w');   // palica
   const tx = hx + Math.sin(rad) * (L + 1), ty = hy - Math.cos(rad) * (L + 1);
   put(tx, ty, 'c'); if (P.fl) { put(tx + 1, ty, 'c'); put(tx - 1, ty, 'c'); put(tx, ty + 1, 'c'); put(tx, ty - 1, 'c'); }
   if (P.fl === 2) { put(tx + 2, ty, 'c'); put(tx - 2, ty, 'c'); put(tx, ty + 2, 'c'); put(tx, ty - 2, 'c'); }
-  g[8][7] = 'k'; g[8 + P.dy] && (g[8 + P.dy][8] = 'k');   // ruka drží palicu
+  if (!(P.front || P.back)) { g[8][7] = 'k'; g[8 + P.dy] && (g[8 + P.dy][8] = 'k'); }   // ruka drží palicu
   return g.map(r => r.join(''));
 });
-const SPR = { cw: 16, ch: 16 };
-{ const cv = document.createElement('canvas'); cv.width = 64; cv.height = 48; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', w: '#8c8089', c: '#fff6dc' };
+const SPR = { cw: 16, ch: 16, rows: 5 };
+{ const cv = document.createElement('canvas'); cv.width = 64; cv.height = 80; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', w: '#8c8089', c: '#fff6dc' };
   FR.forEach((f, i) => f.forEach((l, y) => [...l].forEach((ch, xx) => { if (PC[ch]) { x.fillStyle = PC[ch]; x.fillRect((i % 4) * 16 + xx, Math.floor(i / 4) * 16 + y, 1, 1); } })));
   SPR.url = cv.toDataURL(); window.__spr = SPR.url; }
 const sprEl = document.createElement('div'); sprEl.id = 'hero2d'; document.body.appendChild(sprEl);
 if (SPR) hero.traverse(o => { if (o.isMesh) { o.material.colorWrite = false; o.material.depthWrite = false; o.layers.disable(1); } });
 let sprT = 0, sprFlip = false; const sprLast = new THREE.Vector3(), sprA = new THREE.Vector3(), sprB = new THREE.Vector3();
+const ghosts = Array.from({ length: 6 }, () => { const d = document.createElement('div'); d.className = 'hero2d-ghost'; document.body.appendChild(d); return d; }), trail = [];
+let sprView = 'side';
 function drawHeroSprite(dt) {
   if (!SPR || !R) { sprEl.style.display = 'none'; return; }
-  const moved = hero.position.distanceTo(sprLast) / Math.max(dt, 1e-3); sprLast.copy(hero.position);
-  const casting = heroLocked(), moving = moved > 0.6 && !casting;
-  sprT += dt; const row = casting ? 2 : moving ? 0 : 1, fps = moving ? 9 : casting ? 10 : 4, col = Math.floor(sprT * fps) % 4;
+  const moved = hero.position.distanceTo(sprLast) / Math.max(dt, 1e-3);
   sprA.copy(hero.position).project(camera); const fx = (sprA.x + 1) / 2 * innerWidth, fy = (1 - sprA.y) / 2 * innerHeight;
+  sprB.copy(sprLast).project(camera); const mdx = fx - (sprB.x + 1) / 2 * innerWidth, mdy = fy - (1 - sprB.y) / 2 * innerHeight;
+  sprLast.copy(hero.position);
+  const casting = heroLocked(), moving = moved > 0.6 && !casting;
+  // SMER (8 smerov): kúzlo vždy bokom k cieľu; pri chôdzi hore = zozadu, dolu = spredu, inak bokom (doľava zrkadlo)
+  if (casting && aim.p) { const lx = (aim.p.clone().project(camera).x + 1) / 2 * innerWidth; sprView = 'side'; if (Math.abs(lx - fx) > 2) sprFlip = lx < fx; }
+  else if (moving && Math.hypot(mdx, mdy) > 0.3) { if (Math.abs(mdy) > Math.abs(mdx) * 1.3) sprView = mdy > 0 ? 'front' : 'back'; else { sprView = 'side'; sprFlip = mdx < 0; } }
+  sprT += dt;
+  const row = casting ? 2 : sprView === 'front' ? 3 : sprView === 'back' ? 4 : moving ? 0 : 1, fps = moving ? 9 : casting ? 10 : 4, col = (sprView !== 'side' && !moving && !casting) ? 0 : Math.floor(sprT * fps) % 4;
   sprB.copy(hero.position).add(new THREE.Vector3(0, 1.6, 0)).project(camera); const hpx = Math.abs((1 - sprB.y) / 2 * innerHeight - fy);
-  const look = casting && aim.p ? aim.p : moving ? hero.position.clone().add(vel) : null;
-  if (look) { const lx = (look.clone().project(camera).x + 1) / 2 * innerWidth; if (Math.abs(lx - fx) > 2) sprFlip = lx < fx; }
-  const k = Math.max(1, Math.round(hpx / 16)), w = SPR.cw * k, h = SPR.ch * k;   // celé pixely – ostrá silueta
-  sprEl.style.cssText = `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * 3 * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform-origin:${4.5 * k}px 50%;transform:translate(${fx - 4.5 * k}px, ${fy - h * 0.94}px) scaleX(${sprFlip ? -1 : 1})`;   // kotva = nohy postavy (stĺpec 4,5), nie stred obrázka
+  const k = Math.max(1, Math.round(hpx / 16)), w = SPR.cw * k, h = SPR.ch * k, ax = row >= 3 ? 6.5 : 4.5, flip = row >= 3 ? false : sprFlip;   // celé pixely – ostrá silueta
+  const css = (x, y) => `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * SPR.rows * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform-origin:${ax * k}px 50%;transform:translate(${x - ax * k}px, ${y - h * 0.94}px) scaleX(${flip ? -1 : 1})`;
+  sprEl.style.cssText = css(fx, fy);
+  // DASH je vidieť: za čarodejníkom ostávajú svetlé duchovia, ktorí doznejú
+  if (G.dashing) trail.push({ x: fx, y: fy, t: 0, s: css(fx, fy) });
+  for (const g of trail) g.t += dt; while (trail.length && (trail[0].t > 0.35 || trail.length > 6)) trail.shift();
+  ghosts.forEach((d, i) => { const g = trail[i]; if (!g) { d.style.display = 'none'; return; } d.style.cssText = g.s + `;opacity:${(0.55 * (1 - g.t / 0.35)).toFixed(2)}`; });
 }
 buildInterior();
 buildRoom();

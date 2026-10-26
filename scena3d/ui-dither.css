@@ -176,3 +176,6 @@ body.scron #testmap, body.ovon #testmap { display: none; }
 /* nový čarodejník (pixelový sprite) – ostro navrch sveta */
 #hero2d { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; background: url(carodejnik.png) no-repeat; image-rendering: pixelated; transform-origin: 50% 50%; }
 body.ovon #hero2d { visibility: hidden; }
+
+.hero2d-ghost { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; background-repeat: no-repeat; image-rendering: pixelated; filter: brightness(4) sepia(.3); }
+body.ovon .hero2d-ghost { visibility: hidden; }
