@@ -358,6 +358,30 @@
   .node.pick { color:var(--line); border:2px solid var(--line); cursor:pointer; animation:bob .6s steps(2) infinite alternate; } .node.pick:hover { background:var(--line); color:var(--ink); }
   .node.skip { opacity:.25; } @keyframes bob { to { transform:translateY(-3px); } }
 
+  /* ---------- CINEMATICKÉ INTRO (pri každom spustení, preskočí sa klikom/klávesom) + menu vpravo ako v hrách ---------- */
+  #cine { position:fixed; inset:0; z-index:30; pointer-events:auto; color:var(--line); cursor:pointer; }
+  #cine.hide { display:none; }
+  #cine .blk { position:absolute; inset:0; background:#000; transition:opacity 2.4s ease; }
+  #cine.lift .blk { opacity:0; }
+  #cine .bar { position:absolute; left:0; right:0; height:12vh; background:#000; transition:transform 1.4s cubic-bezier(.7,0,.2,1); }
+  #cine .bar.t { top:0; } #cine .bar.b { bottom:0; }
+  #cine.out .bar.t { transform:translateY(-100%); } #cine.out .bar.b { transform:translateY(100%); }
+  #cine .line { position:absolute; left:0; right:0; bottom:calc(12vh + 5vh); text-align:center; font-size:clamp(18px, 2.4vw, 28px); letter-spacing:1px; text-shadow:2px 2px 0 #000; opacity:0; transition:opacity 1.2s ease; }
+  #cine .line.on { opacity:1; }
+  #cine .ttl { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 1.6s ease, letter-spacing 4s ease; letter-spacing:2px; }
+  #cine .ttl.on { opacity:1; letter-spacing:10px; }
+  #cine .ttl .logo { color:var(--line); text-shadow:4px 4px 0 #000; letter-spacing:inherit; }
+  #cine .ttl .claim { color:var(--line); text-shadow:2px 2px 0 #000; }
+  #cine .skip { position:absolute; right:24px; bottom:calc(12vh + 14px); font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--grey); opacity:.7; }
+  #cine.out .skip, #cine.out .line { opacity:0; }
+  #menuScr.side { background:transparent; align-items:flex-end; justify-content:center; padding:0 6vw 0 0; }
+  #menuScr.side .hill, #menuScr.side .tree { display:none; }
+  #menuScr.side::before { content:''; position:absolute; top:0; right:0; bottom:0; width:min(520px, 50vw); background:linear-gradient(90deg, transparent, rgba(0,0,0,.55)); pointer-events:none; }
+  #menuScr.side .in { flex-direction:column; align-items:flex-end; gap:10px; animation:menuIn .9s cubic-bezier(.2,1,.3,1) both; }
+  #menuScr.side .logo { color:var(--line); text-shadow:4px 4px 0 #000; margin-bottom:22px; text-align:right; }
+  #menuScr.side .mbox { width:280px; }
+  #menuScr.side .zone { width:280px; box-sizing:border-box; }
+  @keyframes menuIn { from { opacity:0; transform:translateX(40px); } }
   /* ---------- intro a menu ---------- */
   .scr { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--ink);
     background-color:var(--paper); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='16'%3E%3Cpath d='M3 4h3M4.5 2.5v3M13 12h3' stroke='%23b9b4a8' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E"); }
@@ -501,7 +525,8 @@
   <div class="tree" style="left:9vw;bottom:12vh"></div><div class="tree" style="left:15vw;bottom:12vh;transform:scale(.75)"></div><div class="tree" style="right:12vw;bottom:18vh;transform:scale(1.15)"></div>
   <div class="in" id="introIn"></div>
 </div>
-<div id="menuScr" class="scr hide">
+<div id="cine" class="hide"><div class="blk"></div><div class="ttl"><div class="logo">MATHEMAGIC</div><div class="claim">Kúzla, ktoré počítajú</div></div><div class="bar t"></div><div class="bar b"></div><div class="line"></div><div class="skip">Klik = preskočiť</div></div>
+<div id="menuScr" class="scr hide side">
   <div class="hill" style="left:-40px;width:60vw;height:18vh"></div><div class="tree" style="right:10vw;bottom:8vh"></div><div class="tree" style="right:19vw;bottom:8vh;transform:scale(.7)"></div>
   <div class="in"><div><div class="logo">MATHEMAGIC</div><div class="panel mbox"><span class="ptag">Menu</span><div class="menu" id="mainMenu"></div></div></div><div class="panel thin zone" id="zoneBox"></div></div>
 </div>

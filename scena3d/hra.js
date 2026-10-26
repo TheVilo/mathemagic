@@ -895,6 +895,7 @@ function update(dt, t) {
   if (innkeeper && inside) innkeeper.mixer.update(dt);
   if (!inside && R) updateRoom(dt, t); else if (inside) updateInside();
   updateParticles(dt); if (R && room) updateFires(t);
+  if (cineOn) cineT += dt;
   if (scrOn && R && !inside) introCast(dt);
   if (modeOn) modeTick(dt);
   if (tapMark) { tapMark.t += dt; tapRing.visible = tapMark.t < 0.5 && !fight.on; tapRing.position.copy(tapMark.p).setY(tapMark.p.y + 0.05); tapRing.scale.setScalar(1 + tapMark.t * 1.5); }
@@ -1431,7 +1432,11 @@ function draw(dt) {
     look = new THREE.Vector3(Math.min(Math.max(hero.position.x, hw - 2), R.W - hw + 2), hero.position.y + 0.9, Math.min(Math.max(hero.position.z, 3), R.H - 3)); view = 5.2;
   }
   if (adv() && !inside) view *= ZOOM_OUT;
-  if (scrOn && !inside && R) { const hw = viewZoom * innerWidth / innerHeight; look = hero.position.clone().add(new THREE.Vector3(modeOn ? (dnT - 0.5) * 1.6 : hw * 0.42, 0.9, 0.6)); view = 4.4; }
+  if (scrOn && !inside && R) {
+    // intro: začne tesne pri čarodejníkovi a za ~13 s sa pomaly vzdiali a posunie doľava (vpravo ostane miesto na menu)
+    const k = cineOn ? Math.min(1, cineT / 13) : 1, e = k * k * (3 - 2 * k), hw = viewZoom * innerWidth / innerHeight;
+    look = hero.position.clone().add(new THREE.Vector3(modeOn ? (dnT - 0.5) * 1.6 : hw * 0.42 * e, 0.9 - 0.3 * (1 - e), 0.6)); view = 1.7 + 2.7 * e;
+  }
   const kc = snapCam ? 1 : 1 - Math.exp(-dt * 2.6); snapCam = false;
   camLook.lerp(look, kc); if (!Number.isFinite(camLook.x + camLook.y + camLook.z)) camLook.copy(look);
   if (Math.abs(viewZoom - view) > 0.001) { viewZoom += (view - viewZoom) * kc; setView(viewZoom); }
@@ -1518,13 +1523,16 @@ const ZONE_NAMES = ['Les zbojníkov', 'Zasnežené hory', 'Dungeon', 'Sopka'];
 function showMenu() {
   scrOn = true; paused = true; document.body.classList.add('scron'); $('menuScr').classList.remove('hide');
   const going = run.w.seen.length > 1 || run.w.camps.length || run.zone > 1 || run.cards.length;
-  $('mainMenu').innerHTML = menu([['go', 'play', going ? 'Pokračovať' : 'Hrať'], ['new', 'star', 'Nový beh', !going], ['book', 'book', 'Kniha kúziel'], ['set', 'gear', 'Nastavenia']]);
+  // menu vpravo ako v hrách; hra pre deti (Učeň) je len položka v menu, hlavná hra = Majster
+  $('mainMenu').innerHTML = menu([['go', 'play', going ? 'Pokračovať' : 'Hrať'], ['new', 'star', 'Nový beh', !going], ['kids', 'heart', 'Hra pre deti'], ['book', 'book', 'Kniha kúziel'], ['set', 'gear', 'Nastavenia']]);
   $('zoneBox').innerHTML = `<div class="r"><span>Zóna ${run.zone}</span><span style="color:var(--grey)">${ZONE_NAMES[(run.zone - 1) % 4]}</span></div><div class="bar"><b style="width:${Math.round(run.w.seen.length / 9 * 100)}%"></b></div><div class="r g"><span>Kariet ${meta.seen.length}/${Object.keys(CARDS).length}</span><span>${['+', ...run.ops.filter(o => o !== '+')].join(' ').replace('-', '−')} do ${run.range}</span></div>`;
   $('mainMenu').querySelectorAll('.row').forEach(r => r.onclick = () => {
     const k = r.dataset.k;
     if (k === 'book') return adv() ? openPack() : openBook();
     if (k === 'set') return openSettings();
-    if (k === 'new' || !going) return chooseMode(mode => { run = newRun(mode); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); });
+    const fresh = mode => { run = newRun(mode); persist(); sessionStorage.setItem('mm-skip', '1'); location.reload(); };
+    if (k === 'kids') return fresh('zaklad');
+    if (k === 'new' || (!going && !adv())) return fresh('pokrocily');
     startGame();
   });
 }
@@ -1582,10 +1590,33 @@ function modeTick(dt) {
   $('modeScr').querySelector('.left').classList.toggle('on', dnT < 0.35); $('modeScr').querySelector('.right').classList.toggle('on', dnT > 0.65);
   $('modeScr').classList.toggle('night', dnT > 0.5);
 }
+// ---------- CINEMATICKÉ INTRO: čierna → pásy ako v kine, kamera sa pomaly odďaľuje od čarodejníka, 3 vety príbehu, logo, potom menu vpravo ----------
+let cineOn = false, cineT = 0, cineEnd = null;
+const CINE = ['Zbojníci ukradli z kráľovstva všetky čísla.', 'Bez čísel nefunguje žiadne kúzlo. Ani jedno.', 'Si posledný čarodejník, ktorý ešte vie počítať.'];
+function playCine() {
+  const c = $('cine'), ln = c.querySelector('.line'), tt = c.querySelector('.ttl'), timers = [];
+  scrOn = true; paused = true; document.body.classList.add('scron'); cineOn = true; cineT = 0; c.classList.remove('hide');
+  const at = (sec, f) => timers.push(setTimeout(f, sec * 1000));
+  const line = t => { ln.classList.remove('on'); at(0.7, () => { ln.textContent = t; ln.classList.add('on'); }); };
+  cineEnd = () => {
+    if (!cineEnd) return; cineEnd = null; timers.forEach(clearTimeout); meta.intro = 1; persist();
+    c.classList.add('lift', 'out'); tt.classList.remove('on'); ln.classList.remove('on'); cineT = 99; showMenu();
+    setTimeout(() => { c.classList.add('hide'); cineOn = false; }, 1500);
+  };
+  const skip = e => { e.stopPropagation(); e.preventDefault && e.type === 'keydown' && e.preventDefault(); if (cineEnd) cineEnd(); removeEventListener('keydown', skip, true); };
+  c.addEventListener('pointerdown', skip); addEventListener('keydown', skip, true);
+  loadedP.then(() => {
+    if (!cineEnd) return; cineT = 0; snapCam = true;
+    at(0.3, () => c.classList.add('lift'));
+    CINE.forEach((t, i) => at(0.8 + i * 3.4, () => line(t)));
+    at(0.8 + CINE.length * 3.4, () => { ln.classList.remove('on'); tt.classList.add('on'); });
+    at(0.8 + CINE.length * 3.4 + 4.2, () => cineEnd && cineEnd());
+  });
+}
 // rovno do hry po „Nový beh“, do menu po „Menu“ z prehry
 let afterLoad = null;
 for (const [k, v] of [['mm-skip', 'game'], ['mm-menu', 'menu']]) if (sessionStorage.getItem(k)) { sessionStorage.removeItem(k); afterLoad = v; introStage = -1; $('introScr').classList.add('hide'); }
-if (!afterLoad) { $('introScr').classList.add('hide'); introStage = -1; showMenu(); }
+if (!afterLoad) { $('introScr').classList.add('hide'); introStage = -1; playCine(); }
 hudba('uvod');   // hudba menu hrá od prvého dotyku, aj kým sa ešte dotiahne svet
 
 // ---------- štart ----------
