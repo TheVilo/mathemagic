@@ -49,8 +49,42 @@ export function themeProps(R, b, rnd) {
     hrad: m => m.startsWith('tree_') ? pk(['wall', 'wall_corner', 'statue_obelisk', 'statue_block']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['box_small', 'barrel_large', 'statue_block']) : m,
   }[b.id];
   if (MAP) for (const p of R.props) p.m = MAP(p.m);
+  landmarks(R, b, rnd, pk);
   R.flowers = b.id === 'haj' ? R.flowers : [];
   R.grass = R.grass.filter((_, i) => i % 6 === 0);   // Kenney tráva len ojedinele – zem kreslia ťahy (groundStrokes)
+}
+
+// DOMINANTY: obri (stromy/skaly/stĺpy niekoľkonásobne väčšie ako zvyčajne) a dedinka v otvorených svetoch – mierka a miesto, kam ísť
+const GIANT = { les: ['tree_oak', 'tree_fat', 'tree_detailed'], haj: ['tree_fat', 'tree_oak'], hory: ['tree_pineTallA', 'rock_tallA', 'rock_tallB'], ruiny: ['statue_column', 'statue_columnDamaged', 'rock_tallB'], dungeon: ['statue_column', 'statue_obelisk'], sopka: ['rock_tallA', 'rock_tallB', 'stump_oldTall'], kruhy: ['rock_tallA', 'statue_obelisk'], hrad: ['statue_obelisk', 'statue_column'] };
+const TOWN = { les: 1, haj: 1, ruiny: 1, kruhy: 1, hory: 1 };
+function landmarks(R, b, rnd, pk) {
+  const far = (x, z, d) => Math.hypot(x - R.start[0], z - R.start[1]) > 9 && (R.camps || []).every(c => Math.hypot(c.x - x, c.z - z) > d + 4) && R.inside(x, z);
+  const clear = (x, z, r) => { R.props = R.props.filter(p => Math.hypot(p.x - x, p.z - z) > r + p.col * p.s); };
+  const areas = R.areas.filter(a => a.kind !== 'start' && a.kind !== 'boss');
+  for (let i = areas.length - 1; i > 0; i--) { const k = Math.floor(rnd() * (i + 1)); [areas[i], areas[k]] = [areas[k], areas[i]]; }
+  // dedinka: krčma, veže, studňa, trh okolo námestia (námestie bez predmetov)
+  if (TOWN[b.id] && areas.length) {
+    const a = areas.shift(), cx = a.cx, cz = a.cz;
+    if (far(cx, cz, 6)) {
+      clear(cx, cz, 7.5);
+      R.props.push({ m: 'building_well_blue', x: cx, z: cz, s: 1, r: rnd() * 6.28, col: 1.1 });
+      const ring = ['building_tavern_blue', 'building_tower_A_blue', 'building_market_blue', 'building_tower_B_blue', 'building_market_blue'];
+      ring.forEach((m, i) => { const an = i / ring.length * 6.283 + rnd() * 0.4, d = 5 + rnd() * 1.2, x = cx + Math.cos(an) * d, z = cz + Math.sin(an) * d * 0.8;
+        if (z > cz + 3.5 && m === 'building_tavern_blue') return;   // vysoké stavby nie pred kamerou
+        if (R.inside(x, z)) R.props.push({ m, x, z, s: 1, r: Math.atan2(cx - x, cz - z), col: m === 'building_tavern_blue' ? 2 : 1.5 }); });
+      R.town = { x: cx, z: cz };
+    }
+  }
+  // obri: 3–4 na svet, každý v inej oblasti, uvoľnený priestor okolo
+  const kinds = GIANT[b.id] || GIANT.les;
+  for (let n = 0, want = 3 + Math.floor(rnd() * 2); areas.length && n < want;) {
+    const a = areas.shift(), x = a.cx + (rnd() - 0.5) * 6, z = a.cz - 2 - rnd() * 3;
+    if (!far(x, z, 5)) continue;
+    const m = pk(kinds), tree = m.startsWith('tree_'), s = tree ? 2.3 + rnd() * 0.6 : 2.6 + rnd() * 1.2;
+    clear(x, z, s * 1.1);
+    R.props.push({ m, x, z, s, r: rnd() * 6.28, col: tree ? 0.4 : 0.55, giant: true });
+    n++; (R.giants = R.giants || []).push({ x, z, s, tree });
+  }
 }
 
 // postaví mágiu sveta do skupiny room; vráti update(t, dt)
@@ -92,6 +126,17 @@ export function buildMagic(room, R, b, rnd) {
   // SVETLUŠKY MÁGIE: drobné svietiace iskry (nie číslice – tie by vyzerali ako niečo na zbieranie), v sopke stúpajú ako žeravé uhlíky
   const mote = new THREE.OctahedronGeometry(0.06, 0);
   for (let i = 0; i < N; i++) { const x = 4 + rnd() * (R.W - 8), z = 4 + rnd() * (R.H - 8), m = new THREE.Mesh(mote, mat(c)); m.scale.setScalar(0.7 + rnd() * 1.2); g.add(m); air.push({ m, x, z, y0: h(x, z) + 0.4 + rnd() * 2.2, ph: rnd() * 6.28, sp: 0.3 + rnd() * 0.5 }); }
+  // MÁGIA OBROV: okolo každého obra krúžia veľké kryštály a na zemi je kruh – obri sú staré magické miesta
+  const orbit = [];
+  for (const gi of R.giants || []) {
+    const r = gi.tree ? 2.6 + gi.s * 0.2 : 2 + gi.s * 0.3, y0 = h(gi.x, gi.z);
+    for (let i = 0; i < 40; i++) { const a1 = i / 40 * 6.283, a2 = (i + 1) / 40 * 6.283; if (i % 4 !== 3) line(g, [gi.x + Math.cos(a1) * r, gi.z + Math.sin(a1) * r], [gi.x + Math.cos(a2) * r, gi.z + Math.sin(a2) * r], h, c, 0.05); }
+    for (let i = 0; i < 3; i++) { const cr = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), mat(c)); cr.scale.y = 1.9; g.add(cr); orbit.push({ m: cr, x: gi.x, z: gi.z, r: r * 0.85, y: y0 + 1.6 + i * 0.9 + (gi.tree ? gi.s * 0.5 : 0), ph: i / 3 * 6.283, sp: 0.35 + rnd() * 0.2 }); }
+  }
+  // dedinka: lampáše (svietiace kocky) okolo námestia
+  if (R.town) for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283 + 0.3, x = R.town.x + Math.cos(a) * 3, z = R.town.z + Math.sin(a) * 2.4;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.3, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a2628 })); post.position.set(x, h(x, z) + 0.65, z); post.castShadow = true; room.add(post);
+    const lan = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), mat(c)); lan.position.set(x, h(x, z) + 1.4, z); g.add(lan); orbit.push({ lan, ph: rnd() * 6.28 }); }
   glow(g);
   return {
     spots,
@@ -102,6 +147,7 @@ export function buildMagic(room, R, b, rnd) {
         a.m.position.set(a.x + Math.sin(t * 0.3 + a.ph) * 0.6, y, a.z + Math.cos(t * 0.25 + a.ph) * 0.6); a.m.rotation.y = t * 2 + a.ph; a.m.visible = (Math.sin(t * 1.7 + a.ph * 3) > -0.3);
         if (b.rise) a.m.visible = ((t * a.sp * 0.8 + a.ph) % 3.5) < 3.2;
       }
+      for (const o of orbit) { if (o.lan) { o.lan.visible = Math.sin(t * 9 + o.ph) > -0.95; continue; } const a = t * o.sp + o.ph; o.m.position.set(o.x + Math.cos(a) * o.r, o.y + Math.sin(t * 1.3 + o.ph) * 0.25, o.z + Math.sin(a) * o.r); o.m.rotation.y = t * 1.5; }
       for (const m of spin) { m.quaternion.copy(q); m.position.y += Math.sin(t * 1.4 + m.position.x) * 0.002; }
     },
   };

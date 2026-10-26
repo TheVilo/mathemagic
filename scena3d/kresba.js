@@ -311,7 +311,9 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
   if (lampLight) {   // PRECHOD LEN SO SVETLOM PALICE (tiene od predmetov), obloha a slnko vypnuté
     const hi = hemi.intensity, li = lampLight.intensity, bg0 = scene.background.clone(), fg0 = scene.fog;
     hemi.intensity = 0; sun.intensity = 0; rim.intensity = 0; lampLight.intensity = 6; scene.background.set(0x000000); scene.fog = null;
+    orbLights.forEach(l => { l.intensity = 5 * (l.userData.k || 0); });
     renderer.setRenderTarget(lampRT); renderer.render(scene, camera);
+    orbLights.forEach(l => { l.intensity = 0; });
     kresbaMat.uniforms.uLampK.value = hi / 6;
     hemi.intensity = hi; sun.intensity = si; rim.intensity = ri; lampLight.intensity = li; scene.background.copy(bg0); scene.fog = fg0;
   }
@@ -327,7 +329,9 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
 }
 
 // svetlá kúzla (najviac 4): [{ x, z, r }] – volá suboj.js každý snímok
-export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r : 0); } }
+// + skutočné bodové svetlá kúziel: svietia len v prechode svetla palice → osvetlia boky predmetov okolo letiaceho kúzla
+const orbLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xffffff, 0, 7, 1.4); l.castShadow = false; scene.add(l); return l; });
+export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r * 0.45 : 0); orbLights[i].userData.k = o ? o.r / 3.5 : 0; if (o) orbLights[i].position.set(o.x, 0.9, o.z); } }
 
 // ---------- SVETLO PALICE ----------
 let lampLight = null;

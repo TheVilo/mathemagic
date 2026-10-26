@@ -118,7 +118,7 @@ export const loadGlb = url => new Promise((res, rej) => loader.load(url, res, un
 const KENNEY = ['log', 'log_large', 'log_stack', 'stump_old', 'stump_oldTall', 'stump_round', 'rock_largeA', 'rock_largeB', 'rock_largeC', 'rock_largeD', 'rock_smallA', 'rock_smallB', 'rock_smallC', 'rock_smallFlatA', 'rock_tallA', 'rock_tallB',
   'statue_columnDamaged', 'statue_column', 'statue_obelisk', 'statue_block', 'campfire_stones', 'tent_smallClosed', 'plant_bush', 'plant_bushLarge', 'plant_bushSmall', 'mushroom_redGroup', 'mushroom_tanGroup', 'sign',
   'tree_oak', 'tree_detailed', 'tree_fat', 'tree_default', 'tree_cone', 'tree_pineDefaultA', 'tree_pineRoundB', 'tree_pineTallA', 'tree_thin', 'tree_tall', 'tree_simple'];
-const STAVBY = ['building_tower_A_blue', 'building_tower_B_blue', 'building_well_blue', 'building_tavern_blue'];
+const STAVBY = ['building_tower_A_blue', 'building_tower_B_blue', 'building_well_blue', 'building_tavern_blue', 'building_market_blue'];
 const DUNGEON = ['floor_wood_large', 'wall', 'wall_corner', 'table_medium', 'barrel_large', 'shelves', 'torch_mounted', 'keg', 'candle_lit', 'crates_stacked', 'coin_stack_medium', 'stool', 'box_small'];
 export const MODELS = {};   // názov → časti {geo, mat} (statické, kreslia sa cez inštancie)
 export const RAW = {};      // názov → celá scéna (truhlica, kľúč – hýbu sa)
