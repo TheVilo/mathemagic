@@ -166,13 +166,14 @@ export const kresbaMat = new THREE.ShaderMaterial({
           if (dg < 0.9999) {
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
             float pd = length(wpq.xz - uHero.xz), pool = 1.0 - smoothstep(uDark > 0.5 ? 2.0 : 2.5, uDark > 0.5 ? 6.5 : 7.5, pd);
-            for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) pool = max(pool, 1.0 - smoothstep(uOrbs[o].w * 0.3, uOrbs[o].w, length(wpq.xz - uOrbs[o].xz)));   // kúzla tiež svietia
+            float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, length(wpq.xz - uOrbs[o].xz)));   // kúzla svietia naplno
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.75));
+            tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
           if (eg > 0.5 && dg < 0.9999) tone *= 0.62;                             // jemný obrys
           float fgD = smoothstep(uDepth.x, uDepth.y, dg);
-          tone = mix(tone, uDark > 0.5 ? 0.22 : 0.78, fgD * 0.55);               // hmla do diaľky (sivá, nie biela/čierna)
+          tone = mix(tone, uDark > 0.5 ? 0.3 : 0.8, fgD * 0.12);                // hmla do diaľky len jemne (Lukáš: hore bol prechod)
           tone = clamp(tone, 0.0, 1.0) * 4.0;
           float tb = floor(min(tone, 3.999)), tf = tone - tb;
           vec2 cq = floor(frag / 3.0), pq = mod(frag, 3.0);
