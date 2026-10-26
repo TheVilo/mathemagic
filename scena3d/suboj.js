@@ -4,15 +4,15 @@ import { THREE, scene, camera, spark, burst, pix, shortNum } from './svet.js';
 import { hero, crystal, crystalLight, heroPlay, makeFighter, lamp } from './postavy.js';
 import { makeProblem, lvl } from './karty.js';
 import { rollSpell, spellWorks, enemyHp, workingRows, rowCost, used, tokOf } from './ruksak.js';
-import { staffStats, SHOT_MIN } from './balance.js';
-import { evalWand } from './wand.js';
+import { staffStats, manaStats, SHOT_MIN } from './balance.js';
+import { evalWand, wandKind, CONST } from './wand.js';
 import { applyRules, itemN } from './vylepsenia.js';
 import { kresbaMat, setOrbs } from './kresba.js';
 import { efekt, akord } from './zvuk.js';
 
 let G = null;
 export function initFight(g) { G = g; }
-export const fight = { on: false, enemies: [], bolts: [], streak: 0, input: '', shield: 0, aim: null, boss: null, slow: 1 };
+export const fight = { rings: [], on: false, enemies: [], bolts: [], streak: 0, input: '', shield: 0, aim: null, boss: null, slow: 1 };
 const spells = [], chains = [];
 // pevná zásoba svetiel: nové svetlo v scéne = prekompilovanie všetkých materiálov (sekanie), preto sa len požičiavajú
 const POOL = Array.from({ length: 4 }, () => { const l = new THREE.PointLight(0xffffff, 0, 5, 1.6); l.busy = false; scene.add(l); return l; });
@@ -87,9 +87,10 @@ export function setTarget(e) { if (!fight.adv || !fight.enemies.includes(e) || e
 // Výsledok vzorca = damage aj sila efektu; dlhší vzorec sa dlhšie nabíja. Vedľa = kúzlo dopadne na zem.
 // kúzla (riadky ruksaku) sa striedajú v poradí 1 → 2 → 3 → 1, preskočia sa nehotové
 // DVE PALICE: ľavá (B) má vlastný riadok P.bRow, vlastnú energiu run.energy2 a vlastný čas medzi výstrelmi; pravá (A) strieda ostatné riadky
-const hasB = () => !!(G.run.pack.kind2 && G.run.pack.bRow != null && (G.run.pack.wands || G.run.pack.rows)[G.run.pack.bRow]);
+const hasB = () => !G.run.pack.wands && !!(G.run.pack.kind2 && G.run.pack.bRow != null && (G.run.pack.wands || G.run.pack.rows)[G.run.pack.bRow]);
 const rowsOk = () => workingRows(G.run).filter(i => !(hasB() && i === G.run.pack.bRow));
-export const handStats = h => h === 'b' ? staffStats({ ...G.run.pack, kind: G.run.pack.kind2 }) : staffStats(G.run.pack);
+// palice po rade: rýchlosť, sila a pravidlo podľa palice, ktorá je na rade; mana spoločná (manaStats)
+export const handStats = h => { const P = G.run.pack; if (P.wands) { const S = staffStats({ ...P, kind: wandKind(P, curRow()) }), M = manaStats(P); return { ...S, emax: M.emax, regen: M.regen }; } return h === 'b' ? staffStats({ ...P, kind: P.kind2 }) : staffStats(P); };
 export const handEnergy = h => { const k = h === 'b' ? 'energy2' : 'energy', m = handStats(h).emax; return Math.min(m, G.run[k] ?? m); };
 export const curRow = () => { const ok = rowsOk(); return ok.includes(fight.row) ? fight.row : ok[0] ?? 0; };
 function nextRow() { const ok = rowsOk(); if (!ok.length) return; const i = ok.indexOf(curRow()); fight.row = ok[(i + 1) % ok.length]; }
@@ -143,6 +144,27 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
     near(tp, RU.fx.split3).forEach((o, i) => shot(o, Math.max(1, Math.round(v / 3)), '÷', i));
     if (RU.fx.boom) { const rad = RU.fx.boom; setTimeout(() => { if (!fight.on) return; burst(tp.clone().add(new THREE.Vector3(0, 0.5, 0)), 160, rad * 2.5, 0xffd25a, 1); G.shake(0.4); for (const o of fight.enemies) if (o !== t && o.state !== 'dead' && o.g.position.distanceTo(tp) < rad) advHit(o, { v: Math.round(v / 2), raw: 0, extra: true, op: '×' }); }, 350); }
   }
+  // ŠPECIÁLNE ÚTOKY – konštanty na palici: π = kruh s polomerom π m okolo teba, e = preskakuje a zakaždým ÷ e, φ = 5 strel, každá ÷ φ
+  if (!t.fake && r.ops.some(o => CONST[o])) {
+    const base = { raw: r.answer, ops: r.ops, text: r.text, extra: true, hand }, others = () => fight.enemies.filter(o => o !== t && o.state !== 'dead');
+    const hit = (o, val, op, d) => cast(o, { ...base, v: Math.max(1, Math.round(val)), op, delay: d, power: Math.min(1.6, Math.max(0.15, val / 12)) });
+    if (r.ops.includes('π')) {
+      fight.rings.push({ x: hero.position.x, z: hero.position.z, r: Math.PI, t: 0, c: '#ffd25a' });
+      others().filter(o => o.g.position.distanceTo(hero.position) < Math.PI).forEach((o, i) => hit(o, v, 'π', 0.04 * i));
+      G.floatText('<span style="color:#ffd25a">π · kruh 3,14 m</span>', hero.position.clone().add(new THREE.Vector3(0, 3.1, 0)));
+    }
+    if (r.ops.includes('e')) {
+      let from = t.g.position, val = v; const taken = [t], steps = [v];
+      for (let k = 0; k < 4; k++) { val /= Math.E; if (val < 1) break; const n = fight.enemies.filter(o => !taken.includes(o) && o.state !== 'dead').sort((a, b) => a.g.position.distanceTo(from) - b.g.position.distanceTo(from))[0]; if (!n || n.g.position.distanceTo(from) > 7) break; taken.push(n); hit(n, val, 'e', 0.18 * (k + 1)); from = n.g.position; steps.push(Math.round(val)); }
+      if (steps.length > 1) G.floatText(`<span style="color:#8dff98">e · ${steps.join(' → ')}</span>`, hero.position.clone().add(new THREE.Vector3(0, 3.1, 0)));
+    }
+    if (r.ops.includes('φ')) {
+      const n = others().sort((a, b) => a.g.position.distanceTo(hero.position) - b.g.position.distanceTo(hero.position)).slice(0, 4);
+      n.forEach((o, k) => hit(o, v / Math.pow((1 + Math.sqrt(5)) / 2, k + 1), 'φ', 0.12 * (k + 1)));
+      if (n.length) G.floatText(`<span style="color:#f0c040">φ · ${[v, ...n.map((_, k) => Math.round(v / Math.pow(1.618, k + 1)))].join(', ')}</span>`, hero.position.clone().add(new THREE.Vector3(0, 3.1, 0)));
+    }
+  }
+
   if (!t.fake && fight.on) { fight.streak++; G.stats.ok++; G.renderStreak(); }   // Majster: žiadny blesk zadarmo – na začiatku len strieľaš a veci zbieraš
   renderInput(); return true;
 }
@@ -223,6 +245,11 @@ export function drawTele(cam) {
   if (!fight.on) return;
   const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
   const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
+  for (let i = fight.rings.length - 1; i >= 0; i--) {   // kruh π: rozbehne sa z čarodejníka na polomer π
+    const g = fight.rings[i]; g.t += 1 / 60; if (g.t > 0.6) { fight.rings.splice(i, 1); continue; }
+    const k = Math.min(1, g.t / 0.25), pts = Array.from({ length: 40 }, (_, j) => { const a = j / 40 * 6.283; return P(g.x + Math.cos(a) * g.r * k, g.z + Math.sin(a) * g.r * k); });
+    tctx.globalAlpha = 1 - Math.max(0, (g.t - 0.25) / 0.35); tctx.lineWidth = 4; tctx.strokeStyle = g.c; poly(pts); tctx.stroke(); tctx.globalAlpha = 1;
+  }
   for (const b of fight.bolts) if (b.adv) {   // strela = číslica (tieň na zemi + číslo vo vzduchu)
     const p = b.mesh.position, [gx, gy] = P(p.x, p.z);
     tctx.fillStyle = 'rgba(0,0,0,.45)'; tctx.beginPath(); tctx.ellipse(gx, gy, 9, 4, 0, 0, 6.283); tctx.fill();
@@ -327,7 +354,7 @@ function advPress() {
 export function renderEnergy() {
   let el = document.getElementById('energy'); if (!el) { el = document.createElement('div'); el.id = 'energy'; document.body.appendChild(el); }
   const P = G.run.pack, bar = h => { const S = handStats(h), E = handEnergy(h), row = h === 'b' ? P.bRow : curRow(), c = rowCost(P, row), low = fight.lowE && fight.lowH === h && G.now - fight.lowE < 0.6;
-    return `<div class="eb${low ? ' low' : ''}${E + 1e-6 >= c ? ' ok' : ''}"><span class="eh">${h === 'b' ? 'B' : 'A'}</span><i><b style="width:${Math.round(E / S.emax * 100)}%"></b><u style="left:${Math.min(100, Math.round(c / S.emax * 100))}%"></u></i><span class="en">${Math.floor(E)}/${S.emax}</span></div>`; };
+    return `<div class="eb${low ? ' low' : ''}${E + 1e-6 >= c ? ' ok' : ''}"><span class="eh">${P.wands ? (P.wands.length > 1 ? 'palica ' + (curRow() + 1) : 'mana') : h === 'b' ? 'B' : 'A'}</span><i><b style="width:${Math.round(E / S.emax * 100)}%"></b><u style="left:${Math.min(100, Math.round(c / S.emax * 100))}%"></u></i><span class="en">${Math.floor(E)}/${S.emax}</span></div>`; };
   el.innerHTML = bar('a') + (hasB() ? bar('b') : '');
 }
 export function renderInput(wrong) {
@@ -342,7 +369,7 @@ export function renderInput(wrong) {
 // ---------- KÚZLO = MATEMATICKÉ ZNAMIENKO (Mathemagic: matematika všade) ----------
 // + − × ÷ ako 3D znak vo farbe živlu, natočený ku kamere a točí sa; stopa za ním = živel (kamienky, kvapky, plamene, vír)
 const MB = c => new THREE.MeshBasicMaterial({ color: c });
-const OPCOL = { '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
+const OPCOL = { 'π': 0xffd25a, 'e': 0x8dff98, 'φ': 0xf0c040, '+': 0xc8923a, '-': 0x4fa8ff, '×': 0xff5a22, '÷': 0x7fe8d8, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
 function signMesh(op, color, k = 1) {
   const sign = new THREE.Group(), m = MB(new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.15));
   const bar = (w, h, x = 0, y = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w * k, h * k, 0.09 * k), m); o.position.set(x * k, y * k, 0); sign.add(o); };
@@ -382,7 +409,7 @@ export function animShape(g, t, dir) {
 
 // ---------- kúzla (letia z kryštálu palice) ----------
 // ŠTYRI ŽIVLY: + zem (popraská, zastaví), − voda (zamrzne), × oheň (zapáli, šíri sa), ÷ vzduch (odsunie)
-const COL = { '+': 0xc8923a, '-': 0xff5a22, '×': 0x7fe8d8, '÷': 0x4fa8ff, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
+const COL = { 'π': 0xffd25a, 'e': 0x8dff98, 'φ': 0xf0c040, '+': 0xc8923a, '-': 0xff5a22, '×': 0x7fe8d8, '÷': 0x4fa8ff, '√': 0xb07ad8, '²': 0xffd25a, '³': 0xffa040, '!': 0xff3a6a };
 const GLYPH = { '+': 3, '-': 2, '×': 4, '÷': 5, '√': 6, '²': 9, '³': 9, '!': 6 };
 function cast(t, info) {
   t.locked = true; t.el.classList.add('locked');
@@ -411,7 +438,7 @@ function cast(t, info) {
 // SVETLO KÚZIEL: každé letiace kúzlo osvetlí okolie (3,5 m), pri dopade krátko väčší záblesk (6 m)
 function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
 // KÚZLO = VEĽKÉ FAREBNÉ ZNAMIENKO: každá strela letí ako jasné + − × ÷ vo farbe živlu (ostré, mimo ditheringu), pri dopade sa rozprskne
-const SIGN = { '+': '+', '-': '-', '×': '×', '÷': '÷', '√': '√', '²': '²', '³': '³', '!': '!' };
+const SIGN = { 'π': 'π', 'e': 'e', 'φ': 'φ', '+': '+', '-': '-', '×': '×', '÷': '÷', '√': '√', '²': '²', '³': '³', '!': '!' };
 function spellSign(s) {
   const el = document.createElement('div'); el.className = 'spsign'; el.style.color = '#' + s.color.toString(16).padStart(6, '0');
   el.innerHTML = pix(SIGN[s.info.op] || '+'); el.style.display = 'none'; document.body.appendChild(el); return el;

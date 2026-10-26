@@ -14,18 +14,30 @@ export const MOD = {
   '²': { name: 'mocnina', text: 'obrovské číslo', cost: () => 4 },
   '³': { name: 'mocnina', text: 'ešte väčšie číslo', cost: () => 6 },
   '!': { name: 'faktoriál', text: 'najväčšie číslo', cost: () => 8 },
+  // ŠPECIÁLNE ÚTOKY = matematické konštanty (legendárne): násobia výsledok a menia tvar útoku
+  'π': { name: 'Ludolfovo číslo', text: '×π · zasiahne všetkých v kruhu s polomerom π m', cost: () => 5 },
+  'e': { name: 'Eulerovo číslo', text: '×e · preskakuje ďalej, zakaždým ÷ e', cost: () => 5 },
+  'φ': { name: 'Zlatý rez', text: '×φ · 5 strel, každá ďalšia ÷ φ', cost: () => 4 },
 };
 export const numCostW = v => v <= 4 ? 1 : v <= 7 ? 2 : 3;   // základné číslo: väčšie = drahšie
-export const modLabel = m => m.t === 'num' ? String(m.v) : (m.o === '²' || m.o === '³' || m.o === '!') ? 'x' + m.o : m.o === '√' ? '√' : m.o + m.v;
+export const CONST = { 'π': Math.PI, 'e': Math.E, 'φ': (1 + Math.sqrt(5)) / 2 };
+export const modLabel = m => m.t === 'num' ? String(m.v) : CONST[m.o] ? '×' + m.o : (m.o === '²' || m.o === '³' || m.o === '!') ? 'x' + m.o : m.o === '√' ? '√' : m.o + m.v;
 export const modCost = m => m.t === 'num' ? numCostW(m.v) : MOD[m.o].cost(m.v);
-export const modRar = m => m.t === 'num' ? (m.v >= 8 ? 'e' : m.v >= 5 ? 'v' : 'b') : m.o === '²' || m.o === '³' || m.o === '!' ? 'l' : m.o === '√' ? 'e' : m.o === '×' || m.o === '÷' ? (m.v >= 4 ? 'e' : 'v') : (m.v >= 7 ? 'v' : 'b');
+export const modRar = m => m.t === 'num' ? (m.v >= 8 ? 'e' : m.v >= 5 ? 'v' : 'b') : CONST[m.o] ? 'l' : m.o === '²' || m.o === '³' || m.o === '!' ? 'l' : m.o === '√' ? 'e' : m.o === '×' || m.o === '÷' ? (m.v >= 4 ? 'e' : 'v') : (m.v >= 7 ? 'v' : 'b');
 export const sameMod = (a, b) => a && b && a.t === b.t && a.o === b.o && a.v === b.v;
 
 // počet slotov podľa palice (+1 slot za každé „+2 políčka“ v ruksaku)
 export const WAND_SLOTS = { zakladna: 3, rychla: 3, tazka: 4, dvojita: 3, vedecka: 5, graficka: 6 };
-export const wandSlots = (pack, i) => (WAND_SLOTS[i === 1 ? pack.kind2 : pack.kind] || 3) + Math.max(0, Math.floor(((pack.slots || 3) - 3) / 2));
+// VIAC PALÍC (ako Magicraft): najviac 4, každá má svoj druh (počet jamiek, rýchlosť, pravidlo); strieľajú PO RADE 1 → 2 → 3 → 4
+export const MAX_WANDS = 4;
+export const wandKind = (pack, i) => (pack.wands && pack.wands[i] && pack.wands[i].kind) || (i === 1 && pack.kind2) || pack.kind || 'zakladna';
+export const wandSlots = (pack, i) => (WAND_SLOTS[wandKind(pack, i)] || 3) + Math.max(0, Math.floor(((pack.slots || 3) - 3) / 2));
+// nová palica: do voľného miesta, inak null (treba vybrať, ktorú vymeniť)
+export function addWand(pack, kind) { if (pack.wands.length >= MAX_WANDS) return null; pack.wands.push({ kind, slots: [{ t: 'num', v: 1 }] }); return pack.wands.length - 1; }
+// výmena: moduly prejdú na novú palicu, čo sa nezmestí, ide do ruksaku
+export function replaceWand(pack, i, kind) { const old = pack.wands[i]; pack.wands[i] = { kind, slots: [] }; const n = wandSlots(pack, i); pack.wands[i].slots = old.slots.slice(0, n); pack.bag.push(...old.slots.slice(n)); }
 
-export const newWand = () => ({ slots: [{ t: 'num', v: 1 }, { t: 'mod', o: '+', v: 1 }] });
+export const newWand = (kind = 'zakladna') => ({ kind, slots: [{ t: 'num', v: 1 }, { t: 'mod', o: '+', v: 1 }] });
 
 // VÝPOČET zľava doprava; text so zátvorkami, aby bol matematicky správny: ((3+4)×2)
 export function evalWand(slots, cap = 7) {
@@ -44,6 +56,7 @@ export function evalWand(slots, cap = 7) {
     else if (o === '³') { v = v ** 3; text = wrap + '³'; }
     else if (o === '!') { v = fact(v); text = wrap + '!'; }
     else if (o === '√') { v = Math.sqrt(Math.max(0, v)); text = '√' + wrap; }
+    else if (CONST[o]) { v *= CONST[o]; text = wrap + '×' + o; }
     low = false;
   }
   return { value: v, text, ops, div, sub: Math.max(0, sub), mul };
@@ -74,6 +87,7 @@ export function wandOffers(L, run, rng = Math.random, n = 3) {
   for (let v = 2; v <= 5; v++) { add({ t: 'mod', o: '×', v }, 0.5 * gate(L, 3) * Math.exp(-(v - 2) * 0.7)); add({ t: 'mod', o: '÷', v }, 0.35 * gate(L, 4) * Math.exp(-(v - 2) * 0.7)); }
   for (let v = 2; v <= 9; v++) add({ t: 'num', v }, nw(v, L) * 0.5);
   add({ t: 'mod', o: '√' }, 0.25 * gate(L, 6)); add({ t: 'mod', o: '²' }, 0.2 * gate(L, 9)); add({ t: 'mod', o: '³' }, 0.12 * gate(L, 14)); add({ t: 'mod', o: '!' }, 0.08 * gate(L, 18));
+  add({ t: 'mod', o: 'π' }, 0.14 * gate(L, 4)); add({ t: 'mod', o: 'e' }, 0.12 * gate(L, 5)); add({ t: 'mod', o: 'φ' }, 0.12 * gate(L, 6));   // špeciálne útoky
   const out = [];
   while (out.length < n && pool.length) {
     const sum = pool.reduce((a, b) => a + b.w, 0); let r = rng() * sum; let i = pool.findIndex(p => (r -= p.w) <= 0); if (i < 0) i = pool.length - 1;

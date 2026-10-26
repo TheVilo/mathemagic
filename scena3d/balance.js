@@ -160,6 +160,11 @@ export const STAFF_MODELS = {
   graficka: { name: 'Grafická', text: 'najväčšia batéria – na faktoriály', price: 120, disp: 9, emax: 50, regen: 10, cd: 1, dmg: 1, shots: 1, rule: { prvo: 2, okruhle: 1 } },
   // rule = vstavané pravidlá na čísla (rovnaké ako vylepšenia, vylepsenia.js) – každá palica má vlastnú matematiku
 };
+// MANA (spoločná pre všetky palice): 12 + ¼ batérie každej palice + 4 za vylepšenie Batéria; dobíjanie 3 + ¼ dobíjania palíc
+export function manaStats(pack) {
+  const ks = (pack.wands || []).map((w, i) => (w && w.kind) || (i === 1 && pack.kind2) || pack.kind || 'zakladna'), bat = (pack.items && pack.items.bateria) || 0;
+  return { emax: 12 + ks.reduce((a, k) => a + Math.round((STAFF_MODELS[k] || STAFF_MODELS.zakladna).emax / 4), 0) + 4 * bat, regen: 3 + ks.reduce((a, k) => a + (STAFF_MODELS[k] || STAFF_MODELS.zakladna).regen / 4, 0) };
+}
 export function staffStats(pack) {
   const m = STAFF_MODELS[pack.kind] || STAFF_MODELS.zakladna, lv = pack.staff || 0, k = 1 + 0.15 * lv;
   return { ...m, disp: m.disp + Math.max(0, (pack.slots || 3) - 3), emax: Math.round(m.emax * k) + 4 * ((pack.items && pack.items.bateria) || 0), regen: m.regen * k, dmg: m.dmg * (1 + 0.25 * lv) };

@@ -167,6 +167,9 @@
   .ov .hover { transform:scale(1.18) !important; border-color:var(--line) !important; box-shadow:0 0 12px var(--line) !important; }
   .krow .gem.drop { animation:gdrop .35s steps(5); } @keyframes gdrop { 0% { transform:scale(1.6); filter:brightness(2.5); } 60% { transform:scale(.9); } 100% { transform:none; } }
   .krow .gem.sel { transform:translateY(-4px) scale(1.12); }
+  .wrow .kctl { display:flex; flex-direction:column; align-items:center; gap:2px; width:22px; flex:none; } .wrow .kctl b { font-size:12px; color:var(--grey); } .wrow .kctl button { font:inherit; font-size:9px; background:none; border:1px solid var(--dim); color:var(--grey); padding:1px 3px; cursor:pointer; } .wrow .kctl button.sure { color:#e8443a; border-color:#e8443a; font-size:8px; padding:1px; }
+  .wrow.next .kbar { border-color:#ffd25a; box-shadow:0 0 10px rgba(255,210,90,.25); } .wrow.next .kctl b { color:#ffd25a; }
+  .repl { display:flex; flex-direction:column; gap:6px; } .repl .krow { font:inherit; background:none; border:1.5px solid var(--dim); padding:4px; cursor:pointer; color:inherit; } .repl .krow:hover { border-color:#e8443a; } .repl .kimg { margin-right:6px; animation:none; } .repl .gem { cursor:pointer; }
   .krow .kres { flex:none; min-width:54px; display:flex; flex-direction:column; align-items:flex-start; line-height:1.1; } .krow .kres b { color:var(--line); font-size:20px; display:inline-block; } .krow .kres b.pop { animation:rpop .4s steps(4); color:#ffd25a; }
   @keyframes rpop { 0% { transform:scale(1.8); } 100% { transform:none; } }
   .krow .kres small { font-size:10px; color:var(--grey); } .krow .kres small.over { color:#e8443a; }
