@@ -13,6 +13,7 @@ import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
 import { manaStats } from './balance.js';
 import { drawFighterSprites } from './sprity.js';
+import { gemURL } from './gemy.js';
 import { WORLDS, themeProps, buildMagic, groundStrokes, pavement } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
@@ -1157,7 +1158,8 @@ const STAFF_DECO = {
 };
 // DRAHOKAM (ilustrácia z Gemini, nastroje/gemy.py): brús podľa živlu, farba živlu, znak vyrytý na plôške
 const GEMCUT = { num: 4, '+': 0, '-': 3, '×': 7, '÷': 5, '√': 2, '²': 1, '³': 1, '!': 1, 'π': 6, 'e': 6, 'φ': 6 };
-const gemArt = m => `<span class="gemart g${m.t === 'num' ? 4 : GEMCUT[m.o] ?? 0}" style="--c:${m.t === 'num' ? '#f2efe6' : OPCOL2[m.o]}">${pix(modLabel(m))}</span>`;
+const gemArt = m => { const cut = m.t === 'num' ? 4 : GEMCUT[m.o] ?? 0, c = m.t === 'num' ? '#f2efe6' : OPCOL2[m.o], u = gemURL(cut, c);   // drahokam v ditheri (gemy.js); kým sa obrázky nenačítajú, CSS maska
+  return `<span class="gemart g${cut}${u ? ' gd' : ''}" style="--c:${c}${u ? `;background-image:url(${u})` : ''}">${pix(modLabel(m))}</span>`; };
 // palica ako ilustrácia: okienka displeja = jamky (svietia vložené kamene), klávesy = kamene z ruksaku, výsledok svieti na kryštáli
 function artWand(A, w, n, r, cost, dir, still) {
   const P = run.pack, ccol = m => m.t === 'num' ? '#f2efe6' : OPCOL2[m.o], last = w.slots.filter(m => m && m.t === 'mod').pop();

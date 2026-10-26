@@ -190,3 +190,9 @@ img[src*="zdroj/karty/"] { image-rendering: pixelated; }
 .lvo .lvart.gemw { padding: 8px; }
 .lvo .lvart.gemw .gemart { width: 100%; filter: none; }
 .lvo .lvart.gemw .gemart .pix { height: 26% !important; }
+
+/* drahokam v ditheri (gemy.js) – namiesto plochej farby z masky */
+.gemart.gd { background: center / contain no-repeat; image-rendering: pixelated; filter: none; }
+.gemart.gd::before, .gemart.gd::after { display: none; }
+/* pri výbere vylepšenia stačí drahokam – bez rámčeka okolo */
+.lvo .lvart.gemw { border: none; box-shadow: none; background: none; padding: 0; }
