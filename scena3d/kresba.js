@@ -312,8 +312,10 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
     const hi = hemi.intensity, li = lampLight.intensity, bg0 = scene.background.clone(), fg0 = scene.fog;
     hemi.intensity = 0; sun.intensity = 0; rim.intensity = 0; lampLight.intensity = 6; scene.background.set(0x000000); scene.fog = null;
     orbLights.forEach(l => { l.intensity = 5 * (l.userData.k || 0); });
+    { const c = lampLight.position, t = performance.now() / 1000; worldLights.sort((a, b) => a.p.distanceToSquared(c) - b.p.distanceToSquared(c));
+      wLights.forEach((l, i) => { const o = worldLights[i]; if (!o || o.p.distanceTo(c) > 30) { l.intensity = 0; return; } l.position.copy(o.p); l.distance = o.r; l.intensity = 5 * o.k * (o.fl ? 0.82 + 0.18 * Math.sin(t * 13 + o.ph) * Math.sin(t * 7.3 + o.ph * 2) : 1); }); }
     renderer.setRenderTarget(lampRT); renderer.render(scene, camera);
-    orbLights.forEach(l => { l.intensity = 0; });
+    orbLights.forEach(l => { l.intensity = 0; }); wLights.forEach(l => { l.intensity = 0; });
     kresbaMat.uniforms.uLampK.value = hi / 6;
     hemi.intensity = hi; sun.intensity = si; rim.intensity = ri; lampLight.intensity = li; scene.background.copy(bg0); scene.fog = fg0;
   }
@@ -331,6 +333,11 @@ export function renderKresba(focusY = 0.5, rimFrom = null) {
 // svetlá kúzla (najviac 4): [{ x, z, r }] – volá suboj.js každý snímok
 // + skutočné bodové svetlá kúziel: svietia len v prechode svetla palice → osvetlia boky predmetov okolo letiaceho kúzla
 const orbLights = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight(0xffffff, 0, 7, 1.4); l.castShadow = false; scene.add(l); return l; });
+// SVETLÁ SVETA (fakle, láva, ohniská, okná): svietia v prechode svetla palice, 6 najbližších k čarodejníkovi; fl = blikanie
+const worldLights = [], wLights = [0, 1, 2, 3, 4, 5].map(() => { const l = new THREE.PointLight(0xffffff, 0, 8, 1.4); scene.add(l); return l; });
+export function addWorldLight(p, k = 1, r = 8, fl = true) { const o = { p: p.clone(), k, r, fl, ph: Math.random() * 6.28 }; worldLights.push(o); return o; }
+export const clearWorldLights = () => { worldLights.length = 0; };
+export const worldLightList = () => worldLights;
 export function setOrbs(list) { const u = kresbaMat.uniforms.uOrbs.value; for (let i = 0; i < 4; i++) { const o = list[i]; u[i].set(o ? o.x : 0, 0, o ? o.z : 0, o ? o.r * 0.45 : 0); orbLights[i].userData.k = o ? o.r / 3.5 : 0; if (o) orbLights[i].position.set(o.x, 0.9, o.z); } }
 
 // ---------- SVETLO PALICE ----------
@@ -339,7 +346,7 @@ export const setLampLight = l => { lampLight = l; };
 // ---------- VRSTVA PIXELOVÝCH POSTAVIČIEK: kreslí sa až po ditheri (ostré pixely), ale s hĺbkou sveta –
 // čo je pred postavičkou (strom, stĺp), ju zakryje; zakrytá časť = len jemný svetlý obrys (Lukáš 26. 10.)
 const sprScene = new THREE.Scene(), sprCam = new THREE.OrthographicCamera(0, 1, 0, 1, -1, 1);
-const sprFS = `uniform sampler2D tAtlas; uniform sampler2D tDep; uniform vec2 uRes; uniform vec4 uFrame; uniform float uFlip; uniform float uDepth; uniform vec2 uTex; uniform float uAlpha; varying vec2 vUv;
+const sprFS = `uniform sampler2D tAtlas; uniform sampler2D tDep; uniform vec2 uRes; uniform vec4 uFrame; uniform float uFlip; uniform float uDepth; uniform vec2 uTex; uniform float uAlpha; uniform float uWhite; varying vec2 vUv;
   float al(vec2 p) { return texture2D(tAtlas, p).a; }
   void main(){
     vec2 f = vec2(uFlip > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y), uv = uFrame.xy + f * uFrame.zw;
@@ -349,11 +356,11 @@ const sprFS = `uniform sampler2D tAtlas; uniform sampler2D tDep; uniform vec2 uR
       vec2 t = 1.0 / uTex; float e = al(uv + vec2(t.x, 0.0)) + al(uv - vec2(t.x, 0.0)) + al(uv + vec2(0.0, t.y)) + al(uv - vec2(0.0, t.y));
       if (e > 3.5) discard; gl_FragColor = vec4(0.95, 0.93, 0.86, 0.55 * uAlpha); return;
     }
-    gl_FragColor = vec4(c.rgb, uAlpha);
+    gl_FragColor = vec4(mix(c.rgb, vec3(0.97, 0.95, 0.88), uWhite), uAlpha);   // zásah = biely záblesk
   }`;
 export function addSprite(tex, tw, th) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
-    uniforms: { tAtlas: { value: tex }, tDep: { value: fine.depthTexture }, uRes: { value: kresbaMat.uniforms.uRes.value }, uFrame: { value: new THREE.Vector4(0, 0, 1, 1) }, uFlip: { value: 0 }, uDepth: { value: 1 }, uTex: { value: new THREE.Vector2(tw, th) }, uAlpha: { value: 1 } },
+    uniforms: { tAtlas: { value: tex }, tDep: { value: fine.depthTexture }, uRes: { value: kresbaMat.uniforms.uRes.value }, uFrame: { value: new THREE.Vector4(0, 0, 1, 1) }, uFlip: { value: 0 }, uDepth: { value: 1 }, uTex: { value: new THREE.Vector2(tw, th) }, uAlpha: { value: 1 }, uWhite: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: sprFS, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
   m.frustumCulled = false; sprScene.add(m); return m;

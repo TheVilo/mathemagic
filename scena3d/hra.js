@@ -12,6 +12,7 @@ import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
 import { manaStats } from './balance.js';
+import { drawFighterSprites } from './sprity.js';
 import { WORLDS, themeProps, buildMagic, groundStrokes, pavement } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
@@ -1407,7 +1408,7 @@ function draw(dt) {
   const cv = crystalLight.position.clone().project(camera), gU = kresbaMat.uniforms;   // žiara z kryštálu pod klobúkom
   gU.uGlow.value.set((cv.x + 1) / 2, (cv.y + 1) / 2, 0.035 + dnT * 0.055, inside ? 0.25 : 0.35 + dnT * (0.2 + Math.sin(simT * 2.3) * 0.08) + (fight.on ? fight.streak * 0.05 : 0)); gU.uGlowC.value.set(crystalLight.color);
   kresbaBlur.uniforms.uBand.value = 0.07;   // tilt-shift: úzky ostrý pás (predloha petitjus)
-  drawTags(camera); drawTele(camera); drawHeroSprite(dt);
+  drawTags(camera); drawTele(camera); drawHeroSprite(dt); drawFighterSprites(dt);
   for (const l of labels) { const v = l.pos.clone().project(camera); l.el.style.transform = `translate(${(v.x + 1) / 2 * innerWidth}px, ${(1 - v.y) / 2 * innerHeight}px) translate(-50%, -100%)`; }
   $('streak').classList.toggle('hidden', !fight.on);
   renderKresba((hv.y + 1) / 2, hero.position);
@@ -1646,11 +1647,12 @@ requestAnimationFrame(tick);
 const TEST = new URLSearchParams(location.search).has('test'); let testHorde = false, testDark = null;
 if (TEST) {
   const p = document.createElement('div'); p.id = 'testmap'; p.className = 'dpanel';
-  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button>`;
+  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button><button class="btn" id="tmw">Palice ×3 · π · e · φ</button>`;
   document.body.appendChild(p);
   p.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { closeOverlay(); run.hearts = Math.max(run.hearts, maxHearts()); run.zone = +b.dataset.z - 1; nextZoneWorld(); });
   p.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { testDark = b.dataset.l === '' ? null : +b.dataset.l; });
   p.querySelector('#tmh').onclick = () => { testHorde = true; hordeT = 0; };
+  p.querySelector('#tmw').onclick = () => { run.pack.wands = [{ kind: 'zakladna', slots: [{ t: 'num', v: 7 }, { t: 'mod', o: '×', v: 3 }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 5 }, { t: 'mod', o: 'π' }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 9 }, { t: 'mod', o: 'e' }] }, { kind: 'zakladna', slots: [{ t: 'num', v: 8 }, { t: 'mod', o: 'φ' }] }]; persist(); say('4 palice: 7×3 · 5×π · 9×e · 8×φ – strieľajú na striedačku', 2500); };
 }
 // testovací háčik: __h.step(s) posunie hru o s sekúnd (Browser pane beží pomaly)
 window.__h = {

@@ -2,6 +2,7 @@
 // Svet ostáva čiernobiely (1-bit), farebná je len mágia (vrstva 4, ako kúzla). Bez svetiel – len žiariace tvary (výkon).
 import { THREE, camera, PIX } from './svet.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { addWorldLight, clearWorldLights } from './kresba.js';
 
 // pixelová číslica z písma 5×7 ako 3D tvar (kocky), stred v strede znaku
 const GLY = {};
@@ -72,6 +73,7 @@ function landmarks(R, b, rnd, pk) {
       ring.forEach((m, i) => { const an = i / ring.length * 6.283 + rnd() * 0.4, d = 5 + rnd() * 1.2, x = cx + Math.cos(an) * d, z = cz + Math.sin(an) * d * 0.8;
         if (z > cz + 3.5 && m === 'building_tavern_blue') return;   // vysoké stavby nie pred kamerou
         if (R.inside(x, z)) R.props.push({ m, x, z, s: 1, r: Math.atan2(cx - x, cz - z), col: m === 'building_tavern_blue' ? 2 : 1.5 }); });
+      R.props.push({ m: 'campfire_stones', x: cx + 2.4, z: cz + 2.2, s: 1, r: 0, col: 0.5 });   // ohnisko na námestí
       R.town = { x: cx, z: cz };
     }
   }
@@ -91,6 +93,51 @@ function landmarks(R, b, rnd, pk) {
 export function buildMagic(room, R, b, rnd) {
   const g = new THREE.Group(); room.add(g);
   const h = R.height, c = b.col, spots = [];
+  clearWorldLights();
+  const flames = [], FL = new THREE.OctahedronGeometry(0.1, 0), WHITE = mat(0xfff3d6);
+  // plameň: 3 svietiace kúsky nad sebou, blikajú; + svetlo sveta (osvetlí okolie, za predmetmi tieň len od palice)
+  const flame = (x, y, z, s = 1, k = 1, r = 7) => { const f = new THREE.Group(); for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(FL, WHITE); m.position.y = i * 0.12 * s; m.scale.set(s * (1.3 - i * 0.35), s * (1.8 - i * 0.3), s * (1.3 - i * 0.35)); f.add(m); } f.position.set(x, y, z); g.add(f); flames.push({ f, ph: rnd() * 6.28 }); addWorldLight(new THREE.Vector3(x, y + 0.3, z), k, r); };
+  // OHNISKÁ: každé ohnisko vo svete horí
+  for (const p of R.props) if (p.m === 'campfire_stones') flame(p.x, h(p.x, p.z) + 0.15, p.z, 1.8, 1.2, 9);
+  // DEDINKA: niektoré okná svietia (na strane ku kamere)
+  if (R.town) for (const p of R.props) if (p.m.startsWith('building_') && p.m !== 'building_well_blue' && Math.hypot(p.x - R.town.x, p.z - R.town.z) < 9 && rnd() < 0.8) {
+    const d = (p.col || 1.5) * 0.95, y = h(p.x, p.z);
+    for (const [ox, oy] of [[-0.45, 1.3], [0.45, 1.3], [0, 2.4]]) if (rnd() < 0.6) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.05), WHITE); w.position.set(p.x + ox, y + oy, p.z + d); g.add(w); }
+    addWorldLight(new THREE.Vector3(p.x, y + 1.4, p.z + d + 0.6), 0.6, 5, false);
+  }
+  // KOBKA A HRAD: fakle (stojany s ohňom) pri stenách a po svete
+  if (b.id === 'dungeon' || b.id === 'hrad') {
+    const walls = R.props.filter(p => /wall|obelisk|column/.test(p.m)); let n = 0;
+    for (const p of walls) { if (rnd() > 0.35 || n > 40) continue; const a = rnd() * 6.28, x = p.x + Math.cos(a) * 1.2, z = p.z + Math.sin(a) * 1.2; if (!R.inside(x, z)) continue;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a2628 })); post.position.set(x, h(x, z) + 0.75, z); post.castShadow = true; room.add(post);
+      flame(x, h(x, z) + 1.55, z, 1.4, 1.5, 9); n++; }
+    for (let k = 0; k < 400 && n < 46; k++) { const x = 4 + rnd() * (R.W - 8), z = 4 + rnd() * (R.H - 8); if (!R.inside(x, z) || rnd() > 0.15) continue;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a2628 })); post.position.set(x, h(x, z) + 0.75, z); post.castShadow = true; room.add(post); flame(x, h(x, z) + 1.55, z, 1.4, 1.5, 9); n++; }
+  }
+  // SOPKA: lávové rieky (svietia, kreslia sa ako čisté svetlo) a ohne z puklín
+  const lava = [];
+  if (b.id === 'sopka') {
+    const LM = mat(0xffe2b0), geo = new THREE.BoxGeometry(1, 0.05, 1), list = [];
+    for (let p = 0; p < 3; p++) {
+      let x = rnd() * R.W, z = 1, a = 1.2 + rnd() * 0.7, wob = rnd() * 6, wid = 1.2 + rnd() * 0.8;
+      for (let st = 0; st < 500; st++) {
+        a += Math.sin(st * 0.04 + wob) * 0.04; x += Math.cos(a) * 0.4; z += Math.sin(a) * 0.4;
+        if (x < 1 || z < 1 || x > R.W - 1 || z > R.H - 1) break;
+        if (Math.hypot(x - R.start[0], z - R.start[1]) < 5) continue;
+        const ww = wid * (0.7 + 0.3 * Math.sin(st * 0.13 + wob));
+        list.push([x, z, ww, a]); if (st % 14 === 0) addWorldLight(new THREE.Vector3(x, h(x, z) + 0.6, z), 0.7, 5);
+        if (st % 37 === 5) flame(x, h(x, z) + 0.1, z, 1.4, 0.4, 4);
+      }
+    }
+    const im = new THREE.InstancedMesh(geo, LM, list.length), o = new THREE.Object3D();
+    list.forEach(([x, z, w, a], i) => { o.position.set(x, h(x, z) + 0.03, z); o.rotation.set(0, -a, 0); o.scale.set(0.6, 1, w); o.updateMatrix(); im.setMatrixAt(i, o.matrix); });
+    g.add(im); lava.push(im); R.lava = list;
+    // stuhnutá kôra: tmavé kamienky plávajú v láve a tmavé brehy – aby to bola láva, nie svetlá cesta
+    const cr = list.filter((_, i) => i % 2 === 0), cm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.12, 1), new THREE.MeshStandardMaterial({ color: 0x1c1a1b, roughness: 1, flatShading: true }), cr.length * 3);
+    let ci = 0; for (const [x, z, w, a] of cr) for (let j = 0; j < 3; j++) { const side = j < 2 ? (j ? 1 : -1) * (w / 2 + 0.1) : (rnd() - 0.5) * w * 0.6, px = x - Math.sin(a) * side, pz = z + Math.cos(a) * side, sz = j < 2 ? 0.35 + rnd() * 0.3 : 0.12 + rnd() * 0.2;
+      o.position.set(px, h(px, pz) + 0.05, pz); o.rotation.set(0, rnd() * 3, 0); o.scale.set(sz, j < 2 ? 1.4 : 1, sz * (0.7 + rnd() * 0.6)); o.updateMatrix(); cm.setMatrixAt(ci++, o.matrix); }
+    cm.count = ci; cm.receiveShadow = true; cm.layers.enable(1); room.add(cm);   // vrstva 1: svetlo ju nezosvetlí → kôra ostane tmavá
+  }
   // miesta pre znaky na zemi: náhodne vo svete, ďalej od seba
   for (let k = 0; k < 400 && spots.length < 9; k++) { const x = 6 + rnd() * (R.W - 12), z = 6 + rnd() * (R.H - 12); if (R.inside(x, z) && spots.every(s => Math.hypot(s[0] - x, s[1] - z) > 14)) spots.push([x, z]); }
   const spin = [];
@@ -147,6 +194,7 @@ export function buildMagic(room, R, b, rnd) {
         a.m.position.set(a.x + Math.sin(t * 0.3 + a.ph) * 0.6, y, a.z + Math.cos(t * 0.25 + a.ph) * 0.6); a.m.rotation.y = t * 2 + a.ph; a.m.visible = (Math.sin(t * 1.7 + a.ph * 3) > -0.3);
         if (b.rise) a.m.visible = ((t * a.sp * 0.8 + a.ph) % 3.5) < 3.2;
       }
+      for (const fl of flames) { const k = 0.85 + 0.2 * Math.sin(t * 17 + fl.ph) * Math.sin(t * 9 + fl.ph * 2); fl.f.scale.set(1, k, 1); fl.f.children[2].visible = Math.sin(t * 11 + fl.ph) > -0.5; }
       for (const o of orbit) { if (o.lan) { o.lan.visible = Math.sin(t * 9 + o.ph) > -0.95; continue; } const a = t * o.sp + o.ph; o.m.position.set(o.x + Math.cos(a) * o.r, o.y + Math.sin(t * 1.3 + o.ph) * 0.25, o.z + Math.sin(a) * o.r); o.m.rotation.y = t * 1.5; }
       for (const m of spin) { m.quaternion.copy(q); m.position.y += Math.sin(t * 1.4 + m.position.x) * 0.002; }
     },

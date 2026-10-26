@@ -111,6 +111,7 @@ export const KINDS = {
   innkeeper: { file: 'Barbarian', name: 'Obchodník', keep: ['Mug'], weapons: ['1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug'], h: 1.7, cape: 0x8a7a6a },
 };
 const TPL = {};
+export const FIGHTERS = new Set();   // všetky postavy – sprity.js im kreslí pixelovú siluetu
 export async function loadFighters() {
   const files = [...new Set(Object.values(KINDS).map(d => d.file))];
   await Promise.all(files.map(async f => {
@@ -137,6 +138,7 @@ export function makeFighter(kind, size = 1, parent = scene) {
   for (const n of [d.attack, 'Hit_A', 'Death_A', 'Block_Hit', 'Sit_Floor_StandUp', 'Cheer', 'Spellcast_Raise']) if (n && acts[n]) { acts[n].setLoop(THREE.LoopOnce); acts[n].clampWhenFinished = true; }
   const f = { kind, d, g, mats, mixer, acts, cur: null, size, h: d.h * size };
   f.play = (name, fade = 0.15, restart = false) => { const a = acts[name]; if (!a || (f.cur === a && !restart)) return; a.reset().fadeIn(fade).play(); if (f.cur && f.cur !== a) f.cur.fadeOut(fade); f.cur = a; };
+  FIGHTERS.add(f);
   return f;
 }
 export function removeFighter(f) { f.g.parent && f.g.parent.remove(f.g); }
