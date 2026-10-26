@@ -167,6 +167,9 @@ export const kresbaMat = new THREE.ShaderMaterial({
             vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
             float pd = length(wpq.xz - uHero.xz), pool = 1.0 - smoothstep(uDark > 0.5 ? 2.0 : 2.5, uDark > 0.5 ? 6.5 : 7.5, pd);
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, length(wpq.xz - uOrbs[o].xz)));   // kúzla svietia naplno
+            // TIENE OD SVETLA ČARODEJNÍKA: v tme svieti skutočné svetlo palice s tieňmi – kam nedosvieti (za stromom, stĺpom), ostane tma
+            float rr = luma(texture2D(tScene, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002);
+            pool *= mix(1.0, smoothstep(1.0, 1.18, rr), uDark);
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.75));
             tone = mix(tone, 1.05, orb);   // svetlo kúzla = čisté, aj na postavách
           }
@@ -176,10 +179,12 @@ export const kresbaMat = new THREE.ShaderMaterial({
           tone = mix(tone, uDark > 0.5 ? 0.3 : 0.8, fgD * 0.12);                // hmla do diaľky len jemne (Lukáš: hore bol prechod)
           tone = clamp(tone, 0.0, 1.0) * 4.0;
           float tb = floor(min(tone, 3.999)), tf = tone - tb;
-          vec2 cq = floor(frag / 3.0), pq = mod(frag, 3.0);
-          float th = bayer(cq);
-          if (tf > 0.3 && tf < 0.7) th = (abs(pq.x - pq.y) < 0.5 || abs(pq.x + pq.y - 2.0) < 0.5) ? 0.2 : 0.8;   // stredné tóny: vzor krížikov (ako predloha)
-          float ti = tf > th ? tb + 1.0 : tb;
+          // VZORY AKO PREDLOHA: prechod medzi tónmi nie je šum, ale rad vzorov – riedka bodka → 2 bodky → mriežka X → obrátené X → plný tón
+          vec2 c2 = floor(frag / 2.0), p4 = mod(c2, 4.0);
+          bool xd = abs(p4.x - p4.y) < 0.5 || abs(p4.x + p4.y - 3.0) < 0.5;
+          bool d1 = p4.x < 0.5 && p4.y < 0.5, d2 = d1 || (abs(p4.x - 2.0) < 0.5 && abs(p4.y - 2.0) < 0.5);
+          float up = tf < 0.12 ? 0.0 : tf < 0.3 ? (d1 ? 1.0 : 0.0) : tf < 0.45 ? (d2 ? 1.0 : 0.0) : tf < 0.62 ? (xd ? 1.0 : 0.0) : tf < 0.85 ? (xd ? 0.0 : 1.0) : 1.0;
+          float ti = tb + up;
           if (tone > 3.6) ti = 4.0;                                               // SVETLO = čistá plocha bez bodiek (Lukáš 26. 10.)
           vec3 g0 = vec3(0.22, 0.18, 0.22), g1 = vec3(0.41, 0.36, 0.41), g2 = vec3(0.6, 0.55, 0.58), g3 = vec3(0.79, 0.76, 0.76), g4 = vec3(0.96, 0.94, 0.87);   // sivé do fialova (predloha petitjus)
           if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele

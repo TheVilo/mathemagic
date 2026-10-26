@@ -1406,8 +1406,8 @@ function draw(dt) {
   // žiara palice na obrazovke (kryštál), v noci silnejšia, pulzuje
   const cv = crystalLight.position.clone().project(camera), gU = kresbaMat.uniforms;   // žiara z kryštálu pod klobúkom
   gU.uGlow.value.set((cv.x + 1) / 2, (cv.y + 1) / 2, 0.035 + dnT * 0.055, inside ? 0.25 : 0.35 + dnT * (0.2 + Math.sin(simT * 2.3) * 0.08) + (fight.on ? fight.streak * 0.05 : 0)); gU.uGlowC.value.set(crystalLight.color);
-  kresbaBlur.uniforms.uBand.value = fight.on ? 0.3 : 0.22;
-  drawTags(camera); drawTele(camera);
+  kresbaBlur.uniforms.uBand.value = 0.07;   // tilt-shift: úzky ostrý pás (predloha petitjus)
+  drawTags(camera); drawTele(camera); drawHeroSprite(dt);
   for (const l of labels) { const v = l.pos.clone().project(camera); l.el.style.transform = `translate(${(v.x + 1) / 2 * innerWidth}px, ${(1 - v.y) / 2 * innerHeight}px) translate(-50%, -100%)`; }
   $('streak').classList.toggle('hidden', !fight.on);
   renderKresba((hv.y + 1) / 2, hero.position);
@@ -1553,6 +1553,39 @@ hudba('uvod');   // hudba menu hrá od prvého dotyku, aj kým sa ešte dotiahne
 
 // ---------- štart ----------
 await Promise.all([loadProps(), loadFighters(), loadHero()]);
+// NOVÝ ČARODEJNÍK (Gemini sprite → nastroje/carodejnik-sprite.py): pixelová postavička sa kreslí ostro navrch sveta;
+// 3D model ostáva neviditeľný (nekreslí farbu), aby čarodejník stále vrhal tieň a svietil palicou
+// MALINKÁ SILUETA (Lukáš 26. 10.: ako v predlohe – pár pixelov, nie detailná postava): 12 × 16 bodov nakreslených tu,
+// k = tmavá, g = tmavosivá (tieň plášťa, palica), c = svetlo kryštálu; riadky: 0 chôdza, 1 státie (plášť veje), 2 kúzlo
+const BASE = ['...kk.......', '....kk....c.', '....kkk..ccc', '...kkkkk..c.', '.kkkkkkkk.g.', '...kkgkk..g.', '...kkkkkkkg.', '..kkkkkkk.g.', '..kkkkkkk.g.', '.kkkkkkkk.g.', '.gkkkkkkk.g.', 'ggkkkkkkk.g.', '.kkkkkkkk.g.', '..kk..kk..g.', '..k....k..g.', '............'];
+const fr = (f) => { const r = BASE.map(l => l.split('')); f(r); return r.map(l => l.join('')); };
+const set = (r, y, x, ch) => { if (r[y]) r[y][x] = ch; };
+const LEGS = [['..kk..kk..g.', '..k....k..g.'], ['...kk.kk..g.', '...k...k..g.'], ['..kk..kk..g.', '.k.....k..g.'], ['..kkkk....g.', '..k..k....g.']];
+const CAPE = [[11, 0, 'g'], [11, 1, 'g'], [10, 0, '.'], [12, 0, '.']];
+const FR = [
+  ...LEGS.map((lg, i) => fr(r => { r[13] = lg[0].split(''); r[14] = lg[1].split(''); set(r, 10 + (i % 2), 0, 'g'); set(r, 11, 0, i % 2 ? '.' : 'g'); })),                 // chôdza
+  ...[0, 1, 2, 1].map(i => fr(r => { set(r, 11, 0, i ? '.' : 'g'); set(r, 10, 0, i === 2 ? 'g' : '.'); set(r, 0, 2 + (i === 2 ? 1 : 0), i === 2 ? 'k' : '.'); })),        // státie: plášť a špička klobúka jemne vejú
+  ...[0, 1, 2, 3].map(i => fr(r => { for (let y = 1; y < 4; y++) for (let x = 9; x < 12; x++) r[y][x] = '.'; const top = i < 2 ? 1 - i : 0; set(r, top, 10, 'c'); set(r, top + 1, 9, 'c'); set(r, top + 1, 10, 'c'); set(r, top + 1, 11, 'c'); set(r, top + 2, 10, 'c'); if (i >= 2) { set(r, top, 9, 'c'); set(r, top, 11, 'c'); set(r, top + 2, 9, 'c'); set(r, top + 2, 11, 'c'); } for (let y = top + 3; y < 4; y++) set(r, y, 10, 'g'); })),   // kúzlo: kryštál sa zdvihne a zablysne
+];
+const SPR = { cw: 12, ch: 16 };
+{ const cv = document.createElement('canvas'); cv.width = 48; cv.height = 48; const x = cv.getContext('2d'), PC = { k: '#211c21', g: '#4b434a', c: '#fff6dc' };
+  FR.forEach((f, i) => f.forEach((l, y) => [...l].forEach((ch, xx) => { if (PC[ch]) { x.fillStyle = PC[ch]; x.fillRect((i % 4) * 12 + xx, Math.floor(i / 4) * 16 + y, 1, 1); } })));
+  SPR.url = cv.toDataURL(); }
+const sprEl = document.createElement('div'); sprEl.id = 'hero2d'; document.body.appendChild(sprEl);
+if (SPR) hero.traverse(o => { if (o.isMesh) { o.material.colorWrite = false; o.material.depthWrite = false; o.layers.disable(1); } });
+let sprT = 0, sprFlip = false; const sprLast = new THREE.Vector3(), sprA = new THREE.Vector3(), sprB = new THREE.Vector3();
+function drawHeroSprite(dt) {
+  if (!SPR || !R) { sprEl.style.display = 'none'; return; }
+  const moved = hero.position.distanceTo(sprLast) / Math.max(dt, 1e-3); sprLast.copy(hero.position);
+  const casting = heroLocked(), moving = moved > 0.6 && !casting;
+  sprT += dt; const row = casting ? 2 : moving ? 0 : 1, fps = moving ? 9 : casting ? 10 : 4, col = Math.floor(sprT * fps) % 4;
+  sprA.copy(hero.position).project(camera); const fx = (sprA.x + 1) / 2 * innerWidth, fy = (1 - sprA.y) / 2 * innerHeight;
+  sprB.copy(hero.position).add(new THREE.Vector3(0, 1.6, 0)).project(camera); const hpx = Math.abs((1 - sprB.y) / 2 * innerHeight - fy);
+  const look = casting && aim.p ? aim.p : moving ? hero.position.clone().add(vel) : null;
+  if (look) { const lx = (look.clone().project(camera).x + 1) / 2 * innerWidth; if (Math.abs(lx - fx) > 2) sprFlip = lx < fx; }
+  const k = Math.max(1, Math.round(hpx / 16)), w = SPR.cw * k, h = SPR.ch * k;   // celé pixely – ostrá silueta
+  sprEl.style.cssText = `display:${inside ? 'none' : 'block'};background-image:url(${SPR.url});width:${w}px;height:${h}px;background-size:${SPR.cw * 4 * k}px ${SPR.ch * 3 * k}px;background-position:${-col * SPR.cw * k}px ${-row * SPR.ch * k}px;transform:translate(${fx - w / 2}px, ${fy - h * 0.97}px) scaleX(${sprFlip ? -1 : 1})`;
+}
 buildInterior();
 buildRoom();
 resize(viewZoom); resizeKresba(); addEventListener('resize', () => { resize(viewZoom); resizeKresba(); });
