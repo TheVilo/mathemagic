@@ -447,27 +447,19 @@ function openWands() {
   const gem = (m, loc, extra = '') => { const c = m.t === 'num' ? 'var(--line)' : OPCOL2[m.o];
     const on = wSel && wSel.w === loc.w && wSel.j === loc.j && (wSel.w != null || loc.w == null) ? ' sel' : '';
     return `<button class="gem${on}${extra}${m.t === 'num' ? ' base' : ''}" data-loc='${JSON.stringify(loc)}' style="--c:${c}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>`; };
-  const crystal = c => `<svg class="head" viewBox="0 0 24 40"><path d="M12 1 L22 15 L12 39 L2 15 Z" fill="${c}" stroke="var(--line)" stroke-width="1.5"/><path d="M2 15 H22 M12 1 V39" stroke="var(--ink)" stroke-width="1" opacity=".35"/></svg>`;
-  const wandHtml = (w, i) => { const n = wandSlots(P, i), kind = i === 1 ? P.kind2 : P.kind, S = staffStats({ ...P, kind }), r = evalWand(w.slots);
-    const last = w.slots.filter(m => m && m.t === 'mod').pop(), col = last ? OPCOL2[last.o] : '#f2efe6';
-    const cells = Array.from({ length: n }, (_, j) => w.slots[j] ? gem(w.slots[j], { w: i, j }) : `<button class="gem empty${j === 0 ? ' base' : ''}" data-loc='${JSON.stringify({ w: i, j: w.slots.length })}'>${j === 0 ? 'číslo' : ''}</button>`).join('');
-    return `<div class="wand"><div class="wh"><b>${P.wands.length > 1 ? (i ? 'B · ' : 'A · ') : ''}Palica ${S.name}</b><span>⚡${S.emax} · +${+S.regen.toFixed(1)}/s · ${n} jamky</span></div>
-      <div class="staff"><img src="../zdroj/karty/palica-${kind || 'zakladna'}.jpg" alt=""><div class="shaft">${cells}</div>${crystal(col)}<b class="res">${r ? '= ' + shortNum(Math.round(r.value * 100) / 100) : '?'}</b></div>
-      <div class="wr">${r ? `${wandSteps(w.slots).replace(/= ([^=]+)$/, '= <b>$1</b>')}${w.slots.length === 1 ? ' = <b>' + w.slots[0].v + '</b>' : ''} · výstrel ⚡${wandCost(w.slots)}${wandCost(w.slots) > S.emax ? ' <em>viac ako batéria!</em>' : ''}` : 'Do prvej jamky patrí číslo.'}</div></div>`; };
-  // všetky palice: aby bolo vidno, čo sa dá ešte získať (viac jamiek = dlhší výpočet)
-  const owned = new Set([P.kind || 'zakladna', P.kind2].filter(Boolean));
-  const gallery = Object.entries(STAFF_MODELS).map(([k, m]) => { const n = wandSlots({ ...P, kind: k }, 0), mine = owned.has(k);
-    return `<div class="pal${mine ? ' mine' : ''}" style="--r:${RARITY[STAFF_RAR[k]].col}"><img src="../zdroj/karty/palica-${k}.jpg" alt=""><b>${m.name}</b><i class="dots">${'<u></u>'.repeat(n)}</i><span>${m.text}</span><em>${mine ? 'máš' : `obchodník · ${icon('coin')} ${m.price}`}</em></div>`; }).join('');
-  const fx = Array.from({ length: SLOTS }, (_, i) => { const c = run.cards[i]; return c ? card(c.id, { mini: true, l: c.l }) : `<div class="card panel mini" style="display:grid;place-items:center;border-style:dashed"><span class="ptag">Prázdne</span></div>`; }).join('');
-  const html = `<span class="ptag">Kniha kúziel</span>
-    <p class="sub">Palica počíta zľava doprava: <b>3 → +4 → ×2 = 14</b>, ale <b>3 → ×2 → +4 = 10</b>. Ťukni na kameň a potom na jamku.</p>
-    <div class="wbody"><div>${P.wands.map(wandHtml).join('')}</div>
-    <div class="rucksak" data-loc='{"bag":1}'><i class="flap"></i><b class="bt">Ruksak <span>${P.bag.length}</span></b><div class="bin">${P.bag.length ? P.bag.map((m, j) => gem(m, { j })).join('') : '<span class="sub">prázdny – kamene dostaneš pri úrovni a u obchodníka</span>'}</div></div></div>
-    <h3>Palice · viac jamiek = dlhší výpočet</h3><div class="palrow">${gallery}</div>
-    <h3>Efekty ${run.cards.length}/${SLOTS}</h3><div class="fxgrid">${fx}</div>
-    <div class="acts"><button class="btn on" id="close">Hotovo</button></div>`;
+  // KOMPAKTNE ako Magicraft: rad = ruksak, pod ním palice (obrázok + jamky + výsledok), dole efekty ako malé ikonky
+  const wandHtml = (w, i) => { const n = wandSlots(P, i), kind = i === 1 ? P.kind2 : P.kind, S = staffStats({ ...P, kind }), r = evalWand(w.slots), cost = wandCost(w.slots);
+    const cells = Array.from({ length: n }, (_, j) => w.slots[j] ? gem(w.slots[j], { w: i, j }) : `<button class="gem empty${j === 0 ? ' base' : ''}" data-loc='${JSON.stringify({ w: i, j: w.slots.length })}'></button>`).join('');
+    return `<div class="krow"><b class="kn">${P.wands.length > 1 ? (i ? 'B' : 'A') : ''}</b><img class="kimg" src="../zdroj/karty/palica-${kind || 'zakladna'}.jpg" alt="" title="Palica ${S.name} · ⚡${S.emax} · +${+S.regen.toFixed(1)}/s"><div class="kbar">${cells}</div>
+      <span class="kres" title="${r ? wandSteps(w.slots) : ''}"><span>${r ? '= <b>' + shortNum(Math.round(r.value * 100) / 100) + '</b>' : '?'}</span><small${cost > S.emax ? ' class="over"' : ''}>⚡${cost}/${S.emax}</small></span></div>`; };
+  const bagN = Math.max(8, P.bag.length + 1);
+  const bag = Array.from({ length: bagN }, (_, j) => P.bag[j] ? gem(P.bag[j], { j }) : `<i class="gem empty"></i>`).join('');
+  const fx = run.cards.map(c => `<i class="kfx" title="${CARDS[c.id] ? CARDS[c.id].name : c.id}"><img src="../zdroj/karty/${c.id}.jpg" alt="">${c.l > 1 ? `<u>${c.l}</u>` : ''}</i>`).join('') + Array.from({ length: Math.max(0, SLOTS - run.cards.length) }, () => '<i class="kfx empty"></i>').join('');
+  const html = `<div class="krow bagrow" data-loc='{"bag":1}'><b class="kn">${icon('star')}</b><div class="kbar">${bag}</div></div>
+    ${P.wands.map(wandHtml).join('')}
+    <div class="krow fxrow"><b class="kn">fx</b><div class="kbar">${fx}</div></div>
+    <p class="khint">Ťukni na kameň, potom na jamku · počíta sa zľava doprava</p>`;
   const el = overlay('Kniha kúziel', html, 'pack wandsbook'); addX(() => { closeOverlay(); if (fight.on) renderInput(); });
-  el.querySelector('#close').onclick = () => { closeOverlay(); if (fight.on) renderInput(); };
   const move = (from, to) => {
     const m = at(from); if (!m) return;
     if (to.w == null && !to.bag) {   // ťuk na kameň v ruksaku
