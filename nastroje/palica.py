@@ -22,13 +22,13 @@ for i, sl in enumerate(ndimage.find_objects(lab), 1):
     if i in edge or sl is None: continue
     h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
     area = (lab[sl] == i).sum()
-    if 40 < w < 140 and 0.8 < h / w < 1.25 and area > 0.6 * w * h:
+    if 30 < w < 160 and 0.75 < h / w < 1.3 and area > 0.55 * w * h:
         keys.append((sl[1].start + w / 2, sl[0].start + h / 2, (w + h) / 4))
 keys.sort(key=lambda k: (round(k[1] / 40), k[0]))
 
 # 2) OKIENKA DISPLEJA: nad klávesmi, tmavé obdĺžniky so svetlejším rámom → komponenty stredne sivej v páse nad klávesmi
-top = min(k[1] for k in keys) - max(k[2] for k in keys) * 1.2
-band = slice(int(top - 260), int(top))
+top = (min(k[1] for k in keys) - max(k[2] for k in keys) * 1.2) if keys else 0
+band = slice(max(0, int(top - 260)), max(1, int(top)))
 mid = (g[band] > 0.18) & (g[band] < 0.62)
 lab2, n2 = ndimage.label(mid)
 wins = []
@@ -52,9 +52,12 @@ rgba = np.zeros(a.shape + (4,), np.uint8)
 rgba[on] = (*BONE, 255); rgba[~on] = (*INK, 255); rgba[outside] = (0, 0, 0, 0)
 Image.fromarray(rgba, 'RGBA').save(f'scena3d/palice/{name}.png')
 
+meta = json.load(open('zdroj/palice/meta.json')).get(name.replace('-v2', ''), {})   # objímky a displej odmerané ručne (v % obrázka)
+if meta.get('disp'): keys = [k for k in keys if k[1] / H * 100 > meta['disp']['c'][1]]   # len klávesy pod displejom (nie iskry)
 pct = lambda x, y: [round(x / W * 100, 2), round(y / H * 100, 2)]
 data = { 'w': rgba.shape[1], 'h': rgba.shape[0],
   'wins': [{ 'c': pct(x, y), 'w': round(w / W * 100, 2), 'h': round(h / H * 100, 2) } for x, y, w, h in wins],
-  'keys': [{ 'c': pct(x, y), 'r': round(r / W * 100, 2) } for x, y, r in keys] }
+  'keys': [{ 'c': pct(x, y), 'r': round(r / W * 100, 2) } for x, y, r in keys],
+  'sockets': meta.get('sockets', []), 'sw': meta.get('sw', 6), 'disp': meta.get('disp') }
 json.dump(data, open(f'scena3d/palice/{name}.json', 'w'))
 print(len(wins), 'okienka,', len(keys), 'klávesov,', data['w'], '×', data['h'])

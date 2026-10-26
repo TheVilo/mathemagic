@@ -1141,7 +1141,7 @@ function gainWand(k) {
 // koliesko / šípky / ◀ ▶ = ďalšia palica; ťuk na kláves = vloží kameň (číslo vymení základ); ⌫ = posledný späť do ruksaku; C = všetko späť
 let staffI = 0, staffDir = 0, staffHit = false;
 // ILUSTROVANÉ PALICE (Gemini → nastroje/palica.py → dither): obrázok + poloha okienok displeja a klávesov v %
-const STAFF_ART = { zakladna: 'pocitadlo' }, ART = {};
+const STAFF_ART = { zakladna: 'pocitadlo2', tazka: 'monolit', graficka: 'graficka' }, ART = {};
 for (const [k, f] of Object.entries(STAFF_ART)) fetch(`palice/${f}.json`).then(r => r.json()).then(j => { ART[k] = { ...j, img: `palice/${f}.png` }; }).catch(() => {});
 const STAFF_DECO = {
   zakladna: '<path d="M18 40 C6 30 4 14 14 6 M14 6 l-6 2 M14 6 l2 -6 M242 40 C254 30 256 14 246 6 M246 6 l6 2" />',
@@ -1151,12 +1151,24 @@ const STAFF_DECO = {
   vedecka: '<path d="M60 -6 l14 -26 l14 26 M116 -6 l14 -34 l14 34 M172 -6 l14 -26 l14 26" /><circle cx="130" cy="-40" r="5" />',
   graficka: '<rect x="-14" y="-60" width="288" height="56" /><polyline points="-6,-32 20,-50 46,-14 72,-52 98,-20 124,-44 150,-12 176,-48 202,-24 228,-46 254,-16" />',
 };
+// DRAHOKAM (ilustrácia z Gemini, nastroje/gemy.py): brús podľa živlu, farba živlu, znak vyrytý na plôške
+const GEMCUT = { num: 4, '+': 0, '-': 3, '×': 7, '÷': 5, '√': 2, '²': 1, '³': 1, '!': 1, 'π': 6, 'e': 6, 'φ': 6 };
+const gemArt = m => `<span class="gemart g${m.t === 'num' ? 4 : GEMCUT[m.o] ?? 0}" style="--c:${m.t === 'num' ? '#f2efe6' : OPCOL2[m.o]}">${pix(modLabel(m))}</span>`;
 // palica ako ilustrácia: okienka displeja = jamky (svietia vložené kamene), klávesy = kamene z ruksaku, výsledok svieti na kryštáli
 function artWand(A, w, n, r, cost, dir, still) {
   const P = run.pack, ccol = m => m.t === 'num' ? '#f2efe6' : OPCOL2[m.o], last = w.slots.filter(m => m && m.t === 'mod').pop();
   const wins = A.wins.slice(0, n).map((o, j) => { const m = w.slots[j]; return `<i class="aw${m ? ' on' : ''}" data-w="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.w}%;height:${o.h}%;--c:${m ? ccol(m) : 'transparent'}">${m ? pix(modLabel(m)) : ''}</i>`; }).join('');
   const keys = A.keys.map((o, j) => `<i class="ak" data-k="${j}" style="left:${o.c[0]}%;top:${o.c[1]}%;width:${o.r * 2}%"></i>`).join('');   // klávesy len stlačí animácia pri vhodení kameňa
   const res = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
+  if (A.sockets && A.sockets.length) {   // OBJÍMKY: drahokamy sa vsádzajú priamo do kalkulačky, výsledok svieti na displeji
+    const socks = A.sockets.slice(0, n).map((c, j) => { const m = w.slots[j]; return `<i class="asock${m ? ' on' : ''}" data-w="${j}" style="left:${c[0]}%;top:${c[1]}%;width:${A.sw}%">${m ? gemArt(m) : ''}</i>`; }).join('');
+    const D = A.disp;
+    return `<div class="svart big${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--g:${last ? OPCOL2[last.o] : '#f2efe6'};aspect-ratio:${A.w}/${A.h}">
+      <img src="${A.img}" alt="">${socks}${keys}
+      <b class="adisp" style="left:${D.c[0] - D.w / 2}%;top:${D.c[1] - D.h / 2}%;width:${D.w}%;height:${D.h}%"><small>${r ? wandSteps(boostSlots(P, w.slots)).replace(/ = [^=]+$/, '') : 'najprv číslo'}<br>⚡${cost}</small>${r ? pix(String(res)) : ''}</b>
+      <span class="afn" style="top:${A.sockets[0][1] - 1}%;left:${Math.max(...A.sockets.map(c => c[0])) + A.sw / 2 + 2}%"><button class="btn sq" id="svback" title="posledný kameň späť do vaku">⌫</button><button class="btn sq" id="svclr" title="všetky kamene okrem čísla späť">C</button></span>
+    </div>`;
+  }
   return ` <div class="svart${dir ? (dir > 0 ? ' fr' : ' fl') : still ? ' still' : ''}" style="--g:${last ? OPCOL2[last.o] : '#f2efe6'};aspect-ratio:${A.w}/${A.h}">
     <img src="${A.img}" alt="">${wins}${keys}
     <b class="ares">${pix(String(res))}</b>
@@ -1174,7 +1186,7 @@ function openStaff(dir = 0) {
   const lcd = !w.slots.length ? '<span class="blink">_</span>' : r ? `<i>${pix(r.text.replace(/-/g, '-'))}</i>` : w.slots.map(tok).join('');   // vzorec so zátvorkami (počíta sa zľava doprava)
   const holes = Array.from({ length: n }, (_, j) => `<u class="${w.slots[j] ? 'on' : ''}" style="--c:${w.slots[j] ? (w.slots[j].t === 'num' ? 'var(--line)' : OPCOL2[w.slots[j].o]) : 'transparent'}"></u>`).join('');
   const keys = '';   // klávesy kalkulačky nie sú inventár – kamene sú vo VAKU (spoločný pre všetky palice) a hádžu sa do kalkulačky
-  const vak = Array.from({ length: Math.max(16, P.bag.length) }, (_, j) => { const m = P.bag[j]; return m ? `<button class="vs" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo – palica ním začína'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>` : '<i class="vs empty"></i>'; }).join('');
+  const vak = Array.from({ length: Math.max(12, P.bag.length) }, (_, j) => { const m = P.bag[j]; return m ? `<button class="vs art" data-b="${j}" style="--c:${m.t === 'num' ? 'var(--line)' : OPCOL2[m.o]}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo – palica ním začína'} · ⚡${modCost(m)}">${gemArt(m)}</button>` : '<i class="vs empty"></i>'; }).join('');
   const html = `<div class="sv">
     <div class="svtabs">${N > 1 ? '<button class="btn sq" id="svl">◀</button>' : ''}<button class="btn" id="svbag">Ruksak</button><button class="btn on">Palica ${staffI + 1}/${N}</button><button class="btn sq" id="svi" title="o palici">i</button>${N > 1 ? '<button class="btn sq" id="svr">▶</button>' : ''}</div>
     <div class="svinfo dpanel" hidden><b style="color:${col}">Palica ${S.name}</b><span>${n} jamky · rýchlosť ×${+(1 / S.cd).toFixed(2)} · sila ×${S.dmg}</span><span class="rule">${ruleText(S.rule) || S.text}</span><span>mana ⚡${M.emax} · +${+M.regen.toFixed(1)}/s</span></div>
@@ -1208,15 +1220,15 @@ function openStaff(dir = 0) {
     const mv = e => { if (!ghost && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
       if (!ghost) { ghost = g.cloneNode(true); ghost.classList.add('ghost'); ghost.style.width = r0.width + 'px'; ghost.style.height = r0.height + 'px'; document.body.appendChild(ghost); g.classList.add('lifted'); }
       ghost.style.transform = `translate(${e.clientX - r0.width / 2}px, ${e.clientY - r0.height / 2}px) scale(1.3) rotate(${(e.clientX - x0) * 0.06}deg)`;
-      const t = target(), r = t && t.getBoundingClientRect(), over = r && e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.top + r.height * (t.classList.contains('svart') ? 0.46 : 1); el.classList.toggle('dropok', !!over); };
+      const t = target(), r = t && t.getBoundingClientRect(), over = r && e.clientX > r.left + r.width * 0.25 && e.clientX < r.right - r.width * 0.25 && e.clientY > r.top + r.height * 0.15 && e.clientY < r.top + r.height * (t.classList.contains('svart') ? 0.46 : 1); el.classList.toggle('dropok', !!over); };
     const up = e => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
       const ok = el.classList.contains('dropok'); el.classList.remove('dropok'); if (ghost) { ghost.remove(); g.classList.remove('lifted'); }
       if (!ghost || ok) put(j); };
     addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   });
   // ťuk na okienko = kameň späť do vaku (základné číslo sa dá len vymeniť)
-  el.querySelectorAll('.aw[data-w]').forEach(b => b.onclick = () => { const k = +b.dataset.w; if (!w.slots[k] || k === 0) { if (k === 0) say('Základné číslo vymeníš tak, že hodíš do kalkulačky iné číslo.', 2200); return; } P.bag.push(...w.slots.splice(k, 1)); efekt('minca', 0.3, 0.9); redo(); });
-  if (staffHit) { staffHit = false; const ks = el.querySelectorAll('.ak'); if (ks.length) ks[Math.floor(Math.random() * ks.length)].classList.add('hit'); const ws = el.querySelectorAll('.aw.on'); if (ws.length) ws[ws.length - 1].classList.add('drop'); }
+  el.querySelectorAll('.aw[data-w], .asock[data-w]').forEach(b => b.onclick = () => { const k = +b.dataset.w; if (!w.slots[k] || k === 0) { if (k === 0) say('Základné číslo vymeníš tak, že hodíš do kalkulačky iné číslo.', 2200); return; } P.bag.push(...w.slots.splice(k, 1)); efekt('minca', 0.3, 0.9); redo(); });
+  if (staffHit) { staffHit = false; const ks = el.querySelectorAll('.ak'); if (ks.length) ks[Math.floor(Math.random() * ks.length)].classList.add('hit'); const ws = el.querySelectorAll('.aw.on, .asock.on'); if (ws.length) ws[ws.length - 1].classList.add('drop'); }
   el.querySelector('#svback').onclick = () => { if (w.slots.length > 1) { P.bag.push(w.slots.pop()); efekt('minca', 0.3, 0.9); redo(); } };
   el.querySelector('#svclr').onclick = () => { if (w.slots.length > 1) { P.bag.push(...w.slots.splice(1)); efekt('minca', 0.3, 0.8); redo(); } };
   el.querySelector('#svbag').onclick = () => { closeOverlay(); openWands(); };

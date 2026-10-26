@@ -127,3 +127,30 @@
     linear-gradient(315deg, rgba(14,14,16,.6) 0 26%, transparent 26%),
     var(--gshade) 0 0 / 100% 100%,
     linear-gradient(var(--c, #8a877f), var(--c, #8a877f)) !important; }
+
+/* DRAHOKAM ako ilustrácia: farba živlu len vnútri siluety (maska), navrchu ditherovaná rytina, znak vyrytý v strede */
+.gemart { position: relative; display: block; width: 100%; aspect-ratio: 1; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--c) 70%, transparent)); }
+.gemart::before, .gemart::after { content: ''; position: absolute; inset: 0; }
+.gemart::before { background: var(--c); -webkit-mask: var(--gm) center / contain no-repeat; mask: var(--gm) center / contain no-repeat; }
+.gemart::after { background: var(--gi) center / contain no-repeat; image-rendering: pixelated; }
+.gemart .pix { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); height: 24% !important; width: auto; fill: #0e0e10 !important; z-index: 1; filter: drop-shadow(1px 1px 0 rgba(255,255,255,.7)) !important; }
+.gemart.g0 { --gm: url(palice/gem-0-m.png); --gi: url(palice/gem-0.png); } .gemart.g1 { --gm: url(palice/gem-1-m.png); --gi: url(palice/gem-1.png); }
+.gemart.g2 { --gm: url(palice/gem-2-m.png); --gi: url(palice/gem-2.png); } .gemart.g3 { --gm: url(palice/gem-3-m.png); --gi: url(palice/gem-3.png); }
+.gemart.g4 { --gm: url(palice/gem-4-m.png); --gi: url(palice/gem-4.png); } .gemart.g5 { --gm: url(palice/gem-5-m.png); --gi: url(palice/gem-5.png); }
+.gemart.g6 { --gm: url(palice/gem-6-m.png); --gi: url(palice/gem-6.png); } .gemart.g7 { --gm: url(palice/gem-7-m.png); --gi: url(palice/gem-7.png); }
+.vs.art { clip-path: none !important; background: none !important; width: 50px; height: 50px; cursor: grab; }
+.vs.art.ghost { width: 64px !important; height: 64px !important; }
+/* objímky na palici a displej s výsledkom */
+.svart .asock { position: absolute; transform: translate(-50%, -50%); aspect-ratio: 1; display: grid; place-items: center; cursor: pointer; }
+.svart .asock .gemart { width: 92%; }
+.svart .asock.drop { animation: awdrop .35s steps(5); }
+.ov.dropok .svart .asock:not(.on) { box-shadow: 0 0 0 2px #ffd25a, 0 0 14px #ffd25a; border-radius: 30%; }
+.svart .adisp { position: absolute; display: flex; align-items: center; justify-content: flex-end; padding-right: 1.2%; }
+.svart .adisp .pix { height: 70%; fill: var(--g); filter: drop-shadow(0 0 3px var(--g)) drop-shadow(0 0 8px var(--g)); }
+.svart .afn { flex-direction: column; }
+
+.svart.big { height: 330vh; top: -60vh; }
+.svart .adisp { justify-content: space-between; padding: 0 1.2%; gap: 4px; }
+.svart .adisp small { font-size: clamp(8px, 1.3vh, 11px); line-height: 1.15; color: rgba(242,239,230,.55); text-align: left; white-space: nowrap; overflow: hidden; }
+.svart .adisp .pix { height: 78%; flex: none; }
+.vs.art { width: 46px; height: 46px; }
