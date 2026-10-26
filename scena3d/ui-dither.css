@@ -182,3 +182,11 @@ body.ovon .hero2d-ghost { visibility: hidden; }
 
 /* fotky kúziel a palíc sú ditherované (nastroje/karty-dither.py) – ostré pixely */
 img[src*="zdroj/karty/"] { image-rendering: pixelated; }
+
+/* LEVEL: kameň na palicu ako drahokam z palice, znaky bez žiary a vo vnútri rámu (Lukáš 26. 10.: „zvláštne“) */
+.lvo .lvart.key .pix, .lvo .lvart.itm { filter: none; }
+.ov.lvup .lvart.key .pix { height: 52px; max-width: 100%; }
+.ov.lvup .lvart.itm { font-size: 40px; overflow: hidden; }
+.lvo .lvart.gemw { padding: 8px; }
+.lvo .lvart.gemw .gemart { width: 100%; filter: none; }
+.lvo .lvart.gemw .gemart .pix { height: 26% !important; }

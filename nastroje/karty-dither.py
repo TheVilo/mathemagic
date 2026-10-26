@@ -1,16 +1,22 @@
-# Fotky kúziel a palíc → štýl hry: 5 sivých tónov (kresba.js), usporiadaný dither 4×4, 128 px (v hre ostré pixely)
+# Fotky kúziel a palíc → štýl hry: FAREBNÝ dither (Lukáš 26. 10.) – 5 tónov z farby kúzla (tma → farba → svetlo),
+# usporiadaný dither 4×4, 128 px (v hre ostré pixely). Farba sa zistí z obrázka (priemer sýtych pixelov).
 # Použitie: python3 nastroje/karty-dither.py   (zdroj/karty/*.jpg → zdroj/karty/*.png, originály ostanú)
-import glob, numpy as np
+import glob, colorsys, numpy as np
 from PIL import Image
-PAL = np.array([(0.22,0.18,0.22),(0.41,0.36,0.41),(0.6,0.55,0.58),(0.79,0.76,0.76),(0.96,0.94,0.87)]) * 255
 B = np.array([[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]) / 16 + 1/32
 S = 128
+INK, CREAM = np.array([14, 14, 16]), np.array([250, 244, 226])
 for f in sorted(glob.glob('zdroj/karty/*.jpg')):
-    im = Image.open(f).convert('L').resize((S, S), Image.LANCZOS)
-    a = np.asarray(im, np.float32) / 255
-    lo, hi = np.percentile(a, 3), np.percentile(a, 97); a = np.clip((a - lo) / max(hi - lo, 1e-3), 0, 1)   # celý rozsah tónov
+    src = Image.open(f).convert('RGB').resize((S, S), Image.LANCZOS)
+    rgb = np.asarray(src, np.float32)
+    mx, mn = rgb.max(2), rgb.min(2); sat = (mx - mn) / np.maximum(mx, 1)
+    w = (sat * (mx / 255)) ** 2
+    col = (rgb * w[..., None]).sum((0, 1)) / max(w.sum(), 1e-3) if w.sum() > 1 else np.array([200, 190, 170])
+    h, l, s_ = colorsys.rgb_to_hls(*(col / 255)); col = np.array(colorsys.hls_to_rgb(h, 0.55, max(0.55, min(0.9, s_ * 1.3)))) * 255   # čistá, žiarivá farba
+    pal = np.array([INK, INK * 0.4 + col * 0.35, col * 0.7, col, col * 0.35 + CREAM * 0.65])
+    a = rgb.mean(2) / 255
+    lo, hi = np.percentile(a, 2), np.percentile(a, 98); a = np.clip((a - lo) / max(hi - lo, 1e-3), 0, 1)
     t = a * 4; base = np.floor(t).clip(0, 3); frac = t - base
-    th = np.tile(B, (S // 4, S // 4))
-    idx = (base + (frac > th)).astype(int).clip(0, 4)
-    Image.fromarray(PAL[idx].astype(np.uint8)).save(f[:-4] + '.png', optimize=True)
+    idx = (base + (frac > np.tile(B, (S // 4, S // 4)))).astype(int).clip(0, 4)
+    Image.fromarray(pal[idx].astype(np.uint8)).save(f[:-4] + '.png', optimize=True)
 print('hotovo', len(glob.glob('zdroj/karty/*.png')))

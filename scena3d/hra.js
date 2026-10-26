@@ -1093,8 +1093,8 @@ function openLevelUp() {
   const pack = adv() && run.pack.wands ? (() => { const mods = wandOffers(run.lvl, run, Math.random, 3), its = itemOffers(run.lvl, run.pack, Math.random, 3), out = []; for (let k = 0; k < 3; k++) { const src = (Math.random() < 0.55 && its.length) || !mods.length ? its : mods; out.push(src.shift()); } out.forEach(o => { if (o.give.t === 'wmod') o.rar = modRar(o.give.m); }); return { items: out }; })() : levelOffers(run.lvl, run, Math.random, cards), offers = pack.items;
   // obrázok: karta → zdroj/karty/<id>.png, kláves → veľký znak z pixelového písma; rám a štítok podľa vzácnosti
   const KEYLAB = { p: '( )', s: '√', q: 'x²', c: 'x³', f: '!' };
-  const art = o => { const g = o.give; if (g.t === 'item') return `<div class="lvart key itm">${o.icon}</div>`; if (g.t === 'wmod') return `<div class="lvart key">${pix(modLabel(g.m))}</div>`; if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.png" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.png" alt="" onerror="this.remove()"></div>`;
-    const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.jpg" alt="" onerror="this.remove()"></div>`; };
+  const art = o => { const g = o.give; if (g.t === 'item') return `<div class="lvart key itm">${o.icon}</div>`; if (g.t === 'wmod') return `<div class="lvart gemw">${gemArt(g.m)}</div>`;   // kameň na palicu = rovnaký drahokam ako v palici if (g.t === 'pal') return `<div class="lvart"><img src="../zdroj/karty/palica-${g.k}.png" alt="" onerror="this.remove()"></div>`; if (g.t === 'card') return `<div class="lvart"><img src="../zdroj/karty/${g.id}.png" alt="" onerror="this.remove()"></div>`;
+    const k = g.t === 'n' ? String(g.v) : g.t === 'o' ? g.v : g.t === 'spec' ? KEYLAB[g.k] : null; return k ? `<div class="lvart key">${pix(k)}</div>` : `<div class="lvart"><img src="../zdroj/karty/${g.t === 'heart' ? 'srdce' : g.t}.png" alt="" onerror="this.remove()"></div>`; };
   const LV = run.lvl - lvlQueue;
   const el = overlay(`Úroveň ${LV}`, `<div class="lvhead">${pix(`${LV - 1}+1=${LV}`)}</div><div class="lvsigns">${['+', '-', '×', '÷'].map((o, i) => `<i style="--i:${i}">${pix(o)}</i>`).join('')}</div><p class="sub">${adv() ? 'Vyber si vylepšenie alebo kameň na palicu.' : 'Vyber si kartu alebo kláves do kalkulačky.'}</p>
     <div class="lvopts">${offers.map((o, i) => `<button class="lvo panel r-${o.rar}" data-i="${i}" style="--rc:${RARITY[o.rar].col};--i:${i}"><em class="rar">${RARITY[o.rar].name}</em>${art(o)}<b>${o.title}</b><span>${o.text}</span></button>`).join('')}</div>`, 'small lvup');
@@ -1658,7 +1658,7 @@ if (TEST) {
     run.pack.bag = [M('π'), M('e'), M('φ'), M('²'), M('!'), M('×', 4), M('+', 7), M('-', 5), M('√'), N(9)]; persist(); say('Silná výbava: 4 palice (π · e · φ · mocniny · faktoriál) a plný ruksak', 2500); };
 }
 // testovací háčik: __h.step(s) posunie hru o s sekúnd (Browser pane beží pomaly)
-window.__h = {
+window.__h = { lvlUp: () => addXp(xpNeed(run.lvl) + 1),
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },

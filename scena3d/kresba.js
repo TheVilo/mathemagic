@@ -171,7 +171,7 @@ export const kresbaMat = new THREE.ShaderMaterial({
             float irr = luma(texture2D(tLamp, uvg).rgb) / max(luma(texture2D(tAmb, uvg).rgb), 0.002) * uLampK;
             float pool = smoothstep(0.003, 0.2, irr);   // široký mäkký okraj → svetlo rozptýlené ditherom
             float orb = 0.0; for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) { float dO = length(wpq.xz - uOrbs[o].xz); orb = max(orb, 1.0 - smoothstep(uOrbs[o].w * 0.45, uOrbs[o].w * 1.3, dO));
-              float tw = (1.0 - smoothstep(uOrbs[o].w * 0.4, uOrbs[o].w * 2.6, dO)) * 0.7; orbT = max(orbT, tw); orbS += uOrbC[o] * tw; orbW += tw; }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
+              float tw = (1.0 - smoothstep(uOrbs[o].w * 0.3, uOrbs[o].w * 1.7, dO)) * 0.5; orbT = max(orbT, tw); orbS += uOrbC[o] * tw; orbW += tw; }   // kúzla svietia naplno + FAREBNÉ svetlo okolo (Lukáš 26. 10.)
             if (mg < 0.5) tone = mix(tone, max(tone, 1.02 - (1.0 - tone) * 0.25), pool * (uDark > 0.5 ? 0.95 : 0.45));
             { float halo = 1.0 - smoothstep(1.0, uDark > 0.5 ? 11.0 : 8.0, length(wpq.xz - uHero.xz)); halo *= halo;   // VEĽKÁ ROZPTÝLENÁ ŽIARA čarodejníka (Lukáš 26. 10.) – mäkko, bez tieňov
               if (mg < 0.5) tone = max(tone, mix(tone, 0.97, halo * (uDark > 0.5 ? 0.75 : 0.45))); }
