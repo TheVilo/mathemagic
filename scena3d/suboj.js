@@ -456,9 +456,28 @@ function cast(t, info) {
 function spellLights() { setOrbs(spells.filter(s => s.orb && !s.info.visual).slice(-4).map(s => ({ x: s.orb.position.x, z: s.orb.position.z, c: s.color, r: s.hit ? 3 + 3 * Math.max(0, s.flash) : 3.5 }))); }
 // KÚZLO = VEĽKÉ FAREBNÉ ZNAMIENKO: každá strela letí ako jasné + − × ÷ vo farbe živlu (ostré, mimo ditheringu), pri dopade sa rozprskne
 const SIGN = { 'π': 'π', 'e': 'e', 'φ': 'φ', '+': '+', '-': '-', '×': '×', '÷': '÷', '√': '√', '²': '²', '³': '³', '!': '!' };
+// KÚZLO = LETIACI DRAHOKAM (Lukáš 26. 10.: stačí drahokam, bez čísla): rovnaký brus ako v palici, farba kúzla, tieň ditherom
+const GEMCUT_S = { num: 4, '+': 0, '-': 3, '×': 7, '÷': 5, '√': 2, '²': 1, '³': 1, '!': 1, 'π': 6, 'e': 6, 'φ': 6 };
+const GEMIMG = [0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = new Image(), m = new Image(); a.src = `palice/gem-${i}.png`; m.src = `palice/gem-${i}-m.png`; return { a, m }; });
+const GEMURL = {};
+function gemURL(cut, color) {
+  const key = cut + '|' + color; if (GEMURL[key]) return GEMURL[key];
+  const G2 = GEMIMG[cut]; if (!G2.a.complete || !G2.m.complete || !G2.a.naturalWidth) return '';
+  const N = 40, cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+  const read = img => { x.clearRect(0, 0, N, N); x.drawImage(img, 0, 0, N, N); return x.getImageData(0, 0, N, N).data; };
+  const M = read(G2.m), A = read(G2.a), out = x.createImageData(N, N), c = new THREE.Color(color), CR = new THREE.Color(0xfff6dc);
+  const tones = [c.clone().multiplyScalar(0.45), c.clone(), c.clone().lerp(CR, 0.6)].map(t => [t.r * 255, t.g * 255, t.b * 255]);
+  const BAY = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+  for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const i = (yy * N + xx) * 4; if (M[i + 3] < 128) continue;
+    let col; if (A[i + 3] > 128) col = [14, 14, 16]; else { const l = 1 - (xx + yy) / (2 * N) + 0.15, t = l * 2 + BAY[yy & 3][xx & 3] / 16 - 0.5; col = tones[Math.max(0, Math.min(2, Math.round(t)))]; }   // svetlo zľava hore, ditherom
+    out.data[i] = col[0]; out.data[i + 1] = col[1]; out.data[i + 2] = col[2]; out.data[i + 3] = 255; }
+  x.putImageData(out, 0, 0); return (GEMURL[key] = cv.toDataURL());
+}
 function spellSign(s) {
-  const el = document.createElement('div'); el.className = 'spsign'; el.style.color = '#' + s.color.toString(16).padStart(6, '0');
-  el.innerHTML = pix(SIGN[s.info.op] || '+'); el.style.display = 'none'; document.body.appendChild(el); return el;
+  const el = document.createElement('div'); el.className = 'spsign gemfly'; el.style.color = '#' + s.color.toString(16).padStart(6, '0');
+  const ops = [s.info.op, ...(s.info.ops || [])].filter(o => GEMCUT_S[o] != null && o !== 'num'), op = s.info.visual ? s.info.op : (ops.length ? mainOp(s.info) : null);
+  const u = gemURL(op ? GEMCUT_S[op] : 4, op ? s.color : 0xf2efe6);
+  el.innerHTML = u ? `<img src="${u}" alt="">` : pix(SIGN[s.info.op] || '+'); el.style.display = 'none'; document.body.appendChild(el); return el;
 }
 function updateSpells(dt) {
   for (let i = spells.length - 1; i >= 0; i--) {
