@@ -12,6 +12,7 @@ import { CARDS, SLOTS, lvl, offer, makeMap, ROOM_INFO } from './karty.js';
 import { mulberry32 } from './gen.js';
 import { genWorld, AW, AH, GW, GH } from './world.js';
 import { manaStats } from './balance.js';
+import { WORLDS, themeProps, buildMagic } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
 import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur } from './kresba.js';
@@ -119,30 +120,16 @@ function nextZoneWorld() {
 // ---------- PROSTREDIA ZÓN (Majster, možnosť 2): pevné poradie Les → Hory → Dungeon → Sopka, potom znova a ťažšie ----------
 // každé má vlastný svet (podklad, modely) a jedno matematické pravidlo zóny (výsledok, ktorý ho splní, zraní ×2)
 const isPrimeZ = n => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
-const BIOMES = [
-  { id: 'les', name: 'Les zbojníkov', rule: null, ground: [0xd8d4ca, 0xe4e0d7], light: [5, 12] },
-  { id: 'hory', name: 'Zasnežené hory', rule: { t: 'párne výsledky ×2', f: n => n > 0 && n % 2 === 0 }, ground: [0xeef1f4, 0xf7f8fa], light: [5, 12] },
-  { id: 'dungeon', name: 'Dungeon', rule: { t: 'násobky 3 ×2', f: n => n > 0 && n % 3 === 0 }, ground: [0x8c857b, 0x9b948a], light: [4, 9] },
-  { id: 'sopka', name: 'Sopka', rule: { t: 'prvočísla ×2', f: isPrimeZ }, ground: [0x6e4c40, 0x7d5747], light: [5, 12] },
-];
+// SVETY (Majster): 8 svetov, každý s matematickým pojmom, pravidlom zóny a viditeľnou mágiou (magia.js); zem a dosah svetla tu
+const GROUND = { les: [0xd8d4ca, 0xe4e0d7], hory: [0xeef1f4, 0xf7f8fa], ruiny: [0xd6d0c2, 0xe2ddd0], dungeon: [0x8c857b, 0x9b948a], haj: [0xd2d6c6, 0xdfe3d3], sopka: [0x6e4c40, 0x7d5747], kruhy: [0xcfcac0, 0xdcd7cd], hrad: [0x9a958c, 0xaaa59b] };
+const BIOMES = WORLDS.map(w => ({ ...w, ground: GROUND[w.id], light: w.id === 'dungeon' || w.id === 'hrad' ? [4, 9] : [5, 12] }));
 const biomeOf = z => BIOMES[(z - 1) % BIOMES.length];
-function themeWorld(R, b) {
-  if (b.id === 'les') return;
-  const rnd = mulberry32(R.seed * 31 + R.zone), pk = a => a[Math.floor(rnd() * a.length)];
-  const MAP = {
-    hory: m => m.startsWith('tree_') ? pk(['tree_pineDefaultA', 'tree_pineRoundB', 'tree_cone']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['rock_smallA', 'rock_smallB', 'rock_smallFlatA']) : m,
-    dungeon: m => m.startsWith('tree_') ? pk(['barrel_large', 'crates_stacked', 'shelves', 'keg']) : m.startsWith('rock_tall') || m.startsWith('rock_large') ? pk(['wall', 'wall_corner', 'wall']) : m.startsWith('plant_bush') ? pk(['box_small', 'barrel_large']) : m.startsWith('stump') || m.startsWith('log') ? pk(['barrel_large', 'table_medium', 'stool']) : m.startsWith('mushroom') ? 'candle_lit' : m.startsWith('building_') ? 'wall' : m,
-    sopka: m => m.startsWith('tree_') ? pk(['stump_oldTall', 'rock_tallA', 'rock_tallB']) : m.startsWith('plant_bush') || m.startsWith('mushroom') ? pk(['rock_smallA', 'rock_smallC', 'rock_smallFlatA']) : m.startsWith('log') ? 'rock_largeC' : m,
-  }[b.id];
-  for (const p of R.props) p.m = MAP(p.m);
-  R.flowers = [];
-  R.grass = b.id === 'hory' ? R.grass.filter((_, i) => i % 4 === 0) : [];
-}
+let magic = null;
 function buildRoom() {
   clearRoom(); inside = false;
   denNoc();
   R = genWorld(run.seed, run.zone, { rune: run.range < 10 && !adv(), open: adv() });   // Majster: otvorený svet ako v hordových hrách
-  const BIO = adv() ? biomeOf(run.zone) : BIOMES[0]; if (adv()) themeWorld(R, BIO); G.zoneRule = adv() ? BIO.rule : null; kresbaMat.uniforms.uNightR.value.set(...BIO.light);
+  const BIO = adv() ? biomeOf(run.zone) : BIOMES[0]; if (adv()) themeProps(R, BIO, mulberry32(R.seed * 31 + R.zone)); G.zoneRule = adv() ? BIO.rule : null; kresbaMat.uniforms.uNightR.value.set(...BIO.light);
   const W = run.w;
   room = new THREE.Group(); scene.add(room); G.room = room;
   // zem celého sveta
@@ -160,6 +147,7 @@ function buildRoom() {
     if (fA[i].length) inst(room, FLOWER, MAT.flower, fA[i].map(f => ({ ...f, y: R.height(f.x, f.z) + 0.12 + f.s * 0.05 })), R.height);
     placeModels(room, pA[i], R.height);
   });
+  magic = adv() ? buildMagic(room, R, BIO, mulberry32(R.seed * 7 + R.zone)) : null;   // svietiace číslice a tvary sveta
   place = { height: R.height, inside: R.inside, blockers: R.props.filter(p => p.col).map(p => ({ x: p.x, z: p.z, r: p.col * p.s })), ground };
   // bandy pri ohni (porazené už nie sú), vodca stojí v pevnosti
   for (const c of R.camps) {
@@ -857,7 +845,7 @@ function dayNight(dt) {
   const n = dnCur > 0.5; if (n !== nightOn) { nightOn = n; G.night = n; say(n ? 'Padá noc · zásahy do teba ×2 · skúsenosti ×2' : 'Svitá · deň', 3500); efekt('objav', 0.6, n ? 0.8 : 1.4); }
 }
 function update(dt, t) {
-  dayNight(dt);
+  dayNight(dt); if (magic) magic.update(t);
   G.now = t; U.time.value = t;
   // pohyb
   const dir = new THREE.Vector3((keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), 0, (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0));
@@ -1485,5 +1473,5 @@ window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },
   press, fight, camLook, get viewZoom() { return viewZoom; }, get run() { return run; }, get R() { return R; }, hero, openPack, chooseMode, get gates() { return gates; }, get bands() { return bands; }, tp(x, z) { hero.position.set(x, place.height(x, z), z); target = null; },
   walk(x, z) { target = new THREE.Vector3(x, 0, z); }, get goalDone() { return goalDone; }, get chests() { return chests; }, get bushes() { return bushes; }, get lock() { return lock; },
-  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), dropPickup: k => dropPickup(hero.position, k), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); }, wandChoice() { wandQ++; }, get hordeLeft() { return hordeLeft; },
+  kresbaMat, gameOver, spawnMerchant, mergeNumbers, openBook, openMap, openShop, cardOffer, closeOverlay, get paused() { return paused; }, nextZone: () => nextZoneWorld(), dropPickup: k => dropPickup(hero.position, k), setHorde(n) { hordeN = n; hordeT = 0.05; }, get dbg() { return { fadeT, lockOn, inside, locked: heroLocked(), over: G.over, target, fightOn: fight.on }; }, newRun() { run = newRun(); persist(); }, wandChoice() { wandQ++; }, get hordeLeft() { return hordeLeft; }, get magic() { return magic; },
 };
