@@ -696,6 +696,7 @@ const WINDUP = { rogue: 0.6, knight: 0.75, barbarian: 0.95 };
 function separate(e) { const pos = e.g.position; for (const o of fight.enemies) if (o !== e && o.state !== 'dead') { const dx = pos.x - o.g.position.x, dz = pos.z - o.g.position.z, dd = Math.hypot(dx, dz); if (dd < 1.1 && dd > 0.001) { pos.x += dx / dd * (1.1 - dd) * 0.5; pos.z += dz / dd * (1.1 - dd) * 0.5; } } }
 function advAI(e, dist, sp, edt) {
   const pos = e.g.position, D = e.d, reach = 1.15 + (e.size - 1);
+  if (!e.tele && (e.state === 'windup' || e.state === 'chargeup' || e.state === 'aim')) { e.state = 'walk'; e.play('Running_A'); }   // varovanie zmizlo (zásah, omráčenie) → znova od chôdze
   e.chargeCd = Math.max(0, (e.chargeCd || 0) - edt); e.shoot -= edt;
   if (e.state === 'walk' || e.state === 'charge') {
     if (D.ranged) {

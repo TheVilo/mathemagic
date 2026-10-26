@@ -45,9 +45,9 @@ function capeWind(mat, b) {
     sh.vertexShader = 'uniform float uTime; uniform float uSpd; uniform vec2 uCape;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       float f = clamp((uCape.y - position.y) / (uCape.y - uCape.x), 0.0, 1.0);
       float sw = sin(uTime * 1.3) * 0.5 + sin(uTime * 2.7) * 0.15;              // rovnaký vietor ako stromy
-      transformed.x += sw * f * f * 0.06 + sin(uTime * 3.7 + position.y * 5.0) * f * 0.02;
-      transformed.z -= f * f * (0.05 + uSpd * 0.32) + sin(uTime * (5.0 + uSpd * 2.6) + position.x * 6.0) * f * (0.025 + uSpd * 0.07);   // pri behu výrazne veje dozadu
-      transformed.y += f * f * uSpd * 0.06;`);
+      transformed.x += sw * f * f * 0.03 + sin(uTime * 3.7 + position.y * 5.0) * f * 0.008;
+      transformed.z -= f * f * (0.03 + uSpd * 0.09) + sin(uTime * (4.0 + uSpd * 1.2) + position.x * 6.0) * f * (0.012 + uSpd * 0.018);   // pri behu len jemne dozadu (Lukáš 26. 10.: menej lietať)
+      transformed.y += f * f * uSpd * 0.015;`);
   };
   mat.customProgramCacheKey = () => key + 'cape';
 }

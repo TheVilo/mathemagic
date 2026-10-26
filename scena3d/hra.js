@@ -841,7 +841,7 @@ function renderDashBtn() { const b = $('bDash'); if (b) { b.classList.toggle('cd
 let dnCur = 0, nightOn = false;
 function dayNight(dt) {
   if (!adv() || scrOn || modeOn || inside) return;
-  const want = biomeOf(run.zone).dark ? 1 : 0;
+  const want = testDark != null ? testDark : biomeOf(run.zone).dark ? 1 : 0;
   if (Math.abs(want - dnCur) < 0.001 && Math.abs(dnT - dnCur) < 0.001) return;
   dnCur += Math.sign(want - dnCur) * Math.min(Math.abs(want - dnCur), dt * 0.35); denNocT(dnCur);
   const n = dnCur > 0.5; if (n !== nightOn) { nightOn = n; G.night = n; say(n ? 'Temný svet · zásahy do teba ×2 · skúsenosti ×2' : 'Svetlo · deň', 3500); efekt('objav', 0.6, n ? 0.8 : 1.4); }
@@ -985,6 +985,8 @@ let hordeT = 8, hordeN = 0, hordeWins = 0;   // prvá horda hneď na začiatku
 const HPZ = 10;   // hôrd v zóne (10. = vodca zóny)
 const HW = d => ({ rogue: 1, hooded: Math.min(0.8, Math.max(0, d - 0.15) * 1.8), knight: 0.25 + Math.min(1, d) * 0.5, barbarian: Math.min(0.7, Math.max(0, d - 0.6) * 1.0) });
 function updateHordes(dt) {
+  if (TEST && !testHorde) return;   // testovacia mapa: hordy len na tlačidlo
+  testHorde = false;
   if (!adv() || inside || G.over || tutOn() || paused || fadeT > 0) return;
   hordeT -= dt; if (hordeT > 0) return;
   hordeN++;
@@ -1570,6 +1572,16 @@ function tick() { requestAnimationFrame(tick); if (G.over && G.endShown && !ovEl
   const dt = Math.min(0.05, clock.getDelta()); simT += dt; try { update(dt, simT); } catch (e) { logErr(e); } try { draw(dt); } catch (e) { logErr(e); } }
 let simT = 0;
 requestAnimationFrame(tick);
+// TESTOVACIA MAPA (Lukáš 26. 10.): index.html?test – bez hôrd, panel vľavo: 8 biómov, deň/tma, privolať hordu; na ladenie vzhľadu svetov
+const TEST = new URLSearchParams(location.search).has('test'); let testHorde = false, testDark = null;
+if (TEST) {
+  const p = document.createElement('div'); p.id = 'testmap'; p.className = 'dpanel';
+  p.innerHTML = `<b>Testovacia mapa</b>${BIOMES.map((b, i) => `<button class="btn" data-z="${i + 1}">${i + 1} · ${b.name}</button>`).join('')}<button class="btn" data-l="0">Deň</button><button class="btn" data-l="1">Tma</button><button class="btn" data-l="">Podľa sveta</button><button class="btn" id="tmh">Privolať hordu</button>`;
+  document.body.appendChild(p);
+  p.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { closeOverlay(); run.hearts = Math.max(run.hearts, maxHearts()); run.zone = +b.dataset.z - 1; nextZoneWorld(); });
+  p.querySelectorAll('[data-l]').forEach(b => b.onclick = () => { testDark = b.dataset.l === '' ? null : +b.dataset.l; });
+  p.querySelector('#tmh').onclick = () => { testHorde = true; hordeT = 0; };
+}
 // testovací háčik: __h.step(s) posunie hru o s sekúnd (Browser pane beží pomaly)
 window.__h = {
   step(s) { for (let k = 0; k < s * 30; k++) { simT += 1 / 30; update(1 / 30, simT); } draw(1); },

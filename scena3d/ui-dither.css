@@ -167,3 +167,8 @@
 .svart .adisp { justify-content: center !important; }
 .svart .adisp small { position: absolute; left: 3%; top: 8%; font-size: clamp(7px, 1vh, 9px) !important; }
 .svart .adisp { background: #101012; box-shadow: inset 0 0 0 2px #0a0a0b; border-radius: 2px; }
+
+/* testovacia mapa (?test) */
+#testmap { position: fixed; left: 12px; top: 120px; z-index: 20; display: flex; flex-direction: column; gap: 6px; padding: 16px 14px; max-height: 70vh; overflow: auto; }
+#testmap b { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; } #testmap .btn { font-size: 11px; padding: 4px 10px 8px !important; justify-content: flex-start; }
+body.scron #testmap, body.ovon #testmap { display: none; }

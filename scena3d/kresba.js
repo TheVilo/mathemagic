@@ -175,10 +175,12 @@ export const kresbaMat = new THREE.ShaderMaterial({
           tone = mix(tone, uDark > 0.5 ? 0.22 : 0.78, fgD * 0.55);               // hmla do diaľky (sivá, nie biela/čierna)
           tone = clamp(tone, 0.0, 1.0) * 4.0;
           float tb = floor(min(tone, 3.999)), tf = tone - tb;
-          float th = bayer(floor(frag / 2.0));
+          vec2 cq = floor(frag / 3.0), pq = mod(frag, 3.0);
+          float th = bayer(cq);
+          if (tf > 0.3 && tf < 0.7) th = (abs(pq.x - pq.y) < 0.5 || abs(pq.x + pq.y - 2.0) < 0.5) ? 0.2 : 0.8;   // stredné tóny: vzor krížikov (ako predloha)
           float ti = tf > th ? tb + 1.0 : tb;
           if (tone > 3.6) ti = 4.0;                                               // SVETLO = čistá plocha bez bodiek (Lukáš 26. 10.)
-          vec3 g0 = vec3(0.16, 0.15, 0.16), g1 = vec3(0.38, 0.36, 0.37), g2 = vec3(0.58, 0.55, 0.55), g3 = vec3(0.78, 0.75, 0.72), g4 = vec3(0.95, 0.93, 0.86);
+          vec3 g0 = vec3(0.22, 0.18, 0.22), g1 = vec3(0.41, 0.36, 0.41), g2 = vec3(0.6, 0.55, 0.58), g3 = vec3(0.79, 0.76, 0.76), g4 = vec3(0.96, 0.94, 0.87);   // sivé do fialova (predloha petitjus)
           if (uDark > 0.5) { g3 = vec3(0.72, 0.66, 0.56); g4 = vec3(0.97, 0.91, 0.74); }   // v tme svetlo teplé ako sviečka, nie čisto biele
           vec3 gc = ti < 0.5 ? g0 : ti < 1.5 ? g1 : ti < 2.5 ? g2 : ti < 3.5 ? g3 : g4;
           gl_FragColor = vec4(mix(gc, outC, spellPx), 1.0); return;
@@ -241,15 +243,16 @@ export const kresbaMat = new THREE.ShaderMaterial({
   depthTest: false, depthWrite: false,
 });
 const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.1 }, uCell: { value: 5 } },
+  uniforms: { tImg: { value: glyphRT.texture }, uRes: { value: new THREE.Vector2() }, uFocus: { value: 0.5 }, uBand: { value: 0.06 }, uCell: { value: 7 } },
   vertexShader: VS,
   fragmentShader: `uniform sampler2D tImg; uniform vec2 uRes; uniform float uFocus; uniform float uBand; uniform float uCell; varying vec2 vUv;
     void main(){
       float dy = abs(vUv.y - uFocus); vec2 q = vUv - 0.5;
-      float r = (smoothstep(uBand, uBand + 0.3, dy) * 3.2 + dot(q, q) * 1.5) * uCell;   // TILT-SHIFT: ostrý pás okolo čarodejníka, hore a dole silne rozmazané (svet pôsobí ako malá maketa)
+      float r = (smoothstep(uBand, uBand + 0.28, dy) * 3.6 + dot(q, q) * 2.5) * uCell;   // TILT-SHIFT: ostrý pás okolo čarodejníka, hore a dole silne rozmazané (svet pôsobí ako malá maketa)
       vec3 acc = vec3(0.0);
       for (int i = 0; i < 20; i++) { float fi = float(i), a = fi * 2.39996; acc += texture2D(tImg, vUv + vec2(cos(a), sin(a)) * sqrt((fi + 0.5) / 20.0) * r / uRes).rgb; }
-      gl_FragColor = vec4(acc / 20.0 * (1.0 - dot(q, q) * 0.3), 1.0);
+      float vr = length(q * vec2(uRes.x / uRes.y, 1.0)) / (0.5 * max(uRes.x / uRes.y, 1.0));   // 0 stred … 1 roh
+      gl_FragColor = vec4(mix(acc / 20.0, vec3(0.07, 0.06, 0.07), smoothstep(0.62, 1.05, vr)), 1.0);   // GUĽATÁ VINETÁCIA ako šošovka (predloha petitjus)
     }`,
   depthTest: false, depthWrite: false,
 });
