@@ -141,12 +141,12 @@ export function pavement(room, R, b, rnd) {
       let x = rnd() * R.W, z = p % 2 ? 2 : R.H - 2, a = p % 2 ? 1.57 : -1.57, wob = rnd() * 6;
       if (p === 2) { x = 2; z = rnd() * R.H; a = 0; }
       for (let st = 0; st < 600; st++) {
-        a += Math.sin(st * 0.05 + wob) * 0.035; x += Math.cos(a) * 0.4; z += Math.sin(a) * 0.4;
+        a += Math.sin(st * 0.05 + wob) * 0.035; x += Math.cos(a) * 0.34; z += Math.sin(a) * 0.34;
         if (x < 1 || z < 1 || x > R.W - 1 || z > R.H - 1) break;
-        for (let w = -1; w <= 1; w++) {
-          const px = x - Math.sin(a) * w * 0.42 + (rnd() - 0.5) * 0.12, pz = z + Math.cos(a) * w * 0.42 + (rnd() - 0.5) * 0.12;
-          if (!R.inside(px, pz) || rnd() < (w ? 0.3 : 0.08)) continue;   // okraje cesty rozbité
-          list.push([px, pz, 0.26 + rnd() * 0.14, 0.22 + rnd() * 0.12, a + (rnd() - 0.5) * 0.6, 0]);
+        for (let w = -2; w <= 2; w++) {
+          const px = x - Math.sin(a) * w * 0.36 + (rnd() - 0.5) * 0.12, pz = z + Math.cos(a) * w * 0.42 + (rnd() - 0.5) * 0.12;
+          if (!R.inside(px, pz) || rnd() < (Math.abs(w) > 1 ? 0.45 : 0.06)) continue;   // okraje cesty rozbité
+          list.push([px, pz, 0.3 + rnd() * 0.12, 0.26 + rnd() * 0.1, a + (rnd() - 0.5) * 0.6, 0]);
         }
       }
     }

@@ -162,6 +162,14 @@ export const kresbaMat = new THREE.ShaderMaterial({
             if (texture2D(tDepth, uvg + o).r - dg > 0.0025) eg = 1.0;
             if (mg > 0.5 && texture2D(tMask, uvg + o).r < 0.5) eg = 1.0;
           }
+          // ČARODEJNÍK STÁLE SVIETI (Lukáš 26. 10., predloha petitjus): svetlý kruh okolo neho cez deň aj v tme, okraj sa rozpadá ditherom
+          if (dg < 0.9999) {
+            vec4 wpq = uInvVP * vec4(uvg * 2.0 - 1.0, dg * 2.0 - 1.0, 1.0); wpq /= wpq.w;
+            float pd = length(wpq.xz - uHero.xz), pool = 1.0 - smoothstep(uDark > 0.5 ? 2.0 : 2.5, uDark > 0.5 ? 6.5 : 7.5, pd);
+            for (int o = 0; o < 4; o++) if (uOrbs[o].w > 0.0) pool = max(pool, 1.0 - smoothstep(uOrbs[o].w * 0.3, uOrbs[o].w, length(wpq.xz - uOrbs[o].xz)));   // kúzla tiež svietia
+            float lit = uDark > 0.5 ? 0.9 : 0.97;
+            if (mg < 0.5) tone = mix(tone, max(tone, lit - (1.0 - tone) * 0.35), pool * (uDark > 0.5 ? 0.95 : 0.6));
+          }
           if (mg > 0.5) tone *= 0.6;                                            // postavy tmavšie ako svet (čitateľné)
           if (eg > 0.5 && dg < 0.9999) tone *= 0.62;                             // jemný obrys
           float fgD = smoothstep(uDepth.x, uDepth.y, dg);
