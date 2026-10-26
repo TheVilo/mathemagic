@@ -139,18 +139,29 @@
   .wand .wr { margin-top:8px; font-size:13px; color:var(--grey); } .wand .wr b { color:var(--line); font-size:16px; } .wand .wr em { color:#e8443a; font-style:normal; }
   .bagz { display:flex; flex-wrap:wrap; gap:6px; min-height:50px; padding:6px; border:1.5px dashed var(--dim); }
   @media (max-height:500px) { .wm { min-width:56px; height:48px; } .wm .pix { height:16px; } .wand { padding:6px 8px; margin:6px 0; } }
-  /* KNIHA KOMPAKTNE (ako Magicraft): riadky s malými okrúhlymi jamkami */
-  .ov.wandsbook .box { max-width:min(640px, 96vw); padding:22px 12px 10px; }
-  .krow { display:flex; align-items:center; gap:8px; margin:6px 0; } .krow .kn { width:16px; font-size:12px; color:var(--grey); text-align:center; flex:none; } .krow .kn svg { width:14px; height:14px; fill:var(--grey); }
-  .krow .kimg { width:34px; height:34px; object-fit:cover; border:1.5px solid var(--dim); flex:none; }
-  .krow .kbar { display:flex; flex-wrap:wrap; gap:5px; padding:5px 6px; background:#141416; border:1.5px solid var(--dim); flex:1; min-width:0; }
-  .krow:not(.bagrow):not(.fxrow) .kbar { flex:0 1 auto; } .bagrow .kbar { border-color:#5a4a38; } .bagrow { cursor:pointer; }
-  .krow .gem { width:32px; height:32px; border-width:2px; box-shadow:none; } .krow .gem .pix { height:12px; } .krow .gem small { display:none; } .krow .gem.base { border-radius:6px; }
-  .krow .gem.empty { border:1.5px solid #2c2b29; background:#0b0b0c; border-style:solid; cursor:default; } button.gem.empty { cursor:pointer; border-style:dashed; border-color:var(--dim); }
-  .krow .kres { flex:none; min-width:62px; font-size:12px; color:var(--grey); display:flex; flex-direction:column; align-items:flex-start; line-height:1.15; } .krow .kres span { white-space:nowrap; } .krow .kres b { color:var(--line); font-size:16px; } .krow .kres small { font-size:10px; } .krow .kres small.over { color:#e8443a; }
-  .kfx { position:relative; width:32px; height:32px; border:1.5px solid var(--dim); display:block; } .kfx img { width:100%; height:100%; object-fit:cover; display:block; } .kfx.empty { background:#0b0b0c; border-color:#2c2b29; }
-  .kfx u { position:absolute; right:-4px; bottom:-4px; text-decoration:none; font-size:9px; background:var(--ink); border:1px solid var(--line); padding:0 3px; }
-  .khint { margin:6px 0 0; font-size:10px; color:var(--grey); text-align:center; }
+  /* KNIHA KOMPAKTNE (ako Magicraft): ruksak + palice, kamene sa ťahajú */
+  .ov.wandsbook .box { width:auto; max-width:min(470px, 96vw); padding:22px 12px 12px; }
+  .krow { display:flex; align-items:center; gap:8px; margin:8px 0; } .krow .kn { width:16px; flex:none; text-align:center; } .krow .kn svg { width:14px; height:14px; fill:#c8923a; }
+  .krow .kbar { display:flex; flex-wrap:wrap; gap:6px; padding:6px 8px; background:#141416; border:1.5px solid var(--dim); min-width:0; }
+  .bagrow .kbar { flex:1; border-color:#5a4a38; background:repeating-linear-gradient(90deg, #17140f 0 6px, #141210 6px 7px); }
+  .wrow .kimg { width:64px; height:64px; object-fit:cover; flex:none; border:2px solid var(--line); box-shadow:0 0 14px rgba(127,214,255,.25); margin-right:-14px; position:relative; z-index:2; animation:wfloat 3s ease-in-out infinite; }
+  .wrow .kbar { padding-left:20px; border-left:0; }
+  @keyframes wfloat { 50% { transform:translateY(-3px) rotate(-2deg); } }
+  .krow .gem { width:36px; height:36px; border-width:2px; box-shadow:0 0 8px color-mix(in srgb, var(--c) 45%, transparent), inset 0 0 6px color-mix(in srgb, var(--c) 30%, transparent); touch-action:none; animation:gfloat 2.2s ease-in-out var(--d,0s) infinite; transition:transform .12s; }
+  .krow .gem .pix { height:13px; } .krow .gem small { display:none; } .krow .gem.base { border-radius:7px; }
+  .krow .gem:not(.empty):hover { transform:translateY(-3px) scale(1.12); animation:none; }
+  @keyframes gfloat { 50% { transform:translateY(-2px); } }
+  .krow .gem.empty { border:1.5px solid #2c2b29; background:#0b0b0c; box-shadow:inset 0 2px 4px #000; animation:none; } button.gem.empty { border-style:dashed; border-color:var(--dim); }
+  .krow .gem.lifted { opacity:.2; animation:none; }
+  .gem.ghost { position:fixed; left:0; top:0; z-index:999; pointer-events:none; margin:0; box-shadow:0 0 18px var(--c), 0 10px 18px rgba(0,0,0,.6); animation:none; transition:none; }
+  .ov.dragging .gem.empty[data-loc], .ov.dragging .bagrow .kbar { animation:slotpulse .7s steps(2) infinite; }
+  @keyframes slotpulse { 50% { border-color:var(--line); } }
+  .ov .hover { transform:scale(1.18) !important; border-color:var(--line) !important; box-shadow:0 0 12px var(--line) !important; }
+  .krow .gem.drop { animation:gdrop .35s steps(5); } @keyframes gdrop { 0% { transform:scale(1.6); filter:brightness(2.5); } 60% { transform:scale(.9); } 100% { transform:none; } }
+  .krow .gem.sel { transform:translateY(-4px) scale(1.12); }
+  .krow .kres { flex:none; min-width:54px; display:flex; flex-direction:column; align-items:flex-start; line-height:1.1; } .krow .kres b { color:var(--line); font-size:20px; display:inline-block; } .krow .kres b.pop { animation:rpop .4s steps(4); color:#ffd25a; }
+  @keyframes rpop { 0% { transform:scale(1.8); } 100% { transform:none; } }
+  .krow .kres small { font-size:10px; color:var(--grey); } .krow .kres small.over { color:#e8443a; }
   /* PALICA = palica s jamkami, moduly = kamene; ruksak = vak; galéria všetkých palíc */
   .wbody { display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:14px; align-items:start; }
   .staff { position:relative; display:flex; align-items:center; gap:0; padding:8px 0 8px 46px; }

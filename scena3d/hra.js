@@ -350,7 +350,7 @@ let paused = false;
 function overlay(title, html, cls = '') { document.body.classList.add('ovon'); ovEl.className = 'ov show ' + cls; ovEl.innerHTML = `<div class="box panel"><span class="ptag">${title}</span>${html}</div>`; paused = true; return ovEl; }
 // ✕ v rohu obrazovky (mimo .box, aby bol vždy vidno aj na nízkom mobile na šírku); klik = rovnaké ako tlačidlo Zavrieť
 function addX(fn) { let x = ovEl.querySelector(':scope > .ovx'); if (!x) { x = document.createElement('button'); x.className = 'ovx'; x.setAttribute('aria-label', 'Zavrieť'); x.textContent = '✕'; ovEl.appendChild(x); } x.onclick = fn; }
-function closeOverlay() { document.body.classList.remove('ovon'); ovEl.className = 'ov'; ovEl.innerHTML = ''; paused = scrOn; }
+function closeOverlay() { document.querySelectorAll('.gem.ghost').forEach(x => x.remove()); document.body.classList.remove('ovon'); ovEl.className = 'ov'; ovEl.innerHTML = ''; paused = scrOn; }
 // výber 1 z 3 (po súboji, z truhlice)
 function cardOffer(title, after) {
   const ids = offer(run, roomRng());
@@ -441,25 +441,28 @@ function wandSteps(slots) {
   return out;
 }
 function openWands() {
+  document.querySelectorAll('.gem.ghost').forEach(x => x.remove());   // zvyšok po nedokončenom ťahaní
   tutStep(1); $('bBook').classList.remove('pulse');
   const P = run.pack, at = loc => loc.w != null ? P.wands[loc.w].slots[loc.j] : P.bag[loc.j];
   // modul = kameň (kruh vo farbe živlu), vkladá sa do jamiek na palici; základné číslo = biely kameň v prvej jamke
   const gem = (m, loc, extra = '') => { const c = m.t === 'num' ? 'var(--line)' : OPCOL2[m.o];
     const on = wSel && wSel.w === loc.w && wSel.j === loc.j && (wSel.w != null || loc.w == null) ? ' sel' : '';
     return `<button class="gem${on}${extra}${m.t === 'num' ? ' base' : ''}" data-loc='${JSON.stringify(loc)}' style="--c:${c}" title="${m.t === 'mod' ? MOD[m.o].name + ': ' + MOD[m.o].text : 'základné číslo'}">${pix(modLabel(m))}<small>⚡${modCost(m)}</small></button>`; };
-  // KOMPAKTNE ako Magicraft: rad = ruksak, pod ním palice (obrázok + jamky + výsledok), dole efekty ako malé ikonky
+  // KOMPAKTNE ako Magicraft: hore ruksak, pod ním palice (veľký obrázok palice + jamky + výsledok); kamene sa ŤAHAJÚ (drag and drop)
   const wandHtml = (w, i) => { const n = wandSlots(P, i), kind = i === 1 ? P.kind2 : P.kind, S = staffStats({ ...P, kind }), r = evalWand(w.slots), cost = wandCost(w.slots);
     const cells = Array.from({ length: n }, (_, j) => w.slots[j] ? gem(w.slots[j], { w: i, j }) : `<button class="gem empty${j === 0 ? ' base' : ''}" data-loc='${JSON.stringify({ w: i, j: w.slots.length })}'></button>`).join('');
-    return `<div class="krow"><b class="kn">${P.wands.length > 1 ? (i ? 'B' : 'A') : ''}</b><img class="kimg" src="../zdroj/karty/palica-${kind || 'zakladna'}.jpg" alt="" title="Palica ${S.name} · ⚡${S.emax} · +${+S.regen.toFixed(1)}/s"><div class="kbar">${cells}</div>
-      <span class="kres" title="${r ? wandSteps(w.slots) : ''}"><span>${r ? '= <b>' + shortNum(Math.round(r.value * 100) / 100) + '</b>' : '?'}</span><small${cost > S.emax ? ' class="over"' : ''}>⚡${cost}/${S.emax}</small></span></div>`; };
-  const bagN = Math.max(8, P.bag.length + 1);
-  const bag = Array.from({ length: bagN }, (_, j) => P.bag[j] ? gem(P.bag[j], { j }) : `<i class="gem empty"></i>`).join('');
-  const fx = run.cards.map(c => `<i class="kfx" title="${CARDS[c.id] ? CARDS[c.id].name : c.id}"><img src="../zdroj/karty/${c.id}.jpg" alt="">${c.l > 1 ? `<u>${c.l}</u>` : ''}</i>`).join('') + Array.from({ length: Math.max(0, SLOTS - run.cards.length) }, () => '<i class="kfx empty"></i>').join('');
-  const html = `<div class="krow bagrow" data-loc='{"bag":1}'><b class="kn">${icon('star')}</b><div class="kbar">${bag}</div></div>
-    ${P.wands.map(wandHtml).join('')}
-    <div class="krow fxrow"><b class="kn">fx</b><div class="kbar">${fx}</div></div>
-    <p class="khint">Ťukni na kameň, potom na jamku · počíta sa zľava doprava</p>`;
-  const el = overlay('Kniha kúziel', html, 'pack wandsbook'); addX(() => { closeOverlay(); if (fight.on) renderInput(); });
+    const val = r ? shortNum(Math.round(r.value * 100) / 100) : '?';
+    return `<div class="krow wrow"><img class="kimg" src="../zdroj/karty/palica-${kind || 'zakladna'}.jpg" alt="" title="Palica ${S.name} · ⚡${S.emax} · +${+S.regen.toFixed(1)}/s"><div class="kbar">${cells}</div>
+      <span class="kres" title="${r ? wandSteps(w.slots) : ''}"><b class="${lastRes[i] != null && lastRes[i] !== val ? 'pop' : ''}">${val}</b><small${cost > S.emax ? ' class="over"' : ''}>⚡${cost}/${S.emax}</small></span></div>`; };
+  const bagN = Math.max(6, P.bag.length + 1);
+  const bag = Array.from({ length: bagN }, (_, j) => P.bag[j] ? gem(P.bag[j], { j }) : `<i class="gem empty" data-loc='{"bag":1}'></i>`).join('');
+  const html = `<div class="krow bagrow" data-loc='{"bag":1}'><b class="kn">${icon('star')}</b><div class="kbar">${bag}</div></div>${P.wands.map(wandHtml).join('')}`;
+  const again = ovEl.classList.contains('wandsbook') && ovEl.classList.contains('show');
+  let el;
+  if (again) { el = ovEl; el.querySelector('.box').innerHTML = `<span class="ptag">Kniha kúziel</span>${html}`; }   // prekreslenie bez „vyskočenia“ okna
+  else { el = overlay('Kniha kúziel', html, 'pack wandsbook'); addX(() => { closeOverlay(); if (fight.on) renderInput(); }); }
+  P.wands.forEach((w, i) => { const r = evalWand(w.slots); lastRes[i] = r ? shortNum(Math.round(r.value * 100) / 100) : '?'; });
+  el.querySelectorAll('.gem:not(.empty)').forEach((g, k) => g.style.setProperty('--d', (k * 0.37 % 2.2).toFixed(2) + 's'));   // každý kameň sa vznáša inak
   const move = (from, to) => {
     const m = at(from); if (!m) return;
     if (to.w == null && !to.bag) {   // ťuk na kameň v ruksaku
@@ -479,13 +482,39 @@ function openWands() {
     if (target) W.slots[to.j] = m; else W.slots.push(m);
     return true;
   };
-  el.querySelectorAll('[data-loc]').forEach(b => b.onclick = ev => {
-    ev.stopPropagation(); const loc = JSON.parse(b.dataset.loc);
-    if (!wSel) { if (loc.bag || !at(loc)) return; wSel = loc; return openWands(); }
-    if (JSON.stringify(wSel) === JSON.stringify(loc)) { wSel = null; return openWands(); }
-    const from = wSel; wSel = null; const ok = move(from, loc); if (ok) { persist(); efekt('minca', 0.4, 1.3); } openWands();
+  const done = (from, to) => { const ok = move(from, to); if (ok) { persist(); efekt('minca', 0.4, 1.3); dropAt = to; } openWands(); };
+  // ŤAHANIE: chytíš kameň → letí za prstom/myšou, voľné jamky blikajú, pustíš nad jamkou alebo ruksakom
+  el.querySelectorAll('.gem[data-loc]:not(.empty)').forEach(g => g.onpointerdown = ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const from = JSON.parse(g.dataset.loc), r = g.getBoundingClientRect(), x0 = ev.clientX, y0 = ev.clientY;
+    let ghost = null;
+    const mv = e => {
+      if (!ghost && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
+      if (!ghost) { ghost = g.cloneNode(true); ghost.classList.add('ghost'); ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px'; document.body.appendChild(ghost); g.classList.add('lifted'); el.classList.add('dragging'); wSel = null; efekt('minca', 0.15, 2); }
+      ghost.style.transform = `translate(${e.clientX - r.width / 2}px, ${e.clientY - r.height / 2}px) scale(1.3) rotate(${Math.max(-25, Math.min(25, (e.clientX - x0) * 0.08))}deg)`;
+      el.querySelectorAll('.hover').forEach(h => h.classList.remove('hover'));
+      const t = document.elementFromPoint(e.clientX, e.clientY); const tl = t && t.closest('[data-loc]'); if (tl && tl !== g) tl.classList.add('hover');
+    };
+    const up = e => {
+      if (up.done) return; up.done = true; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); removeEventListener('mouseup', up);
+      if (!ghost) {   // len ťuk = výber a ťuk na cieľ (ako predtým)
+        if (wSel && JSON.stringify(wSel) === JSON.stringify(from)) { wSel = null; return openWands(); }
+        if (wSel) { const f = wSel; wSel = null; return done(f, from); }
+        wSel = from; return openWands();
+      }
+      ghost.remove(); el.classList.remove('dragging'); g.classList.remove('lifted');
+      const t = document.elementFromPoint(e.clientX, e.clientY), tl = t && t.closest('[data-loc]');
+      if (!tl) return openWands();
+      const to = JSON.parse(tl.dataset.loc); if (JSON.stringify(to) === JSON.stringify(from)) return openWands();
+      if (to.w == null && !to.bag && from.w == null) return openWands();   // ruksak na ruksak – nič
+      done(from, to);
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up); addEventListener('mouseup', up);
   });
+  el.querySelectorAll('.gem.empty[data-loc], .bagrow').forEach(b => b.onclick = ev => { ev.stopPropagation(); if (!wSel) return; const f = wSel; wSel = null; done(f, JSON.parse(b.dataset.loc)); });
+  if (dropAt) { const k = JSON.stringify(dropAt.bag ? null : dropAt); const t = [...el.querySelectorAll('.gem[data-loc]')].find(x => x.dataset.loc === k); if (t) t.classList.add('drop'); dropAt = null; }
 }
+let lastRes = [], dropAt = null;
 function openPack() {
   if (adv() && run.pack.wands) return openWands();
   tutStep(1); tutTick(); $('bBook').classList.remove('pulse');
