@@ -162,16 +162,36 @@
   .bible code { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre-wrap; background: #1a1a1d; color: #d9d5ca; padding: 12px; margin-top: 8px; }
   @media (max-width: 600px) { .card { width: 150px; } .art { height: 120px; } .logo { font-size: 48px; } }
 </style>
+<link rel="stylesheet" href="ui-dither.css">
 </head>
 <body>
 <div class="wrap">
   <h1 class="kit">Mathemagic · UI</h1>
   <p class="kit">Pravidlo: farebné sú len karty kúziel. Všetko ostatné je 1-bit: čierne panely s bielou linkou a nitmi, pixelové písmo, ikonky v kosoštvorci, papierový svet za tým.</p>
   <nav class="kit">
-    <a href="#karty">Karty</a><a href="#intro">Intro</a><a href="#menu">Menu</a><a href="#hud">Súboj</a><a href="#vyber">Výber karty</a>
+    <a href="#v2">UI v2 dither</a><a href="#karty">Karty</a><a href="#intro">Intro</a><a href="#menu">Menu</a><a href="#hud">Súboj</a><a href="#vyber">Výber karty</a>
     <a href="#kniha">Kniha kúziel</a><a href="#krcma">Obchod</a><a href="#koniec">Výhra / prehra</a><a href="#ikony">Ikonky</a><a href="#prompty">Prompty pre Gemini</a>
   </nav>
 
+  <h2 class="kit" id="v2">UI v2 · dither 1-bit <span>jediný zdroj pravdy pre hru (ui-dither.css) · hĺbka len z bodiek · farebné len magické</span></h2>
+  <div style="background:#3a3936;padding:36px 28px 44px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:36px;align-items:start">
+    <div>
+      <div class="dpanel" style="padding:30px 18px 18px;color:#f2efe6"><span class="ptag" style="position:absolute;left:50%;top:-14px;transform:translateX(-50%)">Panel</span>
+        <p style="margin:0 0 8px;font-size:13px">Dvojitý rám, nity v rohoch, svetlo zhora v bodkách, bodkovaný tieň.</p>
+        <button class="btn">Potvrdiť</button> <button class="btn ghost">Späť</button>
+      </div>
+      <i class="dchain"></i>
+      <div class="dpanel" style="padding:14px 18px;color:#f2efe6;font-size:12px">Panel spojený reťazou</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:18px;color:#f2efe6">
+      <span class="dbar" style="--c:#e8443a"><span class="di">♥</span><i><u style="width:70%"></u></i></span>
+      <span class="dbar" style="--c:#7fd6ff"><span class="di">⚡</span><i><u style="width:45%"></u></i></span>
+      <span class="dbar" style="--c:#8dff98"><span class="di">✦</span><i><u style="width:85%"></u></i></span>
+      <div style="display:flex;gap:10px"><span class="dslot" style="width:46px;height:46px"></span><span class="dslot" style="width:46px;height:46px"></span><span class="dslot" style="width:46px;height:46px"></span><span class="dslot" style="width:46px;height:46px"></span></div>
+      <div style="display:flex;gap:8px"><button class="vs" style="--c:#c8923a">+4</button><button class="vs" style="--c:#7fe8d8">×2</button><button class="vs" style="--c:#ff5a22">−3</button><button class="vs" style="--c:#ffd25a">×π</button><i class="vs empty"></i></div>
+    </div>
+    <div class="lvopts" style="display:block"><button class="lvo panel" style="--rc:#b07ad8;width:100%;min-height:220px;padding:18px 14px;display:flex;flex-direction:column;gap:6px;align-items:center;color:#f2efe6"><em class="rar" style="color:#b07ad8;font-style:normal;font-size:11px">EPICKÁ</em><div class="lvart key" style="font-size:40px;width:90px;height:90px;display:grid;place-items:center">p</div><b>Prvočísla</b><span style="font-size:12px">prvočíselný výsledok preskočí na ďalších</span></button></div>
+  </div>
   <h2 class="kit" id="karty">Karty kúziel <span>4 živly + 8 kariet do Knihy · úroveň 1 a 2</span></h2>
   <div class="cards" id="cards"></div>
   <p class="notes">Obrázok v karte: keď uložíš obrázok z Gemini ako <b>mathemagic/zdroj/karty/&lt;id&gt;.jpg</b> (napr. mraz.jpg, zem.jpg), karta ho sama zobrazí namiesto pixelovej ikonky.</p>
