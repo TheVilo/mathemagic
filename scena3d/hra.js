@@ -84,7 +84,7 @@ const G = {
     if (adv() && (e.hb || e.zb)) wandQ++;   // vodca dá výber z 2 palíc
     if (adv() && e.hid && hordeLeft[e.hid] > 0 && --hordeLeft[e.hid] === 0) hordeCleared(e.hid);
     const raw = Math.round(info.raw ?? 0), prime = raw > 1 && isPrimeN(raw), five = raw > 0 && raw % 5 === 0;
-    dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1) * (prime ? 3 : 1), prime);
+    dropGems(e.g.position, xpFor(e.maxHp || 4) * (e.exact ? 2 : 1) * (prime ? 3 : 1) * (G.night ? 2 : 1), prime);   // v noci ×2
     if (info.extra) return;
     if (prime) floatText(`<span style="color:#ffd25a">${pix(String(raw))} prvočíslo</span>`, e);
     if (five) addCoins(1, e.g.position.clone().add(new THREE.Vector3(0, 2.4, 0)));   // násobok 5: vždy minca
@@ -838,7 +838,18 @@ function dash() {
   efekt('gula', 0.35, 1.6); renderDashBtn();
 }
 function renderDashBtn() { const b = $('bDash'); if (b) { b.classList.toggle('cd', dashCd > 0); b.style.setProperty('--cd', dashCd / 1.4); } }
+// DEŇ A NOC (Majster): hordy 1–4 cez deň, od 5. (vodca hordy) padá noc; v ďalšej zóne svitá
+// NOC = matematické pravidlo: zásahy do teba ×2, skúsenosti ×2 (riziko za odmenu)
+let dnCur = 0, nightOn = false;
+function dayNight(dt) {
+  if (!adv() || scrOn || modeOn || inside) return;
+  const wz = hordeN > 0 ? (hordeN - 1) % HPZ + 1 : 0, want = wz >= 5 ? 1 : 0;
+  if (Math.abs(want - dnCur) < 0.001 && Math.abs(dnT - dnCur) < 0.001) return;
+  dnCur += Math.sign(want - dnCur) * Math.min(Math.abs(want - dnCur), dt * 0.35); denNocT(dnCur);
+  const n = dnCur > 0.5; if (n !== nightOn) { nightOn = n; G.night = n; say(n ? 'Padá noc · zásahy do teba ×2 · skúsenosti ×2' : 'Svitá · deň', 3500); efekt('objav', 0.6, n ? 0.8 : 1.4); }
+}
 function update(dt, t) {
+  dayNight(dt);
   G.now = t; U.time.value = t;
   // pohyb
   const dir = new THREE.Vector3((keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), 0, (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0));

@@ -640,6 +640,7 @@ function hurtHero(dmg = 1) {
   fight.streak = 0; G.renderStreak();
   heroPlay('Hit_A', 0.05, 0.7);
   burst(hero.position.clone().add(new THREE.Vector3(0, 1, 0)), 50, 3, 0xd43a3a, 0.6);
+  if (fight.adv && G.night) dmg *= 2;   // noc: zásahy ×2
   if (fight.adv) G.floatText(`<span style="color:#ff5a4a">${pix('-' + dmg)}</span>`, hero.position.clone().add(new THREE.Vector3(0, 2.4, 0)), 'dmg');
   G.hurt(fight.adv ? dmg : 1);
 }
