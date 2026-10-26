@@ -20,12 +20,12 @@ export function gemURL(cut, color, N = 48) {
 // ROVNAKÝ BOD DITHERU AKO SVET (Lukáš 26. 10.): drahokam sa vyrobí presne v pixeloch, v ktorých sa zobrazí (1 bod = 2 px obrazovky)
 function ditherGems() {
   for (const el of document.querySelectorAll('.gemart[data-cut]:not(.gd)')) {
-    const w = el.getBoundingClientRect().width; if (w < 4) continue;
+    const w = el.offsetWidth; if (w < 4) { setTimeout(later, 120); continue; }
     const u = gemURL(+el.dataset.cut, el.dataset.c, Math.max(12, Math.round(w * (devicePixelRatio || 1) / 2))); if (!u) continue;
     el.style.backgroundImage = `url(${u})`; el.classList.add('gd');
   }
 }
-let gq = 0; const later = () => { if (!gq) gq = requestAnimationFrame(() => { gq = 0; ditherGems(); }); };
+let gq = 0; const later = () => { if (!gq) gq = setTimeout(() => { gq = 0; ditherGems(); }, 30); };
 new MutationObserver(later).observe(document.body, { childList: true, subtree: true });
 addEventListener('resize', () => { document.querySelectorAll('.gemart.gd').forEach(e => e.classList.remove('gd')); later(); });
 GEMIMG.forEach(g => { g.a.onload = g.m.onload = later; });

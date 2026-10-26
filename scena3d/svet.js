@@ -147,6 +147,13 @@ export function inst(parent, geo, mat, items, height, shadow = true) {
   mesh.count = items.length; mesh.castShadow = shadow; mesh.receiveShadow = true; mesh.computeBoundingSphere();
   parent.add(mesh); return mesh;
 }
+// POLOMER ZRÁŽKY z pôdorysu modelu (stavby sú veľké – malý kruh nestačil, dalo sa vojsť dnu; Lukáš 26. 10.)
+const FOOT = {};
+export function footR(name) {
+  if (FOOT[name] != null) return FOOT[name]; const parts = MODELS[name]; if (!parts) return 0;
+  const b = new THREE.Box3(); for (const p of parts) { p.geo.computeBoundingBox(); b.union(p.geo.boundingBox); }
+  return (FOOT[name] = Math.max(Math.abs(b.min.x), b.max.x, Math.abs(b.min.z), b.max.z) * 0.92);
+}
 export function placeModels(parent, props, height) {
   const by = {};
   for (const p of props) (by[p.m] = by[p.m] || []).push({ ...p, y: p.y ?? height(p.x, p.z) - 0.04 });
