@@ -7,7 +7,8 @@ import { rollSpell, spellWorks, enemyHp, workingRows, rowCost, used, tokOf } fro
 import { staffStats, manaStats, SHOT_MIN } from './balance.js';
 import { evalWand, wandKind, CONST } from './wand.js';
 import { applyRules, itemN } from './vylepsenia.js';
-import { kresbaMat, setOrbs } from './kresba.js';
+import { kresbaMat, setOrbs, setFxCanvas } from './kresba.js';
+const fxCv = document.createElement('canvas'), fctx = fxCv.getContext('2d'), fxTex = setFxCanvas(fxCv);
 import { efekt, akord, dopad } from './zvuk.js';
 import { addImpact, drawImpacts, mainOp } from './dopad.js';
 
@@ -243,8 +244,9 @@ export function drawTele(cam) {
   const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
   if (teleCv.width !== Math.round(W * dpr)) { teleCv.width = Math.round(W * dpr); teleCv.height = Math.round(H * dpr); }
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.clearRect(0, 0, W, H);
-  { const now = performance.now(), dt = Math.min(0.1, (now - (drawTele.last || now)) / 1000); drawTele.last = now;
-    drawImpacts(tctx, (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; }, dt); }
+  { const now = performance.now(), dt = Math.min(0.1, (now - (drawTele.last || now)) / 1000); drawTele.last = now;   // dopady a stopy: vlastné plátno → textúra na zemi v kresba.js (predmety ich zakryjú)
+    if (fxCv.width !== W || fxCv.height !== H) { fxCv.width = W; fxCv.height = H; } fctx.clearRect(0, 0, W, H);
+    drawImpacts(fctx, (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; }, dt); fxTex.needsUpdate = true; }
   if (!fight.on) return;
   const P = (x, z) => { _v.set(x, G.height(x, z) + 0.05, z).project(cam); return [(_v.x + 1) / 2 * W, (1 - _v.y) / 2 * H]; };
   const poly = pts => { tctx.beginPath(); pts.forEach(([x, y], i) => i ? tctx.lineTo(x, y) : tctx.moveTo(x, y)); tctx.closePath(); };
