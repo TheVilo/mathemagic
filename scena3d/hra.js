@@ -19,7 +19,7 @@ import { ocard } from './ui.js';   // drahokamy v ditheri (sleduje DOM)
 import { WORLDS, themeProps, buildMagic, groundStrokes, pavement } from './magia.js';
 import { hordeSize, hordeInterval, isBossWave, kindWeights, xpFor, xpNeed, levelOffers, nextSpecial, SPECIALS, enemyHpM, BOSSES, bossOf, FINAL_ZONE, bossHpMul, STAFF_MODELS, staffStats, MAX_STARS, RARITY, STAFF_RAR, calcOffers, rarityOf, CARD_RAR, specOwned, specAdd } from './balance.js';
 import { zvuk, efekt, hudba, nastavZvuk } from './zvuk.js';
-import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur, addSprite, setLampLight } from './kresba.js';
+import { svetloDen, svetloNoc, svetloDenNoc, renderKresba, resizeKresba, kresbaMat, kresbaBlur, addSprite, removeSprite, setLampLight } from './kresba.js';
 import { points } from './svet.js';
 import { ZIVLY, card, slot, dia, menu } from './ui.js';
 points.layers.enable(4);   // iskry patria kúzlu
@@ -111,7 +111,7 @@ function label(html, pos, cls = '') { const el = document.createElement('div'); 
 function clearRoom() {
   if (room) scene.remove(room);
   for (const l of labels) l.el.remove();
-  labels = []; band = []; bands = []; act = null; gates = []; if (typeof gems !== "undefined") gems.length = 0; chests = []; runes = []; bushes = []; lock = null;
+  labels = []; band = []; bands = []; act = null; gates = []; if (typeof gems !== "undefined") { gems.forEach(dropSpr); gems.length = 0; } chests = []; runes = []; bushes = []; lock = null;
   endFight();
 }
 function nextZoneWorld() {
@@ -1037,10 +1037,30 @@ let lvlQueue = 0;
 // KRYŠTÁLY SKÚSENOSTÍ (ako v hordových hrách): padnú z nepriateľa, magnet ich pritiahne, keď prejdeš blízko
 const gems = [], gemGeo = new THREE.OctahedronGeometry(0.13, 0), gemMat = new THREE.MeshBasicMaterial({ color: 0x8dff98 }), goldMat = new THREE.MeshBasicMaterial({ color: 0xffd25a });
 const isPrimeN = n => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
+// ZBERAČKY AKO PIXELOVÉ KRYŠTÁLY (Lukáš 26. 10.: v svetle ich nebolo vidno): tmavý obrys + farba, kreslia sa vo vrstve postavičiek
+const PICK_ART = { xp: ['...k....', '..kgk...', '.kgGgk..', 'kgGWGgk.', 'kgGGGgk.', '.kgGgk..', '..kgk...', '...k....'],
+  heart: ['.kk.kk..', 'kRRkRRk.', 'kRWRRRk.', 'kRRRRRk.', '.kRRRk..', '..kRk...', '...k....', '........'],
+  magnet: ['kkk.kkk.', 'kBk.kBk.', 'kBk.kBk.', 'kBBkBBk.', '.kBBBk..', '..kkk...', '........', '........'] };
+const PICK_COL = { xp: { g: '#3c9a4c', G: '#8dff98' }, gold: { g: '#a8742a', G: '#ffd25a' }, heart: { R: '#e8443a' }, magnet: { B: '#7fd6ff' } }, PICK_TEX = {};
+function pickTex(kind) {
+  if (PICK_TEX[kind]) return PICK_TEX[kind];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 8; const x = cv.getContext('2d'), C = { k: '#211c21', W: '#fff6dc', ...PICK_COL[kind] };
+  (PICK_ART[kind === 'gold' ? 'xp' : kind]).forEach((row, y) => [...row].forEach((ch, i) => { if (C[ch]) { x.fillStyle = C[ch]; x.fillRect(i, y, 1, 1); } }));
+  const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return (PICK_TEX[kind] = t);
+}
+const _pv = new THREE.Vector3();
+function drawPickSprite(g) {
+  if (!g.spr) { g.spr = addSprite(pickTex(g.kind || (g.gold ? 'gold' : 'xp')), 8, 8); g.m.visible = false; }
+  const M = g.spr, U = M.material.uniforms; _pv.copy(g.m.position).project(camera); const fx = (_pv.x + 1) / 2 * innerWidth, fy = (1 - _pv.y) / 2 * innerHeight;
+  _pv.copy(g.m.position); _pv.y += 1; _pv.project(camera); const k = Math.max(1, Math.round(Math.abs((1 - _pv.y) / 2 * innerHeight - fy) / 16)) * (g.gold || g.kind ? 2 : 1), w = 8 * k;
+  M.visible = !document.body.classList.contains('ovon') && !inside; M.position.set(fx, fy - w / 2 + Math.sin(g.t * 4) * k, 0); M.scale.set(w, -w, 1);
+  _pv.copy(g.m.position).project(camera); U.uDepth.value = _pv.z * 0.5 + 0.5; M.renderOrder = Math.round((1 - U.uDepth.value) * 1e6);
+}
+const dropSpr = g => { if (g.spr) removeSprite(g.spr); };
 function dropGems(p, xp, gold = false) {
   if (!adv()) return;
   const n = Math.min(6, Math.max(1, Math.round(Math.log2(xp + 1))));   // väčší nepriateľ = viac kryštálov
-  for (let i = 0; i < n; i++) { const m = new THREE.Mesh(gemGeo, gold ? goldMat : gemMat); if (gold) m.scale.setScalar(1.6); m.layers.enable(4); const a = Math.random() * 6.28, r = 0.3 + Math.random() * 0.9; m.position.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r); m.position.y = R.height(m.position.x, m.position.z) + 0.35; room.add(m); gems.push({ m, xp: xp / n, t: 0 }); }
+  for (let i = 0; i < n; i++) { const m = new THREE.Mesh(gemGeo, gold ? goldMat : gemMat); if (gold) m.scale.setScalar(1.6); m.layers.enable(4); const a = Math.random() * 6.28, r = 0.3 + Math.random() * 0.9; m.position.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r); m.position.y = R.height(m.position.x, m.position.z) + 0.35; room.add(m); gems.push({ m, xp: xp / n, t: 0, gold }); }
 }
 // ZBERAČKY (ako Vampire Survivors / Brotato): z nepriateľov vzácne padne srdce (lieči 1) alebo magnet (pritiahne všetky kryštály)
 // šance: srdce 1,2 % (len keď nemáš plné), magnet 0,6 %; vodca hordy = magnet, vodca zóny = srdce aj magnet
@@ -1070,8 +1090,9 @@ function updateGems(dt) {
     const g = gems[i]; g.t += dt; g.m.rotation.y += dt * 3;
     const d = Math.hypot(g.m.position.x - hp.x, g.m.position.z - hp.z);
     if (!g.kind && (d < mag || g.pull)) { g.pull = true; const k = Math.min(1, dt * (6 + g.t * 4)); g.m.position.x += (hp.x - g.m.position.x) * k; g.m.position.z += (hp.z - g.m.position.z) * k; g.m.position.y += (hp.y + 1 - g.m.position.y) * k; }
-    if (g.kind && d < 0.9) { room.remove(g.m); gems.splice(i, 1); pickUp(g.kind); continue; }
-    if (d < 0.5) { room.remove(g.m); gems.splice(i, 1); addXp(g.xp); efekt('minca', 0.2, 1.7 + Math.random() * 0.3); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
+    drawPickSprite(g);
+    if (g.kind && d < 0.9) { room.remove(g.m); dropSpr(g); gems.splice(i, 1); pickUp(g.kind); continue; }
+    if (d < 0.5) { room.remove(g.m); dropSpr(g); gems.splice(i, 1); addXp(g.xp); efekt('minca', 0.2, 1.7 + Math.random() * 0.3); spark(g.m.position, 0, 1.5, 0, 0.4, 0x8dff98); }
   }
 }
 function addXp(n, e) {

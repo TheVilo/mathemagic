@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mathemagic – návrh mapy</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --ink: #0e0e10; --line: #f2efe6; --grey: #8c8089; --c: #ffd25a; }
+  html, body { margin: 0; height: 100%; background: #0e0e10; color: var(--line); font-family: 'Pixelify Sans', monospace; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; cursor: pointer; }
+  .top { position: fixed; top: 22px; left: 0; right: 0; text-align: center; pointer-events: none; }
+  .top h1 { margin: 0; font-size: 30px; letter-spacing: 6px; font-weight: 700; }
+  .top p { margin: 6px 0 0; color: var(--grey); font-size: 14px; }
+  .panel { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); width: 260px; padding: 18px 18px 16px; background: #0e0e10;
+    border: 3px solid var(--line); outline: 3px solid #0e0e10; box-shadow: 0 0 0 6px var(--line); }
+  .panel .tag { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); background: #0e0e10; border: 3px solid var(--line); border-radius: 14px; padding: 2px 14px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+  .panel h2 { margin: 8px 0 4px; font-size: 22px; font-weight: 500; }
+  .panel .sub { color: var(--grey); font-size: 13px; margin: 0 0 12px; }
+  .panel .lock { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .panel .lock b { font-size: 40px; color: var(--c); line-height: 1; min-width: 56px; text-align: center; border: 3px dashed var(--c); padding: 4px 6px 8px; }
+  .panel .lock span { font-size: 13px; line-height: 1.35; }
+  .panel .ok { color: #8dff98; font-size: 14px; margin: 8px 0 0; }
+  .panel button { margin-top: 14px; width: 100%; font: inherit; font-size: 15px; letter-spacing: 2px; text-transform: uppercase; color: var(--line); background: #0e0e10; border: 3px solid var(--line); padding: 8px 0 10px; cursor: pointer; }
+  .panel button:hover { background: var(--line); color: #0e0e10; }
+  .panel button:disabled { opacity: .35; cursor: default; background: #0e0e10; color: var(--line); }
+  .legend { position: fixed; left: 22px; bottom: 20px; font-size: 12px; color: var(--grey); line-height: 1.7; }
+  .legend b { color: var(--line); font-weight: 500; }
+  .wand { position: fixed; left: 22px; top: 22px; font-size: 13px; color: var(--grey); }
+  .wand b { display: block; color: var(--line); font-size: 18px; font-weight: 500; margin-top: 2px; }
+  @media (max-width: 760px) { .panel { right: 12px; left: 12px; width: auto; top: auto; bottom: 12px; transform: none; } .legend { display: none; } .top h1 { font-size: 20px; letter-spacing: 3px; } }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="top"><h1>POSLEDNÝ POČTÁR</h1><p>Chaos – delenie nulou – rozsypal čísla sveta. Vybojuj si ho späť, políčko po políčku.</p></div>
+<div class="wand">Tvoja palica dáva výsledky<b id="res">3 · 4 · 6 · 9 · 12</b></div>
+<div class="panel" id="pn"></div>
+<div class="legend"><b>?</b> neznáme · <b>strom</b> les · <b>^</b> hory · <b>dom</b> dedina · <b>lebka</b> elita · <b>truhla</b> poklad · <b>koruna</b> vodca<br>Číslo na políčku = zámok: vojdeš, ak tvoj výsledok číslo DELÍ.</div>
+<script>
+// NÁVRH MAPY (Mathemagic): hexy v hmle, rovnaký dither ako hra (5 tónov, vzor bodka → X → plný), bod = 2 px obrazovky
+const GREY = [[56, 46, 56], [105, 92, 105], [153, 140, 148], [201, 194, 194], [245, 240, 222]];
+const pat = (tone, x, y) => { if (tone > 3.6) return 4; const tb = Math.floor(Math.min(tone, 3.999)), tf = tone - tb, px = x & 3, py = y & 3;
+  const xd = px === py || px + py === 3, d1 = px === 0 && py === 0, d2 = d1 || (px === 2 && py === 2);
+  return tb + (tf < 0.12 ? 0 : tf < 0.3 ? +d1 : tf < 0.45 ? +d2 : tf < 0.62 ? +xd : tf < 0.85 ? +!xd : 1); };
+// pixelové ikony 7×7
+const ICO = {
+  les: ['...#...', '..###..', '.#####.', '..###..', '.#####.', '#######', '...#...'],
+  hory: ['.......', '...#...', '..###..', '.##.##.', '##...##', '#.....#', '.......'],
+  dedina: ['...#...', '..###..', '.#####.', '#######', '.##.##.', '.##.##.', '.......'],
+  elita: ['.#####.', '#######', '#..#..#', '#######', '.##.##.', '.#.#.#.', '.......'],
+  poklad: ['.......', '.#####.', '#######', '#..#..#', '#######', '#######', '.......'],
+  vodca: ['#..#..#', '##.#.##', '#######', '#######', '#.#.#.#', '#######', '.......'],
+  sopka: ['..#.#..', '...#...', '..#.#..', '.#...#.', '#.....#', '#######', '.......'],
+  ruiny: ['#.#.#.#', '#.#.#.#', '#.#.#.#', '#.#.#.#', '#######', '.......', '.......'],
+  hrac: ['..###..', '.#####.', '..#.#..', '...#...', '.#####.', '...#...', '..#.#..'],
+};
+const DIG = { '0': '01110100011001110101110011000101110', '1': '00100011000010000100001000010001110', '2': '01110100010000100010001000100011111', '3': '11111000100010000010000011000101110', '4': '00010001100101010010111110001000010', '5': '11111100001111000001000011000101110', '6': '00110010001000011110100011000101110', '7': '11111000010001000100010000100001000', '8': '01110100011000101110100011000101110', '9': '01110100011000101111000010001001100', '?': '01110100010000100010001000000000100' };
+const NAME = { les: 'Les', hory: 'Hory', dedina: 'Dedina', elita: 'Elita', poklad: 'Poklad', vodca: 'Vodca', sopka: 'Sopka', ruiny: 'Ruiny' };
+const WHAT = { les: 'horda zbojníkov', hory: 'horda + strelci na skalách', dedina: 'obchodník, oddych, srdce', elita: 'silný bojovník, vzácna runa', poklad: 'truhlica bez boja', vodca: 'vodca zóny – palica za odmenu', sopka: 'horda v tme, láva', ruiny: 'horda, runy na zemi' };
+// mapa: axiálne súradnice v polomere 4
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const HEX = new Map(), key = (q, r) => q + ',' + r, R0 = 4;
+const kinds = ['les', 'les', 'les', 'hory', 'ruiny', 'sopka', 'les', 'hory'], NUMS = [4, 6, 8, 9, 12, 12, 18, 24, 6, 8, 3, 9];
+for (let q = -R0; q <= R0; q++) for (let r = Math.max(-R0, -q - R0); r <= Math.min(R0, -q + R0); r++) {
+  if (Math.abs(q) + Math.abs(r) + Math.abs(-q - r) > 2 * R0 - (rnd() < 0.18 ? 1 : 0) * 2 && (q || r)) continue;
+  HEX.set(key(q, r), { q, r, kind: kinds[Math.floor(rnd() * kinds.length)], num: NUMS[Math.floor(rnd() * NUMS.length)], st: 'fog', t: 0 });
+}
+const set = (q, r, o) => { const h = HEX.get(key(q, r)); if (h) Object.assign(h, o); };
+set(0, 0, { kind: 'dedina', st: 'done', num: 0 }); set(1, -1, { kind: 'les', st: 'done' }); set(0, 1, { kind: 'les', st: 'done' });
+set(2, -2, { kind: 'elita', num: 12 }); set(-2, 2, { kind: 'poklad', num: 8 }); set(3, -4, { kind: 'vodca', num: 24 }); set(-3, 0, { kind: 'dedina', num: 6 }); set(1, 1, { kind: 'poklad', num: 9 });
+let hero = { q: 0, r: 0 }, sel = null;
+const N6 = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+const nb = h => N6.map(([a, b]) => HEX.get(key(h.q + a, h.r + b))).filter(Boolean);
+const RES = [3, 4, 6, 9, 12];
+const opens = h => RES.some(v => h.num % v === 0 || v % h.num === 0 && false) && RES.some(v => h.num % v === 0);
+function refresh() { for (const h of HEX.values()) if (h.st !== 'done') h.st = nb(h).some(n => n.st === 'done') ? 'open' : 'fog'; }
+refresh();
+
+const cv = document.getElementById('cv'), x = cv.getContext('2d');
+let W, H, S, cx, cy, img;
+function size() { const dpr = devicePixelRatio || 1; W = Math.ceil(innerWidth * dpr / 2); H = Math.ceil(innerHeight * dpr / 2); cv.width = W; cv.height = H; S = Math.min(W, H) / 15; cx = W / 2 - (innerWidth > 760 ? W * 0.06 : 0); cy = H / 2 + H * 0.03; img = x.createImageData(W, H); }
+const hexXY = h => [cx + S * Math.sqrt(3) * (h.q + h.r / 2), cy + S * 1.5 * h.r];
+function hexAt(px, py) { // pixel → hex
+  const q = ((px - cx) * Math.sqrt(3) / 3 - (py - cy) / 3) / S, r = (py - cy) * 2 / 3 / S;
+  let rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r); const dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz + q + r);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; return HEX.get(key(rx, ry));
+}
+const noise = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
+function vnoise(a, b) { const i = Math.floor(a), j = Math.floor(b), f = a - i, g = b - j, u = f * f * (3 - 2 * f), v = g * g * (3 - 2 * g);
+  return (noise(i, j) * (1 - u) + noise(i + 1, j) * u) * (1 - v) + (noise(i, j + 1) * (1 - u) + noise(i + 1, j + 1) * u) * v; }
+let T = 0;
+function draw() {
+  T += 1 / 60; const d = img.data;
+  for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+    const h = hexAt(px, py); let tone;
+    // hmla: tmavá, pomaly sa vlní
+    const fog = 0.55 + 0.9 * vnoise(px / 26 + T * 0.15, py / 26 - T * 0.1) + 0.4 * vnoise(px / 9, py / 9 + T * 0.3);
+    if (h) {
+      const [hx, hy] = hexXY(h), dd = Math.hypot(px - hx, py - hy) / S;
+      const edge = (() => { const ax = Math.abs(px - hx) / S, ay = Math.abs(py - hy) / S; return Math.max(ay + ax / Math.sqrt(3), ax * 2 / Math.sqrt(3)); })();   // 1 = okraj hexu
+      const reveal = Math.min(1, h.t);
+      const base = h.st === 'done' ? 3.75 : h.st === 'open' ? 2.5 : 0.75 + fog * 0.55;
+      tone = h.st === 'done' && reveal < 1 ? 2.35 + (3.75 - 2.35) * reveal : base;
+      if (h.st !== 'fog') tone -= 0.25 * vnoise(px / 5, py / 5);
+      if (edge > 0.9) tone = h.st === 'fog' ? 0.45 : Math.min(tone, 1.4);   // škára medzi hexmi
+      if (h === sel && edge > 0.82) tone = 4;
+      if (h.st === 'open' && edge < 0.9 && Math.sin(T * 3) > 0.6 && h.kind === 'vodca') tone += 0.4;
+    } else tone = fog * 0.45;
+    // guľatá vinetácia ako predloha
+    const vr = Math.hypot((px - W / 2) / (H * 0.62), (py - H / 2) / (H * 0.55)); tone *= Math.max(0, 1 - Math.max(0, vr - 0.55) * 1.6);
+    const c = tone <= 0.05 ? [14, 14, 16] : GREY[pat(Math.max(0, tone), px, py)], i = (py * W + px) * 4;
+    d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  // ikony a čísla
+  const k = Math.max(1, Math.round(S / 9));
+  for (const h of HEX.values()) {
+    const [hx, hy] = hexXY(h), dark = h.st === 'done' ? '#2a2229' : '#f5f0de';
+    const glyph = (rows, ox, oy, col, kk = k) => { x.fillStyle = col; rows.forEach((row, j) => [...row].forEach((ch, i2) => { if (ch === '#' || ch === '1') x.fillRect(Math.round(ox + i2 * kk), Math.round(oy + j * kk), kk, kk); })); };
+    const dig = (str, ox, oy, col, kk) => [...String(str)].forEach((ch, n) => { const b = DIG[ch]; if (!b) return; glyph(Array.from({ length: 7 }, (_, j) => b.slice(j * 5, j * 5 + 5)), ox + n * 6 * kk, oy, col, kk); });
+    if (h.st === 'fog') { if (noise(h.q, h.r) < 0.45) dig('?', hx - 2.5 * k, hy - 3.5 * k, '#998c94', k); continue; }
+    glyph(ICO[h.kind], hx - 3.5 * k, hy - (h.st === 'open' ? 6 : 3.5) * k, dark);
+    if (h.st === 'open' && h.num) { const s2 = String(h.num), kk = Math.max(1, k - 1); dig(s2, hx - s2.length * 3 * kk + kk / 2, hy + 2 * k, opens(h) ? '#ffd25a' : '#8c8089', kk); }
+  }
+  const [hx, hy] = hexXY(hero); x.fillStyle = '#0e0e10'; x.fillRect(hx - 2 * k, hy + 4.5 * k, 4 * k, k); glyph2(ICO.hrac, hx + 3 * k, hy - 8 * k, '#0e0e10', k);
+  requestAnimationFrame(draw);
+  for (const h of HEX.values()) if (h.st === 'done' && h.t < 1) h.t += 0.03;
+}
+function glyph2(rows, ox, oy, col, kk) { x.fillStyle = col; rows.forEach((row, j) => [...row].forEach((ch, i2) => { if (ch === '#') x.fillRect(Math.round(ox + i2 * kk), Math.round(oy + j * kk), kk, kk); })); }
+const pn = document.getElementById('pn');
+function panel() {
+  const h = sel;
+  if (!h) { pn.innerHTML = `<span class="tag">Mapa zóny</span><h2>Kam pôjdeš?</h2><p class="sub">Klikni na svetlejšie políčko vedľa dobytých. Každé dobyté políčko sa vráti do sveta a odkryje susedov.</p><p class="sub">Hmla (?) = Chaos. Neviete, čo v nej je.</p>`; return; }
+  if (h.st === 'fog') { pn.innerHTML = `<span class="tag">Hmla</span><h2>Neznáme</h2><p class="sub">Chaos tu rozsypal čísla. Najprv dobi políčko vedľa.</p>`; return; }
+  if (h.st === 'done') { pn.innerHTML = `<span class="tag">Dobyté</span><h2>${NAME[h.kind]}</h2><p class="sub">Toto políčko patrí znova svetu.</p>`; return; }
+  const ok = opens(h), div = RES.filter(v => h.num % v === 0);
+  pn.innerHTML = `<span class="tag">${NAME[h.kind]}</span><h2>${NAME[h.kind]}</h2><p class="sub">${WHAT[h.kind]}</p>
+    <div class="lock"><b>${h.num}</b><span>Zámok: vojdeš s výsledkom, ktorý ${h.num} <u>delí</u>.<br>Delitele: ${Array.from({ length: h.num }, (_, i) => i + 1).filter(v => h.num % v === 0).join(', ')}</span></div>
+    <p class="ok">${ok ? `✓ tvoja palica vie: ${div.join(', ')}` : '✗ tvoja palica nedá žiadny deliteľ – prestav vzorec'}</p>
+    <button id="go" ${ok ? '' : 'disabled'}>Vybojovať</button>`;
+  const go = document.getElementById('go'); if (go) go.onclick = () => { h.st = 'done'; h.t = 0; hero = { q: h.q, r: h.r }; refresh(); sel = null; panel(); };
+}
+cv.onclick = e => { const dpr = devicePixelRatio || 1; const h = hexAt(e.clientX * dpr / 2, e.clientY * dpr / 2); sel = h || null; panel(); };
+addEventListener('resize', size); size(); panel(); draw();
+</script>
+</body>
+</html>

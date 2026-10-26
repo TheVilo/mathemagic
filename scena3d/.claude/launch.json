@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "mathemagic", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8815", "--bind", "127.0.0.1", "--directory", ".."], "port": 8815 }
+  ]
+}

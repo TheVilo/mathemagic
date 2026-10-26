@@ -56,7 +56,7 @@ const targetPos = t => t.bolt ? t.mesh.position.clone() : t.g.position.clone().a
 // štítky sa nesmú prekrývať: ten vyššie na obrazovke sa posunie ešte vyššie
 export function drawTags(camera) {
   const placed = [];
-  const list = targets().map(t => {
+  const list = targets().filter(t => t.el && t.el.style).map(t => {   // strely bez štítku (Majster) preskočiť
     const v = (t.bolt ? t.mesh.position.clone().add(new THREE.Vector3(0, 0.5, 0)) : t.g.position.clone().add(new THREE.Vector3(0, t.h + 0.35, 0))).project(camera);
     if (!t.w) { t.w = t.el.offsetWidth; t.hh = t.el.offsetHeight + 14; }
     return { t, x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight };
