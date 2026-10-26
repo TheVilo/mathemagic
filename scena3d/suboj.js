@@ -83,7 +83,11 @@ export function startFight(band, opts = {}) {
 }
 // Pokročilý: z vzorca v ruksaku sa hodí nový príklad (□ = náhodné číslo)
 function newRoll() { fight.roll = spellWorks(G.run) ? rollSpell(G.run) : null; if (fight.roll) fight.roll.born = G.now; }
-const aimAt = () => { const live = fight.enemies.filter(e => e.state !== 'dead'); if (fight.target && live.includes(fight.target)) return fight.target; return live.sort((a, b) => a.g.position.distanceTo(hero.position) - b.g.position.distanceTo(hero.position))[0] || null; };
+// DOSAH PALICE (Lukáš 26. 10.: nestrieľať automaticky do diaľky): každá palica dostrelí len tak ďaleko (m)
+const RANGE = { rychla: 7.5, zakladna: 9, dvojita: 9, tazka: 10.5, vedecka: 10.5, graficka: 11.5 };
+export const wandRange = () => RANGE[wandKind(G.run.pack, G.run.pack && G.run.pack.wands ? curRow() : 0)] || 9;
+const inRange = e => e.g.position.distanceTo(hero.position) <= wandRange() + 0.3;
+const aimAt = () => { const live = fight.enemies.filter(e => e.state !== 'dead' && inRange(e)); if (fight.target && live.includes(fight.target)) return fight.target; return live.sort((a, b) => a.g.position.distanceTo(hero.position) - b.g.position.distanceTo(hero.position))[0] || null; };
 export function setTarget(e) { if (!fight.adv || !fight.enemies.includes(e) || e.state === 'dead') return; fight.target = e; for (const t of fight.enemies) if (t.el) renderTag(t); if (fight.charged) fireAt(e); }
 // MAJSTER (ako Magicraft): kúzla sú v ruksaku, v súboji sa nepočíta – klik = výstrel kam mieriš.
 // Výsledok vzorca = damage aj sila efektu; dlhší vzorec sa dlhšie nabíja. Vedľa = kúzlo dopadne na zem.
@@ -106,8 +110,10 @@ export function fireAt(e, groundPoint = null, hand = 'a') {
   const row = hand === 'b' ? G.run.pack.bRow : curRow(), r = rollSpell(G.run, Math.random, row); if (!r) { G.say(hand === 'b' ? 'Ľavá palica: vzorec v Knihe nie je hotový.' : 'Kniha: vzorec kúzla nie je hotový.'); return false; }
   let t = e && fight.enemies.includes(e) && e.state !== 'dead' ? e : null;
   if (!t && !groundPoint) t = aimAt();
-  if (!t && !groundPoint) return false;
-  if (!t) { const g = new THREE.Object3D(); g.position.copy(groundPoint); t = { fake: true, g, h: 0, el: { classList: { add() {}, remove() {} } } }; }
+  if (!t && !groundPoint) { fight.rangeT = G.now + 0.8; return false; }   // nikto v dosahu → ukáž kruh dosahu
+  if (t && !inRange(t)) { groundPoint = t.g.position.clone(); t = null; }   // ďalej ako dosah: kúzlo dopadne na zem na hranici dosahu
+  if (!t) { const gp = groundPoint.clone(), d = new THREE.Vector3(gp.x - hero.position.x, 0, gp.z - hero.position.z), R = wandRange(); if (d.length() > R) { d.setLength(R); gp.set(hero.position.x + d.x, 0, hero.position.z + d.z); gp.y = G.height(gp.x, gp.z); }
+    const g = new THREE.Object3D(); g.position.copy(gp); t = { fake: true, g, h: 0, el: { classList: { add() {}, remove() {} } } }; }
   lastAim = { p: targetPos(t), t: G.now };
   // PALICA = KALKULAČKA S ENERGIOU: výstrel stojí súčet cien klávesov; bez energie sa nestrieľa (dobíja sa samo)
   const SK = handStats(hand), cost = rowCost(G.run.pack, row), E = handEnergy(hand);
@@ -263,6 +269,7 @@ export function drawTele(cam) {
     const k = Math.min(1, g.t / 0.25); fctx.globalAlpha = 1 - Math.max(0, (g.t - 0.25) / 0.35); fctx.fillStyle = g.c;
     for (let j = 0; j < 60; j++) { const a = j / 60 * 6.283, [x, y] = P(g.x + Math.cos(a) * g.r * k, g.z + Math.sin(a) * g.r * k); dot(fctx, x, y, 3); } fctx.globalAlpha = 1;
   }
+  if ((fight.rangeT || 0) > G.now) { fctx.fillStyle = kresbaMat.uniforms.uDark.value > 0.5 ? '#f5f0de' : '#695c69'; const R = wandRange(); for (let j = 0; j < 90; j++) { const a = j / 90 * 6.283, [x, y] = P(hero.position.x + Math.cos(a) * R, hero.position.z + Math.sin(a) * R); if (j % 2) dot(fctx, x, y, 2); } }   // KRUH DOSAHU palice
   // STRELY NEPRIATEĽOV = pixelové číslice (5×7 bodov), tmavý obrys, tieň na zemi
   for (const b of fight.bolts) if (b.adv) {
     const p = b.mesh.position, [gx, gy] = P(p.x, p.z);
